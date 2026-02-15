@@ -17,28 +17,18 @@ Your friendly memory companion for Claude Code. Larvling quietly imprints every 
 
 Requires Python 3.8+ and Claude Code 1.0.33+.
 
-**From a Git repo:**
-
 ```bash
 # Add the repo as a marketplace
 /plugin marketplace add https://github.com/athrael-soju/Larvling
 
 # Install the plugin
-/plugin install larvling@your-marketplace-name
+/plugin install larvling@larvling
 ```
 
 **For local development / testing:**
 
 ```bash
 claude --plugin-dir /path/to/Larvling
-```
-
-**Scopes** — choose where the plugin is available:
-
-```bash
-claude plugin install larvling@marketplace              # user (default, all projects)
-claude plugin install larvling@marketplace --scope project  # team (shared via git)
-claude plugin install larvling@marketplace --scope local    # this project only
 ```
 
 ## How It Works

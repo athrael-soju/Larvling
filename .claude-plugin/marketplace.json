@@ -1,0 +1,18 @@
+{
+  "name": "larvling",
+  "owner": {
+    "name": "athrael-soju"
+  },
+  "metadata": {
+    "description": "Agentic memory plugins for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "larvling",
+      "source": ".",
+      "description": "Automatic conversation tracking, session context, and a searchable dashboard",
+      "keywords": ["memory", "auditing", "dashboard", "session-tracking"],
+      "repository": "https://github.com/athrael-soju/Larvling"
+    }
+  ]
+}
