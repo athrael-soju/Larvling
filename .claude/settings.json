@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/transcript.py && python scripts/dashboard.py",
+            "command": "python scripts/hooks.py && python scripts/dashboard.py",
             "timeout": 10
           }
         ]
@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/transcript.py && python scripts/dashboard.py",
+            "command": "python scripts/hooks.py && python scripts/dashboard.py",
             "timeout": 15
           }
         ]
@@ -49,7 +49,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/session_end.py && python scripts/dashboard.py",
+            "command": "python scripts/hooks.py && python scripts/dashboard.py",
             "timeout": 15
           }
         ]

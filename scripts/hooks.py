@@ -1,9 +1,10 @@
 """
-Larvling Transcript Logger — captures both sides of the conversation into the audit table.
+Larvling Hooks — unified handler for conversation lifecycle events.
 
-Handles two hook events:
+Handles three hook events:
   - UserPromptSubmit: logs the user's prompt directly from stdin JSON
   - Stop: reads transcript_path JSONL to extract the agent's last response
+  - SessionEnd: logs session duration metadata
 """
 
 import json
@@ -136,6 +137,38 @@ def handle_user_prompt(data):
     conn.close()
 
 
+def get_session_duration(conn, session_id):
+    """Calculate session duration from first to last audit entry."""
+    cur = conn.execute(
+        """
+        SELECT
+            MIN(timestamp) as first_msg,
+            MAX(timestamp) as last_msg,
+            ROUND((julianday(MAX(timestamp)) - julianday(MIN(timestamp))) * 1440, 1) as duration_min
+        FROM audit
+        WHERE session_id = ?
+        """,
+        (session_id,),
+    )
+    row = cur.fetchone()
+    if row and row[2] is not None:
+        return {"started_at": row[0], "ended_at": row[1], "duration_min": row[2]}
+    return {}
+
+
+def handle_session_end(data):
+    """Log session duration from a SessionEnd event."""
+    session_id = data.get("session_id")
+    if not session_id:
+        return
+
+    conn = get_db()
+    meta = {}
+    meta.update(get_session_duration(conn, session_id))
+    log_audit(conn, session_id, "session_end", "Session ended", meta)
+    conn.close()
+
+
 def handle_stop(data):
     """Log the agent's last response from a Stop event."""
     session_id = data.get("session_id")
@@ -179,6 +212,8 @@ def main():
         handle_user_prompt(data)
     elif event == "Stop":
         handle_stop(data)
+    elif event == "SessionEnd":
+        handle_session_end(data)
 
 
 if __name__ == "__main__":
