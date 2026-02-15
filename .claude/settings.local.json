@@ -8,11 +8,11 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup",
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/preflight.py"
+            "command": "python scripts/preflight.py",
+            "timeout": 10
           }
         ]
       }
