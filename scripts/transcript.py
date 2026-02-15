@@ -7,6 +7,7 @@ Handles two hook events:
 """
 
 import json
+import re
 import sqlite3
 import os
 import sys
@@ -124,10 +125,15 @@ def count_tool_calls(transcript_path):
     return tools
 
 
+def strip_ide_tags(text):
+    """Remove leading IDE context tags (opened files, selections) prepended by VSCode."""
+    return re.sub(r"^(?:<ide_(?:opened_file|selection)>.*?</ide_(?:opened_file|selection)>\s*)+", "", text, flags=re.DOTALL).strip()
+
+
 def handle_user_prompt(data):
     """Log the user's prompt from a UserPromptSubmit event."""
     session_id = data.get("session_id")
-    prompt = data.get("prompt", "")
+    prompt = strip_ide_tags(data.get("prompt", ""))
 
     if not prompt:
         return

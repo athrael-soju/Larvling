@@ -49,6 +49,8 @@ def get_sessions(conn):
                     pass
         user_count = sum(1 for m in messages if m["event_type"] == "user_message")
         agent_count = sum(1 for m in messages if m["event_type"] == "agent_message")
+        if user_count + agent_count == 0:
+            continue  # Skip sessions with no conversation messages
         sessions.append(
             {
                 "session_id": sid,
@@ -112,12 +114,11 @@ def render_sidebar_item(session, index):
 
     duration = meta.get("duration_min") or 0
     duration_str = f"{duration}m" if duration else ""
-    has_files = 1 if meta.get("files_changed") else 0
-    summary = escape(meta.get("summary", "")) or f"{session['msg_count']} messages"
+    summary = f"{session['msg_count']} messages"
     active = "active" if index == 0 else ""
     sid = escape(session["session_id"] or "")
 
-    return f"""<div class="sidebar-item {active}" data-sid="{sid}" data-started="{escape(started)}" data-msgs="{session['msg_count']}" data-duration="{duration}" data-files="{has_files}">
+    return f"""<div class="sidebar-item {active}" data-sid="{sid}" data-started="{escape(started)}" data-msgs="{session['msg_count']}" data-duration="{duration}">
         <div class="si-top">
             <span class="si-date">{escape(date_part)}</span>
             <span class="si-time">{escape(time_part)}</span>
@@ -138,24 +139,12 @@ def render_detail_panel(session):
 
     duration = meta.get("duration_min")
     duration_str = f"{duration} min" if duration else ""
-    diff_summary = escape(meta.get("diff_summary", ""))
-    files_changed = meta.get("files_changed", [])
     sid = escape(session["session_id"] or "")
 
     chips = []
     if duration_str:
         chips.append(f'<span class="chip">{duration_str}</span>')
-    if files_changed:
-        chips.append(f'<span class="chip">{len(files_changed)} files</span>')
     chips_html = " ".join(chips)
-
-    files_html = ""
-    if files_changed:
-        file_list = ", ".join(escape(f) for f in files_changed[:8])
-        more = f" +{len(files_changed) - 8} more" if len(files_changed) > 8 else ""
-        files_html = f'<div class="detail-files">{file_list}{more}</div>'
-
-    diff_html = f'<div class="detail-diff">{diff_summary}</div>' if diff_summary else ""
 
     msgs = [render_message(m) for m in session["messages"]]
     msgs_html = "\n".join(m for m in msgs if m)
@@ -166,8 +155,6 @@ def render_detail_panel(session):
             {chips_html}
             <span class="detail-sid">{sid[:8]}</span>
         </div>
-        {files_html}
-        {diff_html}
         <div class="messages">{msgs_html}</div>
     </div>"""
 
@@ -227,8 +214,6 @@ def render_page(sidebar_html, details_html, revision=0):
     .detail-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.25rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .detail-date { font-weight: 600; font-size: 0.95rem; }
     .detail-sid { color: var(--muted); font-size: 0.75rem; font-family: monospace; margin-left: auto; }
-    .detail-files { color: var(--muted); font-size: 0.75rem; font-family: monospace; padding: 0.5rem 1.25rem; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    .detail-diff { color: var(--muted); font-size: 0.75rem; padding: 0.35rem 1.25rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .chip { background: rgba(245, 166, 35, 0.1); border: 1px solid rgba(245, 166, 35, 0.2); border-radius: 12px; padding: 0.1rem 0.5rem; font-size: 0.7rem; color: var(--accent2); }
 
     .no-session { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 0.9rem; }
@@ -236,7 +221,7 @@ def render_page(sidebar_html, details_html, revision=0):
     /* Messages */
     .messages { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; overflow-y: auto; padding: 1rem 1.25rem; }
     .msg { padding: 0.5rem 0.75rem; border-radius: 8px; max-width: 95%; flex-shrink: 0; transition: opacity 0.15s; }
-    .msg.search-dim { opacity: 0.25; }
+    .msg.search-dim { display: none; }
     .msg.search-hit { border-left: 2px solid var(--accent); }
     .msg.search-hit mark { background: rgba(245, 166, 35, 0.3); color: inherit; border-radius: 2px; padding: 0 1px; }
     .msg-user { background: var(--user); align-self: flex-end; }
@@ -299,7 +284,6 @@ def render_page(sidebar_html, details_html, revision=0):
                 <option value="all">All</option>
                 <option value="today">Today</option>
                 <option value="week">This week</option>
-                <option value="has-files">Has file changes</option>
             </select>
         </div>
         <div class="sidebar-list" id="sidebar-list">
@@ -365,7 +349,6 @@ function applyFilter(value) {
         switch (value) {
             case 'today': show = dateStr === todayStr; break;
             case 'week': show = dateStr >= weekAgo; break;
-            case 'has-files': show = el.dataset.files === '1'; break;
         }
         el.style.display = show ? '' : 'none';
     });
