@@ -9,7 +9,10 @@
   "plugins": [
     {
       "name": "larvling",
-      "source": ".",
+      "source": {
+        "source": "github",
+        "repo": "athrael-soju/Larvling"
+      },
       "description": "Automatic conversation tracking, session context, and a searchable dashboard",
       "keywords": ["memory", "auditing", "dashboard", "session-tracking"],
       "repository": "https://github.com/athrael-soju/Larvling"
