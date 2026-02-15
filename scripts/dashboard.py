@@ -17,23 +17,16 @@ HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
 
 def get_sessions(conn):
     """Get audit entries grouped by session, newest first."""
-    cur = conn.execute(
-        """
-        SELECT session_id, MIN(timestamp) as started, MAX(timestamp) as ended,
-               COUNT(*) as msg_count
-        FROM audit
-        WHERE session_id IS NOT NULL
-        GROUP BY session_id
-        ORDER BY started DESC
-    """
-    )
+    rows = conn.execute(
+        "SELECT * FROM audit WHERE session_id IS NOT NULL ORDER BY id DESC"
+    ).fetchall()
+
+    by_session = {}
+    for row in rows:
+        by_session.setdefault(row["session_id"], []).append(row)
+
     sessions = []
-    for row in cur.fetchall():
-        sid = row["session_id"]
-        messages = conn.execute(
-            "SELECT * FROM audit WHERE session_id = ? ORDER BY id DESC",
-            (sid,),
-        ).fetchall()
+    for sid, messages in by_session.items():
         end_meta = {}
         for m in messages:
             if m["event_type"] == "session_end" and m["metadata"]:
@@ -44,17 +37,20 @@ def get_sessions(conn):
         user_count = sum(1 for m in messages if m["event_type"] == "user_message")
         agent_count = sum(1 for m in messages if m["event_type"] == "agent_message")
         if user_count + agent_count == 0:
-            continue  # Skip sessions with no conversation messages
+            continue
+        timestamps = [m["timestamp"] for m in messages if m["timestamp"]]
         sessions.append(
             {
                 "session_id": sid,
-                "started": row["started"],
-                "ended": row["ended"],
+                "started": min(timestamps) if timestamps else None,
+                "ended": max(timestamps) if timestamps else None,
                 "msg_count": user_count + agent_count,
                 "messages": messages,
                 "end_meta": end_meta,
             }
         )
+
+    sessions.sort(key=lambda s: s["started"] or "", reverse=True)
     return sessions
 
 
@@ -160,6 +156,7 @@ def render_page(sidebar_html, details_html):
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="revision" content="__REVISION__">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Larvling Dashboard</title>
 <style>
@@ -493,8 +490,18 @@ def main():
 
     conn = get_db()
     conn.row_factory = sqlite3.Row
-    sessions = get_sessions(conn)
     revision = conn.execute("SELECT MAX(id) FROM audit").fetchone()[0] or 0
+
+    # Skip regeneration if dashboard is already current
+    if os.path.exists(HTML_PATH):
+        with open(HTML_PATH, "r", encoding="utf-8") as f:
+            head = f.read(1024)
+        if f'content="{revision}"' in head:
+            conn.close()
+            print(f"Dashboard up to date: {HTML_PATH}")
+            return
+
+    sessions = get_sessions(conn)
 
     sidebar_html = "\n".join(render_sidebar_item(s, i) for i, s in enumerate(sessions))
     details_html = "\n".join(render_detail_panel(s) for s in sessions)

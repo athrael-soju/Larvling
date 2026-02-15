@@ -4,7 +4,6 @@ Larvling Session End — captures session summary and duration.
 Hook event: SessionEnd
 Logs a session_end audit event with metadata:
   - duration_min: session length in minutes
-  - summary: first sentence of last agent message
 """
 
 import json
