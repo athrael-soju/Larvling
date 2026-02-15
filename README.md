@@ -2,6 +2,17 @@
 
 Your friendly memory companion for Claude Code. Larvling quietly imprints every conversation — prompts, responses, tool usage — and keeps it all in a searchable dashboard. No config needed, just install and go.
 
+**~1,000 lines. 4 scripts. Zero dependencies. Pure Python stdlib.**
+
+## Why Larvling?
+
+- **Tiny** — under 38 KB total. Smaller than most READMEs out there
+- **Zero dependencies** — no pip install, no node_modules, no build step. Just Python 3.8+ and the standard library
+- **Portable** — works on any device that supports Claude Code plugins: macOS, Linux, Windows
+- **Private** — all data stays local in a single SQLite file. Nothing leaves your machine
+- **Instant** — no setup, no config, no onboarding. Install the plugin and it starts imprinting from message one
+- **Lightweight** — SQLite WAL mode means near-zero overhead. Your agent won't even notice it's there
+
 ## Install
 
 Add Larvling as a Claude Code plugin. Requires Python 3.8+.
@@ -13,7 +24,6 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 - **Imprints** every user prompt and agent response to a local SQLite database
 - **Recalls** past session context on startup so the agent picks up where it left off
 - **Generates** a two-panel HTML dashboard with search, sort, and filter
-- **Zero config** — works out of the box, no setup required
 
 ## Files
 
