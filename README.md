@@ -1,5 +1,9 @@
 # Larvling
 
+<p align="center">
+  <img src="larvling/larvling.png" alt="Larvling logo" width="200" />
+</p>
+
 Your friendly memory companion for Claude Code. Larvling quietly imprints every conversation — prompts, responses, tool usage — and keeps it all in a searchable dashboard. No config needed, just install and go.
 
 ## Why Larvling?
