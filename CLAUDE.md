@@ -1,14 +1,13 @@
 # Larvling
 
-> Self-bootstrapping project scaffold. Three seed files grow into a full project.
+> Project scaffold with built-in auditing. Seed files provide conversation tracking out of the box; run `/bootstrap` to customize.
 
 ## Mode Detection
 
 When your SessionStart hook (`scripts/preflight.py`) fires:
 
-- **"BOOTSTRAP MODE"** → Read `DNA.md` and execute the bootstrap protocol starting from Phase 1.
-- **"BOOTSTRAP INCOMPLETE"** → Read `DNA.md` and resume bootstrap. Check the audit table for what was already completed.
-- Otherwise → You are in a live project. Follow the rules below.
+- **"BOOTSTRAP INCOMPLETE"** → A previous `/bootstrap` was started but not finished. Read `DNA.md` and resume where it left off. Check the audit table for what was already completed.
+- Otherwise → You are in a live project. Auditing is active. Follow the rules below.
 
 ## Session Protocol
 

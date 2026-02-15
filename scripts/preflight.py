@@ -26,23 +26,22 @@ def ensure_audit_table():
             metadata    TEXT
         )
     """)
-    if fresh:
-        conn.execute("""
-            INSERT INTO audit (event_type, content)
-            VALUES ('bootstrap_start', 'Larvling seed activated')
-        """)
     conn.commit()
     conn.close()
     return fresh
 
 
-def is_bootstrap_complete():
-    """Check if bootstrap has been fully completed."""
+def get_bootstrap_state():
+    """Check bootstrap state: 'complete', 'incomplete', or None."""
     conn = sqlite3.connect(DB_PATH)
-    cur = conn.execute("SELECT 1 FROM audit WHERE event_type = 'bootstrap_complete' LIMIT 1")
-    done = cur.fetchone() is not None
+    cur = conn.execute(
+        "SELECT event_type FROM audit WHERE event_type IN ('bootstrap_start', 'bootstrap_complete') ORDER BY id DESC LIMIT 1"
+    )
+    row = cur.fetchone()
     conn.close()
-    return done
+    if not row:
+        return None
+    return "complete" if row[0] == "bootstrap_complete" else "incomplete"
 
 
 def summarize_row(row, columns):
@@ -115,23 +114,26 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8")
 
     fresh = ensure_audit_table()
+    state = get_bootstrap_state()
 
     if fresh:
-        print("# BOOTSTRAP MODE")
+        print("# Larvling Ready")
         print()
-        print("Fresh Larvling instance. Audit table created — logging starts now.")
+        print("Audit DB created. Hooks active. All conversations are being tracked.")
         print()
-        print("**Your directive:** Read `CLAUDE.md` for mode detection, then `DNA.md` for the protocol.")
-        print("Follow the bootstrap protocol: interview the user, then generate the project.")
-        print("Log every action to the audit table from this point forward.")
-    elif not is_bootstrap_complete():
+        print("Run `/bootstrap` to customize project tracking (tasks, decisions, bugs, etc).")
+    elif state == "incomplete":
         print("# BOOTSTRAP INCOMPLETE")
         print()
-        print("Audit table exists but bootstrap never finished.")
-        print("Read `CLAUDE.md` and resume the bootstrap protocol where it left off.")
+        print("A previous `/bootstrap` was started but never finished.")
+        print("Read `DNA.md` and resume the bootstrap protocol where it left off.")
         print("Check the audit table for what was already completed.")
     else:
-        print(get_session_context())
+        context = get_session_context()
+        print(context)
+        if state != "complete":
+            print("---")
+            print("Tip: run `/bootstrap` to set up project tracking.")
 
 
 if __name__ == "__main__":
