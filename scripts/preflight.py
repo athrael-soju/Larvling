@@ -15,7 +15,8 @@ def ensure_audit_table():
     fresh = not os.path.exists(DB_PATH)
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS imprints (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp   TEXT NOT NULL DEFAULT (datetime('now')),
@@ -24,7 +25,8 @@ def ensure_audit_table():
             content     TEXT,
             metadata    TEXT
         )
-    """)
+    """
+    )
     conn.commit()
     conn.close()
     return fresh
@@ -32,8 +34,18 @@ def ensure_audit_table():
 
 def summarize_row(row, columns):
     """Pick the most descriptive columns from a row to summarize it."""
-    display_prefs = ['title', 'name', 'content', 'description', 'summary',
-                     'event_type', 'key', 'status', 'severity', 'priority']
+    display_prefs = [
+        "title",
+        "name",
+        "content",
+        "description",
+        "summary",
+        "event_type",
+        "key",
+        "status",
+        "severity",
+        "priority",
+    ]
     parts = []
     for col in display_prefs:
         if col in columns and row[col] is not None:
@@ -42,13 +54,13 @@ def summarize_row(row, columns):
             if len(parts) >= 3:
                 break
     if not parts:
-        skip = {'id', 'created_at', 'updated_at', 'timestamp', 'metadata'}
+        skip = {"id", "created_at", "updated_at", "timestamp", "metadata"}
         for col in columns:
             if col not in skip and row[col] is not None:
                 parts.append(f"**{col}:** {str(row[col])[:80]}")
                 if len(parts) >= 3:
                     break
-    return ' | '.join(parts) if parts else '(empty row)'
+    return " | ".join(parts) if parts else "(empty row)"
 
 
 def get_session_context():
@@ -57,11 +69,13 @@ def get_session_context():
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    cur.execute("""
+    cur.execute(
+        """
         SELECT name FROM sqlite_master
         WHERE type='table' AND name NOT LIKE 'sqlite_%'
         ORDER BY name
-    """)
+    """
+    )
     tables = [r[0] for r in cur.fetchall()]
 
     lines = ["# Larvling Session Context", ""]
@@ -71,10 +85,10 @@ def get_session_context():
         count = cur.fetchone()[0]
 
         cur.execute(f"PRAGMA table_info([{table}])")
-        columns = [col['name'] for col in cur.fetchall()]
+        columns = [col["name"] for col in cur.fetchall()]
 
-        order_col = 'id'
-        for candidate in ['timestamp', 'created_at', 'updated_at', 'start_time']:
+        order_col = "id"
+        for candidate in ["timestamp", "created_at", "updated_at", "start_time"]:
             if candidate in columns:
                 order_col = candidate
                 break
@@ -92,7 +106,9 @@ def get_session_context():
 
 
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure:
+        reconfigure(encoding="utf-8")
 
     fresh = ensure_audit_table()
 
