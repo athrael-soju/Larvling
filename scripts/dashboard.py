@@ -16,9 +16,9 @@ HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
 
 
 def get_sessions(conn):
-    """Get audit entries grouped by session, newest first."""
+    """Get imprints grouped by session, newest first."""
     rows = conn.execute(
-        "SELECT * FROM audit WHERE session_id IS NOT NULL ORDER BY id DESC"
+        "SELECT * FROM imprints WHERE session_id IS NOT NULL ORDER BY id DESC"
     ).fetchall()
 
     by_session = {}
@@ -490,7 +490,7 @@ def main():
 
     conn = get_db()
     conn.row_factory = sqlite3.Row
-    revision = conn.execute("SELECT MAX(id) FROM audit").fetchone()[0] or 0
+    revision = conn.execute("SELECT MAX(id) FROM imprints").fetchone()[0] or 0
 
     # Skip regeneration if dashboard is already current
     if os.path.exists(HTML_PATH):

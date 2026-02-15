@@ -1,38 +1,34 @@
 # Larvling
 
-A self-bootstrapping Claude Code project scaffold. A handful of seed files grow into a full project.
+Your friendly memory companion for Claude Code. Larvling quietly imprints every conversation — prompts, responses, tool usage — and keeps it all in a searchable dashboard. No config needed, just install and go.
 
-## The Seed Files
+## Install
 
-| File | Role |
-|------|------|
-| `.claude/settings.json` | Hook wiring + permissions |
-| `scripts/preflight.py` | SessionStart hook: detects first run, creates audit DB on the spot, feeds bootstrap context |
-| `CLAUDE.md` | Stable operating instructions — mode detection, session protocol, capabilities |
-| `DNA.md` | The genome — interview questions + generation blueprint |
+Add Larvling as a Claude Code plugin. Requires Python 3.8+.
 
-## Bootstrap Flow
+## How It Works
 
-```
-Clone → first `claude` session
-  │
-  ├─ preflight.py fires, no DB found
-  │   └─ Creates minimal DB with audit table → auditing from message 1
-  │   └─ Outputs "BOOTSTRAP MODE" context
-  │
-  ├─ Claude reads CLAUDE.md → detects bootstrap mode → loads DNA.md
-  │   └─ Interviews user (name, project type, what to track, work style...)
-  │
-  └─ Generates based on answers:
-      ├─ Full DB schema (extends audit-only seed)
-      ├─ Hook scripts (stop audit, guard, session context, archive)
-      ├─ Slash commands (/plan, /log, /status or whatever fits)
-      ├─ Rewritten CLAUDE.md (project-specific rules)
-      └─ Dashboard scaffolding (optional)
-```
+Larvling hooks into the Claude Code lifecycle and remembers everything:
 
-## After Bootstrap
+- **Imprints** every user prompt and agent response to a local SQLite database
+- **Recalls** past session context on startup so the agent picks up where it left off
+- **Generates** a two-panel HTML dashboard with search, sort, and filter
+- **Zero config** — works out of the box, no setup required
 
-Preflight detects bootstrap is complete → introspects the DB dynamically and injects session context. The 3-file repo is now a full project. Every exchange audited from the very first message.
+## Files
 
-The key insight: `DNA.md` is the genome. The interview questions and generation templates live there. `CLAUDE.md` is the stable operating layer. The preflight script is just the trigger. The agent reads its own DNA and builds itself.
+| File | What it does |
+|------|-------------|
+| `plugin.json` | Plugin manifest — tells Claude Code when to call Larvling |
+| `scripts/preflight.py` | Wakes up on session start, creates the DB or recalls context |
+| `scripts/hooks.py` | Handles prompt logging, response capture, and session end |
+| `scripts/dashboard.py` | Builds the HTML dashboard from the imprints |
+| `scripts/db.py` | Shared database helpers |
+| `CLAUDE.md` | Instructions for the agent |
+
+## Data
+
+All data stays local in the project's `.claude/` directory:
+
+- `larvling.db` — SQLite database (WAL mode) with all imprints
+- `dashboard.html` — static HTML dashboard, refreshed automatically

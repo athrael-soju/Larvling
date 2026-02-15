@@ -4,7 +4,7 @@ import json
 import os
 import sqlite3
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.getcwd()
 DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
 
 
@@ -15,10 +15,10 @@ def get_db():
     return conn
 
 
-def log_audit(conn, session_id, event_type, content, metadata=None):
-    """Insert an audit row and commit."""
+def imprint(conn, session_id, event_type, content, metadata=None):
+    """Record an imprint and commit."""
     conn.execute(
-        "INSERT INTO audit (session_id, event_type, content, metadata) VALUES (?, ?, ?, ?)",
+        "INSERT INTO imprints (session_id, event_type, content, metadata) VALUES (?, ?, ?, ?)",
         (session_id, event_type, content, json.dumps(metadata) if metadata else None),
     )
     conn.commit()

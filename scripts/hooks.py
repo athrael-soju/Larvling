@@ -13,7 +13,7 @@ import re
 import sys
 import time
 
-from db import get_db, log_audit
+from db import get_db, imprint
 
 
 def _is_real_user_message(entry):
@@ -133,19 +133,19 @@ def handle_user_prompt(data):
     meta = {"cwd": data.get("cwd"), "permission_mode": data.get("permission_mode")}
 
     conn = get_db()
-    log_audit(conn, session_id, "user_message", prompt, meta)
+    imprint(conn, session_id, "user_message", prompt, meta)
     conn.close()
 
 
 def get_session_duration(conn, session_id):
-    """Calculate session duration from first to last audit entry."""
+    """Calculate session duration from first to last imprint."""
     cur = conn.execute(
         """
         SELECT
             MIN(timestamp) as first_msg,
             MAX(timestamp) as last_msg,
             ROUND((julianday(MAX(timestamp)) - julianday(MIN(timestamp))) * 1440, 1) as duration_min
-        FROM audit
+        FROM imprints
         WHERE session_id = ?
         """,
         (session_id,),
@@ -165,7 +165,7 @@ def handle_session_end(data):
     conn = get_db()
     meta = {}
     meta.update(get_session_duration(conn, session_id))
-    log_audit(conn, session_id, "session_end", "Session ended", meta)
+    imprint(conn, session_id, "session_end", "Session ended", meta)
     conn.close()
 
 
@@ -183,7 +183,7 @@ def handle_stop(data):
     conn = get_db()
     # Dedup: skip if we already logged this exact content for this session
     row = conn.execute(
-        "SELECT content FROM audit WHERE session_id = ? AND event_type = 'agent_message' ORDER BY id DESC LIMIT 1",
+        "SELECT content FROM imprints WHERE session_id = ? AND event_type = 'agent_message' ORDER BY id DESC LIMIT 1",
         (session_id,),
     ).fetchone()
     if row and row[0] == response:
@@ -191,7 +191,7 @@ def handle_stop(data):
         return
 
     meta = {"tool_calls": tools} if tools else None
-    log_audit(conn, session_id, "agent_message", response, meta)
+    imprint(conn, session_id, "agent_message", response, meta)
     conn.close()
 
 

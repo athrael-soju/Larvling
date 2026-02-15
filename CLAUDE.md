@@ -1,28 +1,20 @@
 # Larvling
 
-> Project scaffold with built-in auditing. Seed files provide conversation tracking out of the box; run `/bootstrap` to customize.
+> Your friendly memory companion. Every conversation leaves an imprint.
 
-## Mode Detection
+Larvling quietly watches the conversation lifecycle and remembers everything so you don't have to. Each session starts with context from past conversations, and a searchable dashboard keeps it all browsable.
 
-When your SessionStart hook (`scripts/preflight.py`) fires:
+## What Happens Behind the Scenes
 
-- **"BOOTSTRAP INCOMPLETE"** → A previous `/bootstrap` was started but not finished. Read `DNA.md` and resume where it left off. Check the audit table for what was already completed.
-- Otherwise → You are in a live project. Auditing is active. Follow the rules below.
+- **SessionStart** — wakes up, creates the DB on first run, or recalls past session context
+- **UserPromptSubmit** — imprints each user prompt
+- **Stop** — reads the transcript and imprints the agent's last response
+- **SessionEnd** — notes how long the session lasted
 
-## Session Protocol
+Everything lives in `.claude/larvling.db` (SQLite, WAL mode). The dashboard at `.claude/dashboard.html` is refreshed on every hook.
 
-- On session start, review the context injected by preflight
-- Log decisions and progress to the audit table as you work
-- On session end, hook scripts capture the summary
+## For the Agent
 
-## Capabilities
-
-You can spawn **agent teams** — parallel Claude Code sessions coordinating through a shared task list and direct messaging. Use `TeamCreate`, `Task`, `SendMessage`, `TeamDelete`. Prefer subagents for focused work; prefer teams when teammates need to discuss or challenge each other.
-
----
-
-## Project Rules
-
-*This section will be replaced during bootstrap with project-specific rules.*
-
----
+- On session start, review the context Larvling injects — it's your memory of what came before
+- Imprinting is automatic — just focus on the work
+- The user can open `.claude/dashboard.html` to browse past sessions
