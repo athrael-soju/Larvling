@@ -52,6 +52,8 @@ The audit table was created by preflight. Now add tables based on what the user 
 
 Create tables directly in `.claude/larvling.db` using `CREATE TABLE IF NOT EXISTS`. No migration framework — Claude can inspect and alter the live schema when changes are needed later.
 
+Also generate `scripts/dashboard.py` — a zero-dependency script (just `sqlite3` + Python string templating) that introspects all tables in `larvling.db` and generates a static `.claude/dashboard.html` with HTML tables for every DB table.
+
 Common table patterns (use only what's needed):
 
 | Tracking choice | Tables to create |
@@ -70,24 +72,40 @@ Generate these hook scripts based on user preferences:
 | Script | Hook Event | Purpose |
 |---|---|---|
 | `scripts/preflight.py` | SessionStart | Already exists — update to inject richer context from new tables |
-| `scripts/audit_stop.py` | Stop | Log session summary, token usage, decisions made |
+| `scripts/audit_stop.py` | Stop | Log session summary, token usage, decisions made; regenerate dashboard |
 | `scripts/guard.py` | PreToolUse | Block risky operations if user wants approval gates |
-| `scripts/session_end.py` | SessionEnd | Archive session, update time tracking |
+| `scripts/session_end.py` | SessionEnd | Archive session, update time tracking; regenerate dashboard |
 
-Only generate `guard.py` if user wants approval gates. Keep each script focused and under 100 lines.
+Only generate `guard.py` if user wants approval gates. Keep each script focused and under 100 lines. Scripts that write to the DB must call `dashboard.py` after their writes to keep the HTML current.
 
 ### 2c. Slash Commands (`.claude/commands/`)
 
-Generate markdown command files. Each command should be a `.md` file with a clear prompt.
+Generate markdown command files in `.claude/commands/`. Each is a `.md` file with YAML frontmatter and a prompt body.
+
+Supported frontmatter fields (all optional):
+- `description` — what the command does (recommended)
+- `allowed-tools` — comma-separated tools Claude can use without asking (e.g., `Bash, Read, Grep`)
+- `argument-hint` — hint shown during autocomplete (e.g., `[issue-number]`)
+
+Format:
+```markdown
+---
+description: Quick-add a tracked item
+allowed-tools: Bash
+argument-hint: [description]
+---
+
+The prompt content. Use $ARGUMENTS for user input.
+```
 
 Minimum set:
-- `/status` — Show project state: open tasks, recent decisions, session stats
-- `/log` — Quick-add an entry (task, bug, idea, decision) via natural language
+- `status.md` — Show project state: open tasks, recent decisions, session stats
+- `log.md` — Quick-add an entry (task, bug, idea, decision) via `$ARGUMENTS`
 
 Additional commands based on tracking choices:
-- `/plan` — Break work into tasks, estimate scope (if Tasks enabled)
-- `/decide` — Record an architectural decision with rationale (if Decisions enabled)
-- `/review` — Summarize what happened this session (if Time enabled)
+- `plan.md` — Break work into tasks, estimate scope (if Tasks enabled)
+- `decide.md` — Record an architectural decision with rationale (if Decisions enabled)
+- `review.md` — Summarize what happened this session (if Time enabled)
 
 ### 2d. Rewrite CLAUDE.md
 
@@ -110,19 +128,13 @@ Replace the Project Rules section in CLAUDE.md with project-specific content:
 <any constraints the user specified>
 ```
 
-### 2e. Dashboard (Optional)
-
-If the user wants visibility into their tracked data, generate a simple `scripts/dashboard.py` that:
-- Queries the SQLite DB
-- Prints a formatted terminal dashboard (task counts, recent activity, session stats)
-- Can be run standalone or wired to a slash command
-
 ## Phase 3 — Finalize
 
 After generation:
-1. Log completion to the audit table:
+1. Run `python scripts/dashboard.py` to generate the initial `.claude/dashboard.html`
+2. Log completion to the audit table:
    ```sql
    INSERT INTO audit (event_type, content) VALUES ('bootstrap_complete', 'Bootstrap finished — all components generated');
    ```
-2. Run `python scripts/preflight.py` to confirm it exits bootstrap mode and shows session context
-3. Present a summary of everything created to the user
+3. Run `python scripts/preflight.py` to confirm it exits bootstrap mode and shows session context
+4. Present a summary of everything created to the user (include the dashboard path)
