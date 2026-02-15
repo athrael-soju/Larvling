@@ -2,8 +2,6 @@
 
 Your friendly memory companion for Claude Code. Larvling quietly imprints every conversation — prompts, responses, tool usage — and keeps it all in a searchable dashboard. No config needed, just install and go.
 
-**~1,000 lines. 4 scripts. Zero dependencies. Pure Python stdlib.**
-
 ## Why Larvling?
 
 - **Tiny** — under 38 KB total. Smaller than most READMEs out there
