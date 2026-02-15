@@ -10,6 +10,7 @@ import json
 import sqlite3
 import os
 import sys
+import time
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
@@ -30,11 +31,10 @@ def log_audit(conn, session_id, event_type, content, metadata=None):
 
 
 def extract_last_assistant_turn(transcript_path):
-    """Read the transcript JSONL backwards to find the last assistant content."""
+    """Collect text from the last agent turn (everything after the last real user message)."""
     if not transcript_path or not os.path.exists(transcript_path):
         return None
 
-    # Read all lines and walk backwards to find the last assistant message
     lines = []
     with open(transcript_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -42,33 +42,86 @@ def extract_last_assistant_turn(transcript_path):
             if line:
                 lines.append(line)
 
-    # Walk backwards to find the last assistant message
-    for line in reversed(lines):
+    def is_real_user_message(entry):
+        """Return True if this is a genuine user message, not a tool_result."""
+        if entry.get("type") != "user":
+            return False
+        msg = entry.get("message", {})
+        if not isinstance(msg, dict):
+            return False
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            return True  # Plain string = real user message
+        if isinstance(content, list):
+            # If any block is a tool_result, this is a tool response, not a user turn
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    return False
+            return True
+        return False
+
+    # Walk backwards to find the last real user message
+    turn_start = len(lines)
+    for i in range(len(lines) - 1, -1, -1):
+        try:
+            entry = json.loads(lines[i])
+        except json.JSONDecodeError:
+            continue
+        if is_real_user_message(entry):
+            turn_start = i + 1
+            break
+
+    # Now collect all assistant text from turn_start to end
+    all_text = []
+    for line in lines[turn_start:]:
         try:
             entry = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if entry.get("type") != "assistant":
+            continue
+        msg = entry.get("message", {})
+        content = msg.get("content", "") if isinstance(msg, dict) else ""
+        if isinstance(content, list):
+            parts = []
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text = block.get("text", "").strip()
+                    if text:
+                        parts.append(text)
+                elif isinstance(block, str) and block.strip():
+                    parts.append(block.strip())
+            if parts:
+                all_text.append("\n".join(parts))
+        elif content:
+            all_text.append(str(content))
 
-        # Claude Code transcript format: look for assistant role messages
-        role = entry.get("role") or entry.get("type")
-        if role == "assistant":
-            # Content can be a string or a list of content blocks
-            content = entry.get("content", "")
-            if isinstance(content, list):
-                # Extract text from content blocks
-                parts = []
-                for block in content:
-                    if isinstance(block, dict):
-                        if block.get("type") == "text":
-                            parts.append(block.get("text", ""))
-                        elif block.get("type") == "tool_use":
-                            parts.append(f"[tool_use: {block.get('name', '?')}]")
-                    elif isinstance(block, str):
-                        parts.append(block)
-                return "\n".join(parts)
-            return str(content)
+    return "\n\n".join(all_text) if all_text else None
 
-    return None
+
+def count_tool_calls(transcript_path):
+    """Count tool uses in the latest assistant turn from the transcript."""
+    if not transcript_path or not os.path.exists(transcript_path):
+        return {}
+
+    tools = {}
+    with open(transcript_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if entry.get("type") != "assistant":
+                continue
+            msg = entry.get("message", {})
+            for block in (msg.get("content", []) if isinstance(msg, dict) else []):
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    name = block.get("name", "unknown")
+                    tools[name] = tools.get(name, 0) + 1
+    return tools
 
 
 def handle_user_prompt(data):
@@ -79,9 +132,26 @@ def handle_user_prompt(data):
     if not prompt:
         return
 
+    meta = {"cwd": data.get("cwd"), "permission_mode": data.get("permission_mode")}
+
     conn = get_db()
-    log_audit(conn, session_id, "user_message", prompt)
+    log_audit(conn, session_id, "user_message", prompt, meta)
     conn.close()
+
+
+def wait_for_transcript_stable(transcript_path, interval=0.3, max_wait=5):
+    """Wait until the transcript file stops being written to."""
+    if not transcript_path or not os.path.exists(transcript_path):
+        return
+    last_size = -1
+    waited = 0
+    while waited < max_wait:
+        size = os.path.getsize(transcript_path)
+        if size == last_size:
+            return  # File hasn't changed — stable
+        last_size = size
+        time.sleep(interval)
+        waited += interval
 
 
 def handle_stop(data):
@@ -89,11 +159,26 @@ def handle_stop(data):
     session_id = data.get("session_id")
     transcript_path = data.get("transcript_path")
 
+    wait_for_transcript_stable(transcript_path)
+
     response = extract_last_assistant_turn(transcript_path)
-    if response:
-        conn = get_db()
-        log_audit(conn, session_id, "agent_message", response)
+    if not response:
+        return
+
+    conn = get_db()
+    # Dedup: skip if we already logged this exact content for this session
+    row = conn.execute(
+        "SELECT content FROM audit WHERE session_id = ? AND event_type = 'agent_message' ORDER BY id DESC LIMIT 1",
+        (session_id,),
+    ).fetchone()
+    if row and row[0] == response:
         conn.close()
+        return
+
+    tools = count_tool_calls(transcript_path)
+    meta = {"tool_calls": tools} if tools else None
+    log_audit(conn, session_id, "agent_message", response, meta)
+    conn.close()
 
 
 def main():

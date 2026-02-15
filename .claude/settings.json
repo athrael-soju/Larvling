@@ -43,6 +43,17 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python scripts/session_end.py && python scripts/dashboard.py",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   }
 }

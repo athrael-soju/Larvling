@@ -12,6 +12,14 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
 
 
+def ensure_gitignore():
+    """Create .gitignore with default entries if it doesn't exist."""
+    gitignore_path = os.path.join(PROJECT_ROOT, ".gitignore")
+    if not os.path.exists(gitignore_path):
+        with open(gitignore_path, "w", encoding="utf-8") as f:
+            f.write("scripts/__pycache__/\n")
+
+
 def ensure_audit_table():
     """Create the audit table if the DB doesn't exist yet. Returns True if this was a fresh creation."""
     fresh = not os.path.exists(DB_PATH)
@@ -115,6 +123,7 @@ def get_session_context():
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
 
+    ensure_gitignore()
     fresh = ensure_audit_table()
 
     if fresh:
