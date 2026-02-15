@@ -27,8 +27,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/transcript.py",
-            "timeout": 5
+            "command": "python scripts/transcript.py && python scripts/dashboard.py",
+            "timeout": 10
           }
         ]
       }
@@ -38,8 +38,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/transcript.py",
-            "timeout": 10
+            "command": "python scripts/transcript.py && python scripts/dashboard.py",
+            "timeout": 15
           }
         ]
       }
