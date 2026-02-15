@@ -8,9 +8,14 @@
   "hooks": {
     "SessionStart": [
       {
-        "type": "command",
-        "command": "python scripts/preflight.py"
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python scripts/preflight.py"
+          }
+        ]
       }
     ]
-  },
+  }
 }
