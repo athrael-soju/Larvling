@@ -1,5 +1,5 @@
 """
-Zergling Preflight — SessionStart hook.
+Larvling Preflight — SessionStart hook.
 Creates audit table on first run so auditing begins from message 1.
 Detects bootstrap vs incomplete-bootstrap vs normal mode.
 """
@@ -9,7 +9,7 @@ import os
 import sys
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "zergling.db")
+DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
 
 
 def ensure_audit_table():
@@ -30,7 +30,7 @@ def ensure_audit_table():
     if fresh:
         conn.execute("""
             INSERT INTO audit (event_type, content)
-            VALUES ('bootstrap_start', 'Zergling seed activated')
+            VALUES ('bootstrap_start', 'Larvling seed activated')
         """)
     conn.commit()
     conn.close()
@@ -46,40 +46,69 @@ def is_bootstrap_complete():
     return done
 
 
+def summarize_row(row, columns):
+    """Pick the most descriptive columns from a row to summarize it."""
+    # Prefer these columns for display, in order
+    display_prefs = ['title', 'name', 'content', 'description', 'summary',
+                     'event_type', 'key', 'status', 'severity', 'priority']
+    parts = []
+    for col in display_prefs:
+        if col in columns and row[col] is not None:
+            val = str(row[col])[:80]
+            parts.append(f"**{col}:** {val}")
+            if len(parts) >= 3:
+                break
+    if not parts:
+        # Fallback: show first non-id, non-timestamp columns
+        skip = {'id', 'created_at', 'updated_at', 'timestamp', 'metadata'}
+        for col in columns:
+            if col not in skip and row[col] is not None:
+                parts.append(f"**{col}:** {str(row[col])[:80]}")
+                if len(parts) >= 3:
+                    break
+    return ' | '.join(parts) if parts else '(empty row)'
+
+
 def get_session_context():
-    """Query existing DB and return session context for normal runs."""
+    """Introspect the DB and build session context dynamically."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
+    # Discover all tables
     cur.execute("""
-        SELECT timestamp, event_type, content
-        FROM audit ORDER BY id DESC LIMIT 10
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name NOT LIKE 'sqlite_%'
+        ORDER BY name
     """)
-    recent = cur.fetchall()
-
-    cur.execute("SELECT COUNT(DISTINCT session_id) FROM audit WHERE session_id IS NOT NULL")
-    session_count = cur.fetchone()[0]
-
-    cur.execute("SELECT COUNT(*) FROM audit")
-    total_events = cur.fetchone()[0]
-
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     tables = [r[0] for r in cur.fetchall()]
 
+    lines = ["# Larvling Session Context", ""]
+
+    for table in tables:
+        cur.execute(f"SELECT COUNT(*) FROM [{table}]")
+        count = cur.fetchone()[0]
+
+        # Discover columns
+        cur.execute(f"PRAGMA table_info([{table}])")
+        columns = [col['name'] for col in cur.fetchall()]
+
+        # Find best column to order by
+        order_col = 'id'
+        for candidate in ['timestamp', 'created_at', 'updated_at', 'start_time']:
+            if candidate in columns:
+                order_col = candidate
+                break
+
+        cur.execute(f"SELECT * FROM [{table}] ORDER BY [{order_col}] DESC LIMIT 5")
+        recent = cur.fetchall()
+
+        lines.append(f"## {table} ({count})")
+        for row in recent:
+            lines.append(f"- {summarize_row(row, columns)}")
+        lines.append("")
+
     conn.close()
-
-    lines = [
-        "# Zergling Session Context",
-        "",
-        f"**Sessions:** {session_count} | **Events logged:** {total_events}",
-        f"**Tables:** {', '.join(tables)}",
-        "",
-        "## Recent Activity",
-    ]
-    for row in recent:
-        lines.append(f"- `{row['timestamp']}` **{row['event_type']}** — {row['content']}")
-
     return "\n".join(lines)
 
 
@@ -91,9 +120,9 @@ def main():
     if fresh:
         print("# BOOTSTRAP MODE")
         print()
-        print("Fresh Zergling instance. Audit table created — logging starts now.")
+        print("Fresh Larvling instance. Audit table created — logging starts now.")
         print()
-        print("**Your directive:** Read `CLAUDE.md` — it contains your genome.")
+        print("**Your directive:** Read `CLAUDE.md` for mode detection, then `DNA.md` for the protocol.")
         print("Follow the bootstrap protocol: interview the user, then generate the project.")
         print("Log every action to the audit table from this point forward.")
     elif not is_bootstrap_complete():

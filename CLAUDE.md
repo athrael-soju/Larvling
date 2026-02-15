@@ -1,4 +1,4 @@
-# Zergling
+# Larvling
 
 > Self-bootstrapping project scaffold. Three seed files grow into a full project.
 

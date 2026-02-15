@@ -1,7 +1,7 @@
-# Zergling DNA
+# Larvling DNA
 
-> The bootstrap genome. This file contains the interview questions and generation
-> blueprint. It can evolve across Zergling versions without touching CLAUDE.md.
+> Interview questions and generation blueprint. Runs once during bootstrap.
+> Can evolve across Larvling versions without touching CLAUDE.md.
 
 ## Auditing
 
@@ -50,7 +50,7 @@ The audit table was created by preflight. Now add tables based on what the user 
 - `created_at TEXT NOT NULL DEFAULT (datetime('now'))`
 - `updated_at TEXT`
 
-Create tables directly in `.claude/zergling.db` using `CREATE TABLE IF NOT EXISTS`. No migration framework — Claude can inspect and alter the live schema when changes are needed later.
+Create tables directly in `.claude/larvling.db` using `CREATE TABLE IF NOT EXISTS`. No migration framework — Claude can inspect and alter the live schema when changes are needed later.
 
 Common table patterns (use only what's needed):
 
