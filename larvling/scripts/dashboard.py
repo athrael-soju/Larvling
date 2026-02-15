@@ -185,7 +185,7 @@ def render_page(sidebar_html, details_html):
 
     /* Top bar */
     .topbar { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.25rem; border-bottom: 2px solid var(--accent); background: linear-gradient(180deg, #2a2318 0%, var(--bg) 100%); flex-shrink: 0; }
-    .logo { width: 32px; height: 32px; border-radius: 6px; }
+    .logo { width: 48px; height: 48px; border-radius: 6px; }
     .topbar h1 { font-size: 1.1rem; color: var(--accent); }
     .topbar .meta { color: var(--muted); font-size: 0.75rem; }
     .topbar-right { margin-left: auto; }
