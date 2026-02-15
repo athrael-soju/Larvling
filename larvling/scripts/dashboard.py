@@ -4,6 +4,7 @@ Two-panel layout: session list on left, conversation on right.
 Zero dependencies: just sqlite3 + Python string templating.
 """
 
+import base64
 import json
 import os
 import sqlite3
@@ -11,6 +12,9 @@ import sys
 from html import escape
 
 from db import DB_PATH, get_db
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGO_PATH = os.path.join(SCRIPT_DIR, "..", "larvling.png")
 
 HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
 
@@ -149,8 +153,18 @@ def render_detail_panel(session):
     </div>"""
 
 
+def get_logo_data_uri():
+    """Read larvling.png and return a data URI, or empty string if missing."""
+    if os.path.exists(LOGO_PATH):
+        with open(LOGO_PATH, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("ascii")
+        return f"data:image/png;base64,{b64}"
+    return ""
+
+
 def render_page(sidebar_html, details_html):
     """Render the full two-panel dashboard page."""
+    logo_uri = get_logo_data_uri()
     return (
         """<!DOCTYPE html>
 <html lang="en">
@@ -255,7 +269,9 @@ def render_page(sidebar_html, details_html):
 <body data-revision="__REVISION__">
 
 <div class="topbar">
-    <img src="../larvling.png" alt="Larvling" class="logo">
+    <img src=\""""
+        + logo_uri
+        + """\" alt="Larvling" class="logo">
     <div><h1>Larvling</h1></div>
     <div class="topbar-right">
         <input type="text" id="search" placeholder="Search...">
