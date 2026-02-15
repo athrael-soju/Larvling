@@ -1,24 +1,23 @@
 """
 Zergling Preflight — SessionStart hook.
-Detects first run, creates audit DB, and injects session context.
+Creates audit table on first run so auditing begins from message 1.
+Detects bootstrap vs incomplete-bootstrap vs normal mode.
 """
 
 import sqlite3
 import os
 import sys
-from datetime import datetime
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "zergling.db")
 
 
-def create_audit_db():
-    """Create the seed audit database with minimal schema."""
+def ensure_audit_table():
+    """Create the audit table if the DB doesn't exist yet. Returns True if this was a fresh creation."""
+    fresh = not os.path.exists(DB_PATH)
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-
-    cur.execute("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS audit (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp   TEXT NOT NULL DEFAULT (datetime('now')),
@@ -28,14 +27,23 @@ def create_audit_db():
             metadata    TEXT
         )
     """)
-
-    cur.execute("""
-        INSERT INTO audit (event_type, content)
-        VALUES ('bootstrap_start', 'Zergling seed activated — first run')
-    """)
-
+    if fresh:
+        conn.execute("""
+            INSERT INTO audit (event_type, content)
+            VALUES ('bootstrap_start', 'Zergling seed activated')
+        """)
     conn.commit()
     conn.close()
+    return fresh
+
+
+def is_bootstrap_complete():
+    """Check if bootstrap has been fully completed."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.execute("SELECT 1 FROM audit WHERE event_type = 'bootstrap_complete' LIMIT 1")
+    done = cur.fetchone() is not None
+    conn.close()
+    return done
 
 
 def get_session_context():
@@ -44,23 +52,20 @@ def get_session_context():
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    # Recent activity
     cur.execute("""
         SELECT timestamp, event_type, content
         FROM audit ORDER BY id DESC LIMIT 10
     """)
     recent = cur.fetchall()
 
-    # Stats
     cur.execute("SELECT COUNT(DISTINCT session_id) FROM audit WHERE session_id IS NOT NULL")
     session_count = cur.fetchone()[0]
 
     cur.execute("SELECT COUNT(*) FROM audit")
     total_events = cur.fetchone()[0]
 
-    # Check what tables exist beyond audit (indicates bootstrap completed)
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name != 'audit'")
-    extra_tables = [r[0] for r in cur.fetchall()]
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    tables = [r[0] for r in cur.fetchall()]
 
     conn.close()
 
@@ -68,7 +73,7 @@ def get_session_context():
         "# Zergling Session Context",
         "",
         f"**Sessions:** {session_count} | **Events logged:** {total_events}",
-        f"**Project tables:** audit, {', '.join(extra_tables) if extra_tables else '(none — bootstrap may be incomplete)'}",
+        f"**Tables:** {', '.join(tables)}",
         "",
         "## Recent Activity",
     ]
@@ -80,16 +85,23 @@ def get_session_context():
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
-    bootstrap = not os.path.exists(DB_PATH)
 
-    if bootstrap:
-        create_audit_db()
+    fresh = ensure_audit_table()
+
+    if fresh:
         print("# BOOTSTRAP MODE")
         print()
-        print("Fresh Zergling instance detected. Audit database created at `.claude/zergling.db`.")
+        print("Fresh Zergling instance. Audit table created — logging starts now.")
         print()
         print("**Your directive:** Read `CLAUDE.md` — it contains your genome.")
         print("Follow the bootstrap protocol: interview the user, then generate the project.")
+        print("Log every action to the audit table from this point forward.")
+    elif not is_bootstrap_complete():
+        print("# BOOTSTRAP INCOMPLETE")
+        print()
+        print("Audit table exists but bootstrap never finished.")
+        print("Read `CLAUDE.md` and resume the bootstrap protocol where it left off.")
+        print("Check the audit table for what was already completed.")
     else:
         print(get_session_context())
 

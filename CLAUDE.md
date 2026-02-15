@@ -9,12 +9,21 @@
 
 When your SessionStart hook (`scripts/preflight.py`) fires:
 
-- **"BOOTSTRAP MODE"** in output → Execute the Bootstrap Protocol below.
+- **"BOOTSTRAP MODE"** → Start from Phase 1 (audit table already created by preflight).
+- **"BOOTSTRAP INCOMPLETE"** → Resume bootstrap. Check the audit table for what was already completed.
 - Otherwise → You are in a live project. Follow the Project Rules section (generated during bootstrap).
 
 ---
 
 ## Bootstrap Protocol
+
+### Auditing
+
+The `preflight.py` hook creates the audit table and logs `bootstrap_start` before you receive any input. The audit table is ready — **log every action from your very first message**: interview questions, user answers, generation steps, errors, completions.
+
+```sql
+INSERT INTO audit (event_type, content) VALUES ('<event>', '<description>');
+```
 
 ### Phase 1 — Interview
 
@@ -50,15 +59,12 @@ Once you have answers, generate **all** of the following in a single pass. Do no
 
 #### 2a. Extend the Database
 
-The audit table already exists in `.claude/zergling.db`. Add tables based on what the user wants to track. Every table must include:
+The audit table was created by preflight. Now add tables based on what the user wants to track. Every table must include:
 - `id INTEGER PRIMARY KEY AUTOINCREMENT`
 - `created_at TEXT NOT NULL DEFAULT (datetime('now'))`
 - `updated_at TEXT`
 
-Use a migration script at `scripts/migrate.py` that:
-- Reads current schema version from a `meta` table
-- Applies only new migrations
-- Logs each migration to the `audit` table
+Create tables directly in `.claude/zergling.db` using `CREATE TABLE IF NOT EXISTS`. No migration framework — Claude can inspect and alter the live schema when changes are needed later.
 
 Common table patterns (use only what's needed):
 
@@ -133,11 +139,14 @@ If the user wants visibility into their tracked data, generate a simple `scripts
 - Prints a formatted terminal dashboard (task counts, recent activity, session stats)
 - Can be run standalone or wired to a slash command
 
-### Phase 3 — Verify
+### Phase 3 — Finalize
 
 After generation:
-1. Run `python scripts/migrate.py` to apply the schema
-2. Run `python scripts/preflight.py` to confirm it exits bootstrap mode
+1. Log completion to the audit table:
+   ```sql
+   INSERT INTO audit (event_type, content) VALUES ('bootstrap_complete', 'Bootstrap finished — all components generated');
+   ```
+2. Run `python scripts/preflight.py` to confirm it exits bootstrap mode and shows session context
 3. Present a summary of everything created to the user
 
 ---
