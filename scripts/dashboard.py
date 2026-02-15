@@ -5,20 +5,14 @@ Zero dependencies: just sqlite3 + Python string templating.
 """
 
 import json
-import sqlite3
 import os
+import sqlite3
 import sys
 from html import escape
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
-HTML_PATH = os.path.join(PROJECT_ROOT, ".claude", "dashboard.html")
+from db import DB_PATH, get_db
 
-
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
 
 
 def get_sessions(conn):
@@ -159,7 +153,7 @@ def render_detail_panel(session):
     </div>"""
 
 
-def render_page(sidebar_html, details_html, revision=0):
+def render_page(sidebar_html, details_html):
     """Render the full two-panel dashboard page."""
     return (
         """<!DOCTYPE html>
@@ -498,6 +492,7 @@ def main():
         sys.exit(1)
 
     conn = get_db()
+    conn.row_factory = sqlite3.Row
     sessions = get_sessions(conn)
     revision = conn.execute("SELECT MAX(id) FROM audit").fetchone()[0] or 0
 
@@ -506,7 +501,7 @@ def main():
 
     conn.close()
 
-    html = render_page(sidebar_html, details_html, revision)
+    html = render_page(sidebar_html, details_html)
     html = html.replace("__REVISION__", str(revision))
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, "w", encoding="utf-8") as f:

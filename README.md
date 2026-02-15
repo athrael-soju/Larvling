@@ -1,8 +1,8 @@
 # Larvling
 
-A self-bootstrapping Claude Code project scaffold. Three seed files grow into a full project.
+A self-bootstrapping Claude Code project scaffold. A handful of seed files grow into a full project.
 
-## The 3 Seed Files
+## The Seed Files
 
 | File | Role |
 |------|------|

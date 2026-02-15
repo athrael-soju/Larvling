@@ -8,18 +8,9 @@ Logs a session_end audit event with metadata:
 """
 
 import json
-import sqlite3
-import os
 import sys
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
-
-
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+from db import get_db, log_audit
 
 
 def get_session_duration(conn, session_id):
@@ -61,11 +52,7 @@ def main():
     meta = {}
     meta.update(get_session_duration(conn, session_id))
 
-    conn.execute(
-        "INSERT INTO audit (session_id, event_type, content, metadata) VALUES (?, ?, ?, ?)",
-        (session_id, "session_end", "Session ended", json.dumps(meta)),
-    )
-    conn.commit()
+    log_audit(conn, session_id, "session_end", "Session ended", meta)
     conn.close()
 
 

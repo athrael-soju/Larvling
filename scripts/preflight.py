@@ -4,20 +4,11 @@ Creates audit table on first run so auditing begins from message 1.
 Detects bootstrap vs incomplete-bootstrap vs normal mode.
 """
 
-import sqlite3
 import os
+import sqlite3
 import sys
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
-
-
-def ensure_gitignore():
-    """Create .gitignore with default entries if it doesn't exist."""
-    gitignore_path = os.path.join(PROJECT_ROOT, ".gitignore")
-    if not os.path.exists(gitignore_path):
-        with open(gitignore_path, "w", encoding="utf-8") as f:
-            f.write("scripts/__pycache__/\n")
+from db import DB_PATH
 
 
 def ensure_audit_table():
@@ -123,7 +114,6 @@ def get_session_context():
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
 
-    ensure_gitignore()
     fresh = ensure_audit_table()
 
     if fresh:

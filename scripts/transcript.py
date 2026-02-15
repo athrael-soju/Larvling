@@ -7,73 +7,66 @@ Handles two hook events:
 """
 
 import json
-import re
-import sqlite3
 import os
+import re
 import sys
 import time
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
+from db import get_db, log_audit
 
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+def _is_real_user_message(entry):
+    """Return True if this is a genuine user message, not a tool_result."""
+    if entry.get("type") != "user":
+        return False
+    msg = entry.get("message", {})
+    if not isinstance(msg, dict):
+        return False
+    content = msg.get("content", "")
+    if isinstance(content, str):
+        return True
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                return False
+        return True
+    return False
 
 
-def log_audit(conn, session_id, event_type, content, metadata=None):
-    conn.execute(
-        "INSERT INTO audit (session_id, event_type, content, metadata) VALUES (?, ?, ?, ?)",
-        (session_id, event_type, content, json.dumps(metadata) if metadata else None),
-    )
-    conn.commit()
+def parse_last_turn(transcript_path):
+    """Extract text and tool call counts from the last assistant turn.
 
+    Reads the transcript once, finds the boundary after the last real user
+    message, and collects both text blocks and tool_use counts from that
+    point forward.
 
-def extract_last_assistant_turn(transcript_path):
-    """Collect text from the last agent turn (everything after the last real user message)."""
+    Returns (text, tool_counts) where text is the concatenated assistant
+    response and tool_counts is a dict of {tool_name: count}.
+    """
     if not transcript_path or not os.path.exists(transcript_path):
-        return None
+        return None, {}
 
     lines = []
     with open(transcript_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                lines.append(line)
+        for raw_line in f:
+            raw_line = raw_line.strip()
+            if raw_line:
+                lines.append(raw_line)
 
-    def is_real_user_message(entry):
-        """Return True if this is a genuine user message, not a tool_result."""
-        if entry.get("type") != "user":
-            return False
-        msg = entry.get("message", {})
-        if not isinstance(msg, dict):
-            return False
-        content = msg.get("content", "")
-        if isinstance(content, str):
-            return True  # Plain string = real user message
-        if isinstance(content, list):
-            # If any block is a tool_result, this is a tool response, not a user turn
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "tool_result":
-                    return False
-            return True
-        return False
-
-    # Walk backwards to find the last real user message
-    turn_start = len(lines)
+    # Find where the last turn starts (after the last real user message)
+    turn_start = 0
     for i in range(len(lines) - 1, -1, -1):
         try:
             entry = json.loads(lines[i])
         except json.JSONDecodeError:
             continue
-        if is_real_user_message(entry):
+        if _is_real_user_message(entry):
             turn_start = i + 1
             break
 
-    # Now collect all assistant text from turn_start to end
+    # Collect text and tool counts from the last turn only
     all_text = []
+    tools = {}
     for line in lines[turn_start:]:
         try:
             entry = json.loads(line)
@@ -86,10 +79,14 @@ def extract_last_assistant_turn(transcript_path):
         if isinstance(content, list):
             parts = []
             for block in content:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    text = block.get("text", "").strip()
-                    if text:
-                        parts.append(text)
+                if isinstance(block, dict):
+                    if block.get("type") == "text":
+                        text = block.get("text", "").strip()
+                        if text:
+                            parts.append(text)
+                    elif block.get("type") == "tool_use":
+                        name = block.get("name", "unknown")
+                        tools[name] = tools.get(name, 0) + 1
                 elif isinstance(block, str) and block.strip():
                     parts.append(block.strip())
             if parts:
@@ -97,37 +94,31 @@ def extract_last_assistant_turn(transcript_path):
         elif content:
             all_text.append(str(content))
 
-    return "\n\n".join(all_text) if all_text else None
-
-
-def count_tool_calls(transcript_path):
-    """Count tool uses in the latest assistant turn from the transcript."""
-    if not transcript_path or not os.path.exists(transcript_path):
-        return {}
-
-    tools = {}
-    with open(transcript_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if entry.get("type") != "assistant":
-                continue
-            msg = entry.get("message", {})
-            for block in (msg.get("content", []) if isinstance(msg, dict) else []):
-                if isinstance(block, dict) and block.get("type") == "tool_use":
-                    name = block.get("name", "unknown")
-                    tools[name] = tools.get(name, 0) + 1
-    return tools
+    text = "\n\n".join(all_text) if all_text else None
+    return text, tools
 
 
 def strip_ide_tags(text):
     """Remove leading IDE context tags (opened files, selections) prepended by VSCode."""
-    return re.sub(r"^(?:<ide_(?:opened_file|selection)>.*?</ide_(?:opened_file|selection)>\s*)+", "", text, flags=re.DOTALL).strip()
+    return re.sub(
+        r"^(?:<ide_(?:opened_file|selection)>.*?</ide_(?:opened_file|selection)>\s*)+",
+        "", text, flags=re.DOTALL,
+    ).strip()
+
+
+def wait_for_transcript_stable(transcript_path, interval=0.1, max_wait=2):
+    """Wait until the transcript file stops being written to."""
+    if not transcript_path or not os.path.exists(transcript_path):
+        return
+    last_size = os.path.getsize(transcript_path)
+    waited = 0
+    while waited < max_wait:
+        time.sleep(interval)
+        waited += interval
+        size = os.path.getsize(transcript_path)
+        if size == last_size:
+            return
+        last_size = size
 
 
 def handle_user_prompt(data):
@@ -145,21 +136,6 @@ def handle_user_prompt(data):
     conn.close()
 
 
-def wait_for_transcript_stable(transcript_path, interval=0.3, max_wait=5):
-    """Wait until the transcript file stops being written to."""
-    if not transcript_path or not os.path.exists(transcript_path):
-        return
-    last_size = -1
-    waited = 0
-    while waited < max_wait:
-        size = os.path.getsize(transcript_path)
-        if size == last_size:
-            return  # File hasn't changed — stable
-        last_size = size
-        time.sleep(interval)
-        waited += interval
-
-
 def handle_stop(data):
     """Log the agent's last response from a Stop event."""
     session_id = data.get("session_id")
@@ -167,7 +143,7 @@ def handle_stop(data):
 
     wait_for_transcript_stable(transcript_path)
 
-    response = extract_last_assistant_turn(transcript_path)
+    response, tools = parse_last_turn(transcript_path)
     if not response:
         return
 
@@ -181,7 +157,6 @@ def handle_stop(data):
         conn.close()
         return
 
-    tools = count_tool_calls(transcript_path)
     meta = {"tool_calls": tools} if tools else None
     log_audit(conn, session_id, "agent_message", response, meta)
     conn.close()
@@ -195,7 +170,7 @@ def main():
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        print(f"Failed to parse hook input", file=sys.stderr)
+        print("Failed to parse hook input", file=sys.stderr)
         return
 
     event = data.get("hook_event_name", "")
