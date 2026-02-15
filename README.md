@@ -45,7 +45,8 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 
 | File | What it does |
 |------|-------------|
-| `larvling/plugin.json` | Plugin manifest — tells Claude Code when to call Larvling |
+| `larvling/.claude-plugin/plugin.json` | Plugin manifest — name and description |
+| `larvling/hooks/hooks.json` | Hook definitions — tells Claude Code when to call Larvling |
 | `larvling/scripts/preflight.py` | Wakes up on session start, creates the DB or recalls context |
 | `larvling/scripts/hooks.py` | Handles prompt logging, response capture, and session end |
 | `larvling/scripts/dashboard.py` | Builds the HTML dashboard from the imprints |

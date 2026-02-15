@@ -1,6 +1,5 @@
 {
-  "name": "larvling",
-  "description": "Agentic memory — automatic conversation tracking, session context, and a searchable dashboard for Claude Code",
+  "description": "Larvling lifecycle hooks for conversation tracking and dashboard generation",
   "hooks": {
     "SessionStart": [
       {
