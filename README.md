@@ -26,7 +26,7 @@ Requires Python 3.8+ and Claude Code 1.0.33+.
 **For local development / testing:**
 
 ```bash
-claude --plugin-dir /path/to/Larvling/larvling
+claude --plugin-dir ./larvling
 ```
 
 ## How It Works
