@@ -26,7 +26,7 @@ Requires Python 3.8+ and Claude Code 1.0.33+.
 **For local development / testing:**
 
 ```bash
-claude --plugin-dir /path/to/Larvling
+claude --plugin-dir /path/to/Larvling/larvling
 ```
 
 ## How It Works
@@ -41,12 +41,12 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 
 | File | What it does |
 |------|-------------|
-| `plugin.json` | Plugin manifest — tells Claude Code when to call Larvling |
-| `scripts/preflight.py` | Wakes up on session start, creates the DB or recalls context |
-| `scripts/hooks.py` | Handles prompt logging, response capture, and session end |
-| `scripts/dashboard.py` | Builds the HTML dashboard from the imprints |
-| `scripts/db.py` | Shared database helpers |
-| `CLAUDE.md` | Instructions for the agent |
+| `larvling/plugin.json` | Plugin manifest — tells Claude Code when to call Larvling |
+| `larvling/scripts/preflight.py` | Wakes up on session start, creates the DB or recalls context |
+| `larvling/scripts/hooks.py` | Handles prompt logging, response capture, and session end |
+| `larvling/scripts/dashboard.py` | Builds the HTML dashboard from the imprints |
+| `larvling/scripts/db.py` | Shared database helpers |
+| `larvling/CLAUDE.md` | Instructions for the agent |
 
 ## Data
 
