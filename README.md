@@ -70,7 +70,7 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 claude plugin uninstall larvling@larvling
 
 # Optionally remove the marketplace source
-claude plugin marketplace remove larvling
+claude plugin marketplace remove athrael-soju
 ```
 
 **From within Claude Code:**
