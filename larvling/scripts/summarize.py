@@ -2,10 +2,10 @@
 Larvling Summarize — fetch conversation pairs and store session summaries.
 
 Usage:
-    python summarize.py --list                          # list sessions
-    python summarize.py <session_id> --pairs            # all pairs as JSON
-    python summarize.py <session_id> --get              # get existing session summary
-    python summarize.py <session_id> --store "text"     # store/replace session summary
+    python summarize.py --list                       # list sessions
+    python summarize.py <session_id> --pairs         # all pairs as JSON
+    python summarize.py <session_id> --get           # get existing session summary
+    python summarize.py <session_id> --store "text"  # store/replace session summary
 
 Terminology:
     - Session title:   first user prompt, auto-captured at SessionEnd (meta["summary"])
@@ -16,63 +16,14 @@ import json
 import sqlite3
 import sys
 
-from db import get_db
-
-
-def resolve_session(conn, short_id):
-    """Resolve a short session ID to a full one."""
-    if len(short_id) >= 36:
-        return short_id
-    row = conn.execute(
-        "SELECT DISTINCT session_id FROM imprints WHERE session_id LIKE ?",
-        (short_id + "%",),
-    ).fetchone()
-    return row[0] if row else None
+from db import get_db, resolve_session, list_sessions as _list_sessions
 
 
 def list_sessions():
-    """Print available sessions with session summary status."""
+    """Print available sessions with summary status."""
     conn = get_db()
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        """
-        SELECT session_id, timestamp, metadata
-        FROM imprints
-        WHERE event_type = 'session_end' AND metadata IS NOT NULL
-        ORDER BY id DESC
-        """
-    ).fetchall()
-
-    if not rows:
-        rows = conn.execute(
-            """
-            SELECT DISTINCT session_id, MIN(timestamp) as timestamp
-            FROM imprints
-            WHERE session_id IS NOT NULL
-            GROUP BY session_id
-            ORDER BY timestamp DESC
-            """
-        ).fetchall()
-        for row in rows:
-            print(f"{row['session_id'][:8]}  {row['timestamp'] or '?'}  [no summary]")
-        conn.close()
-        return
-
-    for row in rows:
-        meta = {}
-        try:
-            meta = json.loads(row["metadata"])
-        except (json.JSONDecodeError, TypeError):
-            pass
-        date = row["timestamp"][:16] if row["timestamp"] else "?"
-        has_llm = "[summarized]" if meta.get("llm_summary") else "[no summary]"
-        first_prompt = meta.get("summary", "")
-        if first_prompt:
-            first_prompt = first_prompt.split("\n")[0][:80]
-        duration = meta.get("duration_min")
-        dur = f" ({duration}m)" if duration else ""
-        print(f"{row['session_id'][:8]}  {date}{dur}  {has_llm}  {first_prompt}")
-
+    _list_sessions(conn, show_summary_status=True)
     conn.close()
 
 
@@ -200,9 +151,15 @@ def store_summary(session_id, summary_text):
         )
         conn.commit()
     else:
-        # No session_end row — create one
+        # No session_end row — build full metadata before creating one
         from db import imprint
-        imprint(conn, session_id, "session_end", "Session ended", {"llm_summary": summary_text})
+        from hooks import get_session_duration, get_session_summary
+        meta = {"llm_summary": summary_text}
+        meta.update(get_session_duration(conn, session_id))
+        title = get_session_summary(conn, session_id)
+        if title:
+            meta["summary"] = title
+        imprint(conn, session_id, "session_end", "Session ended", meta)
 
     conn.close()
     print(f"Session summary stored for session {session_id[:8]}")

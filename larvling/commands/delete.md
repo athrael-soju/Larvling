@@ -15,7 +15,7 @@ Permanently delete a Larvling session and all its imprints from the database.
 
 If the user passed `list` as the session argument, or no argument at all, run:
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" --list
+python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" --list
 ```
 Show the results so the user can pick a session to delete.
 

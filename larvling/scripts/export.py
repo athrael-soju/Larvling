@@ -12,53 +12,7 @@ import os
 import sqlite3
 import sys
 
-from db import DB_PATH, get_db
-
-
-def list_sessions():
-    """Print available sessions with summaries."""
-    conn = get_db()
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        """
-        SELECT session_id, timestamp, metadata
-        FROM imprints
-        WHERE event_type = 'session_end' AND metadata IS NOT NULL
-        ORDER BY id DESC
-        """
-    ).fetchall()
-
-    if not rows:
-        # Fall back to distinct session IDs if no session_end events yet
-        rows = conn.execute(
-            """
-            SELECT DISTINCT session_id, MIN(timestamp) as timestamp
-            FROM imprints
-            WHERE session_id IS NOT NULL
-            GROUP BY session_id
-            ORDER BY timestamp DESC
-            """
-        ).fetchall()
-        for row in rows:
-            print(f"{row['session_id'][:8]}  {row['timestamp'] or '?'}")
-        conn.close()
-        return
-
-    for row in rows:
-        meta = {}
-        try:
-            meta = json.loads(row["metadata"])
-        except (json.JSONDecodeError, TypeError):
-            pass
-        date = row["timestamp"][:16] if row["timestamp"] else "?"
-        summary = meta.get("summary", "")
-        if summary:
-            summary = summary.split("\n")[0][:100]
-        duration = meta.get("duration_min")
-        duration_str = f" ({duration}m)" if duration else ""
-        print(f"{row['session_id'][:8]}  {date}{duration_str}  {summary}")
-
-    conn.close()
+from db import get_db, resolve_session, list_sessions
 
 
 def export_session(session_id):
@@ -67,16 +21,10 @@ def export_session(session_id):
     conn.row_factory = sqlite3.Row
 
     # Resolve short IDs
-    if len(session_id) < 36:
-        row = conn.execute(
-            "SELECT DISTINCT session_id FROM imprints WHERE session_id LIKE ?",
-            (session_id + "%",),
-        ).fetchone()
-        if row:
-            session_id = row["session_id"]
-        else:
-            conn.close()
-            return None
+    session_id = resolve_session(conn, session_id)
+    if not session_id:
+        conn.close()
+        return None
 
     messages = conn.execute(
         """
@@ -152,7 +100,10 @@ def main():
         sys.exit(1)
 
     if sys.argv[1] == "--list":
-        list_sessions()
+        conn = get_db()
+        conn.row_factory = sqlite3.Row
+        list_sessions(conn)
+        conn.close()
         return
 
     session_id = sys.argv[1]

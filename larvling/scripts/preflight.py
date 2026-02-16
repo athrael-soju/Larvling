@@ -8,7 +8,7 @@ import os
 import sqlite3
 import sys
 
-from db import DB_PATH
+from db import DB_PATH, get_db
 
 
 def ensure_audit_table():
@@ -108,7 +108,7 @@ def detect_unfinished_work(conn):
 
 def get_session_context():
     """Build curated session context from summaries and unfinished work."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db()
     conn.row_factory = sqlite3.Row
 
     lines = ["# Larvling Session Context", ""]
@@ -164,10 +164,15 @@ def main():
         print("- Injects context from past sessions at the start of each new one")
         print("- Keeps a searchable HTML dashboard up to date after every hook")
         print()
+        print("## Commands")
+        print("- `/summarize` — Generate an LLM summary for any session")
+        print("- `/export` — Export a session conversation to markdown")
+        print("- `/delete` — Permanently delete a session from the database")
+        print()
         print("## Agent Instructions")
         print("Welcome the user warmly. Let them know Larvling is now installed and will")
-        print("quietly track their sessions from here on — no extra effort needed. Point")
-        print("them to the dashboard at `.claude/dashboard.html` for browsing past sessions.")
+        print("quietly track their sessions from here on — no extra effort needed. Mention")
+        print("the dashboard at `.claude/dashboard.html` and the three slash commands above.")
         print("Keep it short, friendly, and conversational. Don't overwhelm with details.")
     else:
         print(get_session_context())

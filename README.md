@@ -42,6 +42,50 @@ claude plugin install larvling@athrael-soju --scope local
 claude --plugin-dir ./larvling
 ```
 
+> **Tip:** `--plugin-dir` loads the plugin directly from the repo — no caching involved. This is the simplest way to iterate on changes.
+
+## Local Development
+
+When Larvling is installed via `plugin install`, Claude Code copies the plugin files into a **cache directory** and runs hooks from there — not from the repo. This means editing files in the repo has no immediate effect on the running plugin.
+
+### How to test changes
+
+**Option A — `--plugin-dir` (recommended):**
+
+```bash
+claude --plugin-dir ./larvling
+```
+
+This bypasses the cache entirely and loads the plugin straight from the repo. Changes take effect on the next session start.
+
+**Option B — Reinstall the plugin:**
+
+```bash
+claude plugin uninstall larvling@larvling
+claude plugin install larvling@athrael-soju --scope local
+```
+
+This refreshes the cache with the latest files from the repo. Requires restarting the session.
+
+**Option C — Copy files to the cache manually:**
+
+```bash
+# Find the cache directory
+# Linux / macOS
+ls ~/.claude/plugins/cache/athrael-soju/larvling/
+
+# Windows
+dir %USERPROFILE%\.claude\plugins\cache\athrael-soju\larvling\
+```
+
+Copy your changed files into the cache directory (note: the cache uses a **flat structure** — there is no `larvling/` prefix inside it). Restart the session to pick up the changes.
+
+### Cache gotchas
+
+- The cache path includes a hash suffix (e.g., `b378d4eab0ee`) that changes when the plugin is reinstalled
+- `${CLAUDE_PLUGIN_ROOT}` in hooks and commands points to the cache, not the repo
+- Committing + updating the plugin via `plugin install` also refreshes the cache
+
 ## How It Works
 
 Larvling hooks into the Claude Code lifecycle and remembers everything:

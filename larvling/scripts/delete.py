@@ -8,18 +8,7 @@ Usage:
 import sqlite3
 import sys
 
-from db import get_db
-
-
-def resolve_session(conn, short_id):
-    """Resolve a short session ID to a full one."""
-    if len(short_id) >= 36:
-        return short_id
-    row = conn.execute(
-        "SELECT DISTINCT session_id FROM imprints WHERE session_id LIKE ?",
-        (short_id + "%",),
-    ).fetchone()
-    return row[0] if row else None
+from db import get_db, resolve_session
 
 
 def delete_session(session_id):

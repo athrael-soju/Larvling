@@ -12,7 +12,6 @@ from html import escape
 
 from db import DB_PATH, get_db
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_URL = "https://raw.githubusercontent.com/athrael-soju/Zergling/main/larvling.png"
 
 HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
@@ -216,7 +215,7 @@ def render_page(sidebar_html, details_html):
     .sidebar-item.active { background: var(--surface); border-left: 3px solid var(--accent); }
     .si-top { display: flex; justify-content: space-between; align-items: center; }
     .si-date { font-weight: 600; font-size: 0.85rem; }
-    .si-time { color: var(--muted); font-size: 0.75rem; }
+    .si-time { color: var(--muted); font-size: 0.75rem; margin-left: 0.4rem; }
     .si-summary { color: var(--muted); font-size: 0.8rem; margin-top: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .si-meta { display: flex; gap: 0.5rem; margin-top: 0.2rem; font-size: 0.7rem; color: var(--muted); }
     /* Overflow menu */
