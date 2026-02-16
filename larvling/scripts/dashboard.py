@@ -313,20 +313,28 @@ function formatSize(len) {
     if (len >= 1000) return (len / 1000).toFixed(1).replace(/\\.0$/, '') + 'k chars';
     return len + ' chars';
 }
+// Render markdown in all message bodies (works even when hidden)
 document.querySelectorAll('.msg-body').forEach(function(body) {
     var raw = body.textContent;
     body.dataset.raw = raw;
     body.innerHTML = marked.parse(raw);
-    if (body.scrollHeight > body.clientHeight) {
-        body.classList.add('truncated');
-        var size = raw.length;
-        var hint = document.createElement('div');
-        hint.className = 'msg-expand collapsed';
-        hint.innerHTML = '<span class="expand-icon">&#x25BC;</span> Show more (' + formatSize(size) + ')';
-        hint.dataset.size = size;
-        body.parentNode.appendChild(hint);
-    }
 });
+
+// Check truncation on visible bodies and add expand hints
+function checkTruncation(container) {
+    (container || document).querySelectorAll('.msg-body').forEach(function(body) {
+        if (body.parentNode.querySelector('.msg-expand')) return; // already processed
+        if (body.scrollHeight > body.clientHeight) {
+            body.classList.add('truncated');
+            var size = (body.dataset.raw || '').length;
+            var hint = document.createElement('div');
+            hint.className = 'msg-expand collapsed';
+            hint.innerHTML = '<span class="expand-icon">&#x25BC;</span> Show more (' + formatSize(size) + ')';
+            hint.dataset.size = size;
+            body.parentNode.appendChild(hint);
+        }
+    });
+}
 
 function selectSession(sid) {
     document.querySelectorAll('.sidebar-item').forEach(function(el) {
@@ -337,6 +345,9 @@ function selectSession(sid) {
     });
     var ns = document.getElementById('no-session');
     if (ns) ns.style.display = sid ? 'none' : '';
+    // Check truncation after the panel is visible
+    var active = document.querySelector('.detail-panel.active');
+    if (active) checkTruncation(active);
 }
 
 function applySort(value) {
