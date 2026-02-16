@@ -23,8 +23,8 @@ Requires Python 3.8+ and Claude Code 1.0.33+.
 # Add the repo as a marketplace
 /plugin marketplace add https://github.com/athrael-soju/Larvling
 
-# Install the plugin
-/plugin install larvling@larvling
+# Install the plugin (Install for you, in this repo only (local scope)
+/plugin install larvling@larvling --local
 ```
 
 **For local development / testing:**
