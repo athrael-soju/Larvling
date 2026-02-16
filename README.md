@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="larvling.png" alt="Larvling logo" width="200" />
+  <img src="larvling.png" alt="Larvling logo" width="350" />
 </p>
 
 # Larvling
