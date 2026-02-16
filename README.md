@@ -6,7 +6,7 @@
 
 Your friendly memory companion for Claude Code. Larvling quietly imprints every conversation - prompts, responses, tool usage - and keeps it all in a searchable dashboard. No config needed, just install and go.
 
-## Why Larvling?
+## Why would you use Larvling?
 
 - **Tiny** - under 38 KB total. Smaller than most READMEs out there
 - **Zero dependencies** - no pip install, no node_modules, no build step. Just Python 3.8+ and the standard library
@@ -42,7 +42,7 @@ claude plugin install larvling@athrael-soju --scope local
 claude --plugin-dir ./larvling
 ```
 
-## How It Works
+## How does Larvling Work?
 
 Larvling hooks into the Claude Code lifecycle and remembers everything:
 
