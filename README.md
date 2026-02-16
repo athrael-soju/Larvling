@@ -120,6 +120,7 @@ The dashboard auto-refreshes every 3 seconds when the underlying data changes.
 | `larvling/scripts/preflight.py` | Wakes up on session start, creates the DB or recalls context |
 | `larvling/scripts/hooks.py` | Handles prompt logging, response capture, and session end |
 | `larvling/scripts/dashboard.py` | Builds the HTML dashboard from the imprints |
+| `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard |
 | `larvling/scripts/summarize.py` | DB helpers for the `/summarize` command |
 | `larvling/scripts/export.py` | Exports a session conversation to markdown |
 | `larvling/scripts/delete.py` | Deletes a session's imprints from the database |
