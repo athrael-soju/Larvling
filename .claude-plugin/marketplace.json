@@ -1,5 +1,5 @@
 {
-  "name": "larvling",
+  "name": "athrael-soju",
   "owner": {
     "name": "athrael-soju"
   },
@@ -11,7 +11,12 @@
       "name": "larvling",
       "source": "./larvling",
       "description": "Automatic conversation tracking, session context, and a searchable dashboard",
-      "keywords": ["memory", "auditing", "dashboard", "session-tracking"],
+      "keywords": [
+        "memory",
+        "auditing",
+        "dashboard",
+        "session-tracking"
+      ],
       "repository": "https://github.com/athrael-soju/Larvling"
     }
   ]
