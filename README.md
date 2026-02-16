@@ -19,12 +19,21 @@ Your friendly memory companion for Claude Code. Larvling quietly imprints every 
 
 Requires Python 3.8+ and Claude Code 1.0.33+.
 
-```bash
-# Add the repo as a marketplace
-/plugin marketplace add https://github.com/athrael-soju/Larvling
+**From the terminal (CLI):**
 
-# Install the plugin (Install for you, in this repo only (local scope)
-/plugin install larvling@larvling --local
+```bash
+# Add the marketplace source
+claude plugin marketplace add https://github.com/athrael-soju/Larvling
+
+# Install the plugin (local scope — this repo only)
+claude plugin install larvling@athrael-soju --scope local
+```
+
+**From within Claude Code:**
+
+```
+/plugin marketplace add https://github.com/athrael-soju/Larvling
+/plugin install larvling@athrael-soju --scope local
 ```
 
 **For local development / testing:**
@@ -55,7 +64,18 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 
 ## Uninstall
 
+**From the terminal (CLI):**
+
 ```bash
+claude plugin uninstall larvling@larvling
+
+# Optionally remove the marketplace source
+claude plugin marketplace remove larvling
+```
+
+**From within Claude Code:**
+
+```
 /plugin uninstall larvling@larvling
 
 # Optionally remove the marketplace source
