@@ -27,25 +27,15 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --get
 ```
 If one exists, show it and ask if the user wants to regenerate or keep it.
 
-### Step 3: Ask scope
-
-Ask the user what scope to summarize:
-- **Whole session** — summarize all exchanges
-- **Latest N exchanges** — summarize only the last N user/agent pairs
-
-### Step 4: Fetch conversation pairs
+### Step 3: Fetch conversation pairs
 
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --pairs
 ```
-Or for latest N:
-```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --pairs --last N
-```
 
-This returns JSON with user/agent message pairs.
+This returns JSON with all user/agent message pairs for the session.
 
-### Step 5: Incremental summarization
+### Step 4: Incremental summarization
 
 Do NOT try to summarize everything at once. Use this incremental approach:
 
@@ -61,16 +51,13 @@ Do NOT try to summarize everything at once. Use this incremental approach:
 
 For small sessions (5 or fewer pairs), you can skip straight to the final summary.
 
-### Step 6: Format and store the summary
+### Step 5: Store the summary
 
-Prepend a metadata header to the summary before storing. The header should describe what the summary covers:
-
-- For **whole session**: `[Scope: full session | N exchanges]`
-- For **latest N**: `[Scope: latest N of M exchanges]`
+Prepend an exchange count header: `[N exchanges]`
 
 Example stored summary:
 ```
-[Scope: full session | 28 exchanges]
+[28 exchanges]
 
 The user implemented three major features for the Larvling plugin...
 ```
@@ -82,4 +69,4 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --store "YOUR F
 
 The summary will appear in the dashboard sidebar and be used for context injection. Sessions with summaries show a download icon in the dashboard that lets the user save it to a file.
 
-Tell the user the summary has been saved and what scope it covers.
+Tell the user the summary has been saved.

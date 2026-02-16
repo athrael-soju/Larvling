@@ -4,7 +4,6 @@ Larvling Summarize — fetch conversation pairs and store session summaries.
 Usage:
     python summarize.py --list                          # list sessions
     python summarize.py <session_id> --pairs            # all pairs as JSON
-    python summarize.py <session_id> --pairs --last N   # last N pairs as JSON
     python summarize.py <session_id> --get              # get existing session summary
     python summarize.py <session_id> --store "text"     # store/replace session summary
 
@@ -77,7 +76,7 @@ def list_sessions():
     conn.close()
 
 
-def get_pairs(session_id, last_n=None):
+def get_pairs(session_id):
     """Fetch user/agent message pairs as a JSON list.
 
     Each pair is: {"index": N, "user": "...", "agent": "...", "timestamp": "..."}
@@ -127,9 +126,6 @@ def get_pairs(session_id, last_n=None):
             "agent": agent_msg or "",
             "timestamp": ts or "",
         })
-
-    if last_n and last_n < len(pairs):
-        pairs = pairs[-last_n:]
 
     return pairs
 
@@ -224,12 +220,7 @@ def main():
     session_id = sys.argv[1]
 
     if "--pairs" in sys.argv:
-        last_n = None
-        if "--last" in sys.argv:
-            idx = sys.argv.index("--last")
-            if idx + 1 < len(sys.argv):
-                last_n = int(sys.argv[idx + 1])
-        pairs = get_pairs(session_id, last_n)
+        pairs = get_pairs(session_id)
         if pairs is None:
             print(f"No session found matching '{session_id}'", file=sys.stderr)
             sys.exit(1)
