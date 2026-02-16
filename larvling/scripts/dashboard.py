@@ -233,11 +233,15 @@ def render_page(sidebar_html, details_html):
     .msg-time { color: var(--muted); font-size: 0.7rem; }
     .msg-body { font-size: 0.85rem; line-height: 1.5; word-break: break-word; max-height: 200px; overflow: hidden; position: relative; cursor: pointer; }
     .msg-body.expanded { max-height: none; }
-    .msg-body.truncated::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3rem; background: linear-gradient(transparent 0%, var(--agent) 80%); pointer-events: none; }
-    .msg-body.truncated::before { content: '\u25bc  Show more'; position: absolute; bottom: 0; left: 0; right: 0; z-index: 1; text-align: center; font-size: 0.7rem; color: var(--accent); padding: 0.3rem 0; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
-    .msg-body.truncated:hover::before { opacity: 1; }
-    .msg-body.truncated:hover { box-shadow: 0 0 0 1px var(--accent) inset; border-radius: 4px; }
-    .msg-body.expanded::after, .msg-body.expanded::before { display: none; }
+    .msg-body.truncated::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3rem; pointer-events: none; }
+    .msg-agent .msg-body.truncated::after { background: linear-gradient(transparent 0%, var(--agent) 80%); }
+    .msg-user .msg-body.truncated::after { background: linear-gradient(transparent 0%, var(--user) 80%); }
+    .msg-body.expanded::after { display: none; }
+    .msg-expand { display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.3rem 0; margin-top: 0.2rem; font-size: 0.7rem; color: var(--accent); cursor: pointer; opacity: 0.8; transition: opacity 0.15s; user-select: none; }
+    .msg-expand:hover { opacity: 1; }
+    .msg-expand .expand-icon { transition: transform 0.2s; }
+    .msg-expand.collapsed .expand-icon { transform: rotate(0deg); }
+    .msg-expand.expanded .expand-icon { transform: rotate(180deg); }
     .msg-body p { margin: 0 0 0.4rem 0; }
     .msg-body p:last-child { margin-bottom: 0; }
     .msg-body code { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 0.8rem; background: rgba(0,0,0,0.3); padding: 0.1rem 0.3rem; border-radius: 3px; }
@@ -305,12 +309,23 @@ var list = document.getElementById('sidebar-list');
 
 // Render markdown in all message bodies
 marked.setOptions({ breaks: true, gfm: true });
+function formatSize(len) {
+    if (len >= 1000) return (len / 1000).toFixed(1).replace(/\\.0$/, '') + 'k chars';
+    return len + ' chars';
+}
 document.querySelectorAll('.msg-body').forEach(function(body) {
     var raw = body.textContent;
     body.dataset.raw = raw;
     body.innerHTML = marked.parse(raw);
-    // Mark truncated bodies so the "click to expand" hint shows
-    if (body.scrollHeight > body.clientHeight) body.classList.add('truncated');
+    if (body.scrollHeight > body.clientHeight) {
+        body.classList.add('truncated');
+        var size = raw.length;
+        var hint = document.createElement('div');
+        hint.className = 'msg-expand collapsed';
+        hint.innerHTML = '<span class="expand-icon">&#x25BC;</span> Show more (' + formatSize(size) + ')';
+        hint.dataset.size = size;
+        body.parentNode.appendChild(hint);
+    }
 });
 
 function selectSession(sid) {
@@ -426,10 +441,32 @@ list.addEventListener('click', function(e) {
 });
 
 document.addEventListener('click', function(e) {
+    var hint = e.target.closest('.msg-expand');
     var body = e.target.closest('.msg-body');
-    if (body) {
-        body.classList.toggle('expanded');
-        body.classList.remove('truncated');
+    var target = hint || body;
+    if (!target) return;
+    var msg = target.closest('.msg');
+    if (!msg) return;
+    var msgBody = msg.querySelector('.msg-body');
+    var msgHint = msg.querySelector('.msg-expand');
+    if (!msgBody) return;
+    var isExpanded = msgBody.classList.contains('expanded');
+    if (isExpanded) {
+        msgBody.classList.remove('expanded');
+        msgBody.classList.add('truncated');
+        if (msgHint) {
+            msgHint.classList.remove('expanded');
+            msgHint.classList.add('collapsed');
+            msgHint.innerHTML = '<span class="expand-icon">&#x25BC;</span> Show more (' + formatSize(parseInt(msgHint.dataset.size)) + ')';
+        }
+    } else if (msgBody.classList.contains('truncated') || msgHint) {
+        msgBody.classList.add('expanded');
+        msgBody.classList.remove('truncated');
+        if (msgHint) {
+            msgHint.classList.remove('collapsed');
+            msgHint.classList.add('expanded');
+            msgHint.innerHTML = '<span class="expand-icon">&#x25BC;</span> Show less';
+        }
     }
 });
 
