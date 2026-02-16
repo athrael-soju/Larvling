@@ -113,9 +113,11 @@ def main():
     fresh = ensure_audit_table()
 
     if fresh:
-        print("# Larvling Ready")
+        print("# Larvling — First Run")
         print()
-        print("All conversations are now being imprinted.")
+        print("Larvling has just been initialized for the first time in this project.")
+        print("Tell the user that Larvling is now active and tracking conversations.")
+        print("Mention the dashboard at `.claude/dashboard.html`.")
     else:
         print(get_session_context())
 

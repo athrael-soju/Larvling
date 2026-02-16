@@ -15,6 +15,7 @@ Everything lives in `.claude/larvling.db` (SQLite, WAL mode). The dashboard at `
 
 ## For the Agent
 
+- **First init:** When the SessionStart context contains "Larvling — First Run", this is the very first time Larvling has been installed. You MUST greet the user with a short welcome message letting them know Larvling is now active and tracking conversations. Mention the dashboard at `.claude/dashboard.html`. This takes priority over other startup behavior.
 - On session start, review the context Larvling injects — it's your memory of what came before
 - Imprinting is automatic — just focus on the work
 - The user can open `.claude/dashboard.html` to browse past sessions
