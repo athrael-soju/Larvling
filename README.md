@@ -50,6 +50,23 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 - **Recalls** past session context on startup so the agent picks up where it left off
 - **Generates** a two-panel HTML dashboard with search, sort, and filter
 
+## Commands
+
+| Command | What it does |
+|---------|-------------|
+| `/summarize` | Generate an LLM-written summary of a session. Stored in the DB for context injection and downloadable from the dashboard |
+| `/export` | Export a session's full conversation to a markdown file |
+| `/delete` | Permanently delete a session and all its imprints from the database |
+
+## Dashboard
+
+The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessions. Each session has a "..." menu with:
+
+- **Download summary** — save the LLM-generated summary as a markdown file (only shown if a summary exists)
+- **Export conversation** — download the full conversation as markdown
+
+The dashboard auto-refreshes every 3 seconds when the underlying data changes.
+
 ## Files
 
 | File | What it does |
@@ -59,7 +76,13 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 | `larvling/scripts/preflight.py` | Wakes up on session start, creates the DB or recalls context |
 | `larvling/scripts/hooks.py` | Handles prompt logging, response capture, and session end |
 | `larvling/scripts/dashboard.py` | Builds the HTML dashboard from the imprints |
+| `larvling/scripts/summarize.py` | DB helpers for the `/summarize` command |
+| `larvling/scripts/export.py` | Exports a session conversation to markdown |
+| `larvling/scripts/delete.py` | Deletes a session's imprints from the database |
 | `larvling/scripts/db.py` | Shared database helpers |
+| `larvling/commands/summarize.md` | Slash command definition for `/summarize` |
+| `larvling/commands/export.md` | Slash command definition for `/export` |
+| `larvling/commands/delete.md` | Slash command definition for `/delete` |
 | `larvling/CLAUDE.md` | Instructions for the agent |
 
 ## Uninstall
