@@ -173,6 +173,9 @@ def render_page(sidebar_html, details_html):
 <meta name="revision" content="__REVISION__">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Larvling Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
 <style>
     :root { --bg: #1a1610; --surface: #2a2318; --border: #3d3428; --text: #f5f0e6; --muted: #a09282; --accent: #f5a623; --accent2: #f0c850; --red: #e86530; --pink: #e8668a; --user: #2e2215; --agent: #241f15; --sidebar-w: 260px; }
     * { margin: 0; padding: 0; box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
@@ -184,9 +187,9 @@ def render_page(sidebar_html, details_html):
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
 
     /* Top bar */
-    .topbar { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.25rem; border-bottom: 2px solid var(--accent); background: linear-gradient(180deg, #2a2318 0%, var(--bg) 100%); flex-shrink: 0; }
-    .logo { width: 48px; height: 48px; border-radius: 6px; }
-    .topbar h1 { font-size: 1.1rem; color: var(--accent); }
+    .topbar { display: flex; align-items: center; gap: 0.3rem; padding: 0.35rem 1rem; border-bottom: 2px solid var(--accent); background: linear-gradient(180deg, #2a2318 0%, var(--bg) 100%); flex-shrink: 0; }
+    .logo { width: 80px; height: 80px; border-radius: 6px; }
+    .topbar-tagline { display: flex; flex-direction: column; font-family: 'Quicksand', sans-serif; font-size: 0.8rem; color: var(--accent); font-weight: 700; line-height: 1.3; letter-spacing: 0.02em; }
     .topbar .meta { color: var(--muted); font-size: 0.75rem; }
     .topbar-right { margin-left: auto; }
     .topbar-right input { width: 220px; padding: 0.35rem 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-size: 0.8rem; outline: none; }
@@ -272,7 +275,7 @@ def render_page(sidebar_html, details_html):
     <img src=\""""
         + logo_uri
         + """\" alt="Larvling" class="logo">
-    <div><h1>Larvling</h1></div>
+    <div class="topbar-tagline"><span>Your</span><span>friendly</span><span>memory</span><span>companion</span></div>
     <div class="topbar-right">
         <input type="text" id="search" placeholder="Search...">
     </div>
@@ -508,11 +511,12 @@ def main():
     conn.row_factory = sqlite3.Row
     revision = conn.execute("SELECT MAX(id) FROM imprints").fetchone()[0] or 0
 
-    # Skip regeneration if dashboard is already current
+    # Skip regeneration if dashboard is already current AND the template hasn't changed
     if os.path.exists(HTML_PATH):
         with open(HTML_PATH, "r", encoding="utf-8") as f:
             head = f.read(1024)
-        if f'content="{revision}"' in head:
+        template_modified = os.path.getmtime(__file__) > os.path.getmtime(HTML_PATH)
+        if f'content="{revision}"' in head and not template_modified:
             conn.close()
             print(f"Dashboard up to date: {HTML_PATH}")
             return
