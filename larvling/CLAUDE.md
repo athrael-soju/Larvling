@@ -7,11 +7,17 @@ Larvling quietly watches the conversation lifecycle and remembers everything so 
 ## What Happens Behind the Scenes
 
 - **SessionStart** — wakes up, creates the DB on first run, or recalls past session context
-- **UserPromptSubmit** — imprints each user prompt
+- **UserPromptSubmit** — imprints each user prompt and regenerates the dashboard
 - **Stop** — reads the transcript and imprints the agent's last response
-- **SessionEnd** — notes how long the session lasted
+- **SessionEnd** — notes how long the session lasted and captures the session title (first user prompt)
 
 Everything lives in `.claude/larvling.db` (SQLite, WAL mode). The dashboard at `.claude/dashboard.html` is refreshed on every hook.
+
+## Commands
+
+- `/summarize` — generate an LLM-written summary of a session (stored in DB for context injection, downloadable from the dashboard)
+- `/export` — export a session's full conversation to a markdown file
+- `/delete` — permanently delete a session and all its imprints from the database
 
 ## For the Agent
 

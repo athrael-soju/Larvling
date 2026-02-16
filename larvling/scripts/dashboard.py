@@ -12,7 +12,6 @@ from html import escape
 
 from db import DB_PATH, get_db
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_URL = "https://raw.githubusercontent.com/athrael-soju/Zergling/main/larvling.png"
 
 HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
@@ -34,9 +33,14 @@ def get_sessions(conn):
         for m in messages:
             if m["event_type"] == "session_end" and m["metadata"]:
                 try:
-                    end_meta = json.loads(m["metadata"])
+                    candidate = json.loads(m["metadata"])
                 except (json.JSONDecodeError, TypeError):
-                    pass
+                    continue
+                # Prefer the entry that has a summary
+                if candidate.get("summary") or not end_meta:
+                    end_meta = candidate
+                if end_meta.get("summary"):
+                    break
         user_count = sum(1 for m in messages if m["event_type"] == "user_message")
         agent_count = sum(1 for m in messages if m["event_type"] == "agent_message")
         if user_count + agent_count == 0:
@@ -107,14 +111,24 @@ def render_sidebar_item(session, index):
 
     duration = meta.get("duration_min") or 0
     duration_str = f"{duration}m" if duration else ""
-    summary = f"{session['msg_count']} messages"
+    summary = escape(meta.get("summary") or f"{session['msg_count']} messages")
     active = "active" if index == 0 else ""
     sid = escape(session["session_id"] or "")
 
-    return f"""<div class="sidebar-item {active}" data-sid="{sid}" data-started="{escape(started)}" data-msgs="{session['msg_count']}" data-duration="{duration}">
+    ended = session["ended"] or started
+    llm_summary = meta.get("llm_summary") or ""
+    summary_item = f'<div class="menu-item si-summary-dl" data-summary="{escape(llm_summary)}">&#x1F4CB; Download summary</div>' if llm_summary else ""
+    return f"""<div class="sidebar-item {active}" data-sid="{sid}" data-started="{escape(started)}" data-ended="{escape(ended)}" data-msgs="{session['msg_count']}" data-duration="{duration}">
         <div class="si-top">
             <span class="si-date">{escape(date_part)}</span>
             <span class="si-time">{escape(time_part)}</span>
+            <span class="si-menu-wrap">
+                <span class="si-menu-btn" title="Actions">&#x22EF;</span>
+                <div class="si-menu">
+                    {summary_item}
+                    <div class="menu-item si-export-dl">&#x1F4BE; Export conversation</div>
+                </div>
+            </span>
         </div>
         <div class="si-summary">{summary}</div>
         <div class="si-meta">
@@ -167,7 +181,7 @@ def render_page(sidebar_html, details_html):
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
 <style>
-    :root { --bg: #1a1610; --surface: #2a2318; --border: #3d3428; --text: #f5f0e6; --muted: #a09282; --accent: #f5a623; --accent2: #f0c850; --red: #e86530; --pink: #e8668a; --user: #2e2215; --agent: #241f15; --sidebar-w: 260px; }
+    :root { --bg: #1a1610; --surface: #2a2318; --border: #3d3428; --text: #f5f0e6; --muted: #a09282; --accent: #f5a623; --accent2: #f0c850; --user: #2e2215; --agent: #241f15; --sidebar-w: 260px; }
     * { margin: 0; padding: 0; box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -201,10 +215,17 @@ def render_page(sidebar_html, details_html):
     .sidebar-item.active { background: var(--surface); border-left: 3px solid var(--accent); }
     .si-top { display: flex; justify-content: space-between; align-items: center; }
     .si-date { font-weight: 600; font-size: 0.85rem; }
-    .si-time { color: var(--muted); font-size: 0.75rem; }
+    .si-time { color: var(--muted); font-size: 0.75rem; margin-left: 0.4rem; }
     .si-summary { color: var(--muted); font-size: 0.8rem; margin-top: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .si-meta { display: flex; gap: 0.5rem; margin-top: 0.2rem; font-size: 0.7rem; color: var(--muted); }
-
+    /* Overflow menu */
+    .si-menu-wrap { position: relative; margin-left: auto; }
+    .si-menu-btn { cursor: pointer; font-size: 1rem; color: var(--muted); opacity: 0.5; transition: opacity 0.15s; padding: 0 0.2rem; user-select: none; }
+    .si-menu-btn:hover { opacity: 1; }
+    .si-menu { display: none; position: absolute; right: 0; top: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; min-width: 180px; z-index: 50; padding: 0.25rem 0; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+    .si-menu.open { display: block; }
+    .menu-item { padding: 0.4rem 0.75rem; font-size: 0.8rem; cursor: pointer; white-space: nowrap; }
+    .menu-item:hover { background: var(--border); }
     /* Detail panel */
     .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
     .detail-panel { flex: 1; display: none; flex-direction: column; min-height: 0; }
@@ -304,6 +325,8 @@ def render_page(sidebar_html, details_html):
     </div>
 </div>
 
+
+
 <script>
 var list = document.getElementById('sidebar-list');
 
@@ -354,10 +377,10 @@ function applySort(value) {
     var items = Array.from(list.querySelectorAll('.sidebar-item'));
     items.sort(function(a, b) {
         switch (value) {
-            case 'oldest': return a.dataset.started.localeCompare(b.dataset.started);
+            case 'oldest': return (a.dataset.ended || a.dataset.started).localeCompare(b.dataset.ended || b.dataset.started);
             case 'most-msgs': return (parseInt(b.dataset.msgs) || 0) - (parseInt(a.dataset.msgs) || 0);
             case 'longest': return (parseFloat(b.dataset.duration) || 0) - (parseFloat(a.dataset.duration) || 0);
-            default: return b.dataset.started.localeCompare(a.dataset.started);
+            default: return (b.dataset.ended || b.dataset.started).localeCompare(a.dataset.ended || a.dataset.started);
         }
     });
     items.forEach(function(el) { list.appendChild(el); });
@@ -443,7 +466,78 @@ document.getElementById('sort-select').addEventListener('change', function() { s
 document.getElementById('filter-select').addEventListener('change', function() { saveState('filter', this.value); applyAll(); });
 document.getElementById('search').addEventListener('input', function() { saveState('search', this.value); applyAll(); });
 
+function downloadFile(filename, content) {
+    var blob = new Blob([content], { type: 'text/markdown' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+function exportSession(sid) {
+    var panel = document.querySelector('.detail-panel[data-sid="' + sid + '"]');
+    if (!panel) return;
+    var lines = ['# Session ' + sid.slice(0, 8), ''];
+    var header = panel.querySelector('.detail-header');
+    if (header) {
+        var date = header.querySelector('.detail-date');
+        if (date) lines.push('**Date:** ' + date.textContent);
+        var chips = header.querySelectorAll('.chip');
+        chips.forEach(function(c) { lines.push('**' + c.textContent.trim() + '**'); });
+        lines.push('');
+    }
+    lines.push('---', '');
+    panel.querySelectorAll('.msg').forEach(function(msg) {
+        var role = msg.querySelector('.msg-role');
+        var time = msg.querySelector('.msg-time');
+        var body = msg.querySelector('.msg-body');
+        if (!role || !body) return;
+        lines.push('### ' + role.textContent + '  `' + (time ? time.textContent : '') + '`');
+        var tools = msg.querySelector('.msg-tools');
+        if (tools) lines.push('*Tools: ' + tools.textContent.trim() + '*');
+        lines.push('');
+        lines.push(body.dataset.raw || body.textContent);
+        lines.push('');
+    });
+    return lines.join('\\n');
+}
+
+// Close all open menus
+function closeMenus() {
+    document.querySelectorAll('.si-menu.open').forEach(function(m) { m.classList.remove('open'); });
+}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.si-menu-wrap')) closeMenus();
+});
+
 list.addEventListener('click', function(e) {
+    // Toggle overflow menu
+    var menuBtn = e.target.closest('.si-menu-btn');
+    if (menuBtn) {
+        e.stopPropagation();
+        var menu = menuBtn.parentElement.querySelector('.si-menu');
+        var wasOpen = menu.classList.contains('open');
+        closeMenus();
+        if (!wasOpen) menu.classList.add('open');
+        return;
+    }
+    // Handle menu item clicks
+    var menuItem = e.target.closest('.menu-item');
+    if (menuItem) {
+        e.stopPropagation();
+        closeMenus();
+        var sid = menuItem.closest('.sidebar-item').dataset.sid;
+        if (menuItem.classList.contains('si-summary-dl')) {
+            var text = '# Session Summary\\n\\n**Session:** ' + sid.slice(0,8) + '\\n\\n' + menuItem.dataset.summary;
+            downloadFile('summary-' + sid.slice(0,8) + '.md', text);
+        } else if (menuItem.classList.contains('si-export-dl')) {
+            var md = exportSession(sid);
+            if (md) downloadFile('export-' + sid.slice(0,8) + '.md', md);
+        }
+        return;
+    }
+    // Select session
     var item = e.target.closest('.sidebar-item');
     if (item) {
         selectSession(item.dataset.sid);
