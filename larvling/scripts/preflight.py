@@ -3,6 +3,7 @@ Larvling Preflight — SessionStart hook.
 Creates imprints table on first run, then injects session context.
 """
 
+import json
 import os
 import sqlite3
 import sys
@@ -32,74 +33,112 @@ def ensure_audit_table():
     return fresh
 
 
-def summarize_row(row, columns):
-    """Pick the most descriptive columns from a row to summarize it."""
-    display_prefs = [
-        "title",
-        "name",
-        "content",
-        "description",
-        "summary",
-        "event_type",
-        "key",
-        "status",
-        "severity",
-        "priority",
+def get_recent_summaries(conn, limit=3):
+    """Get summaries from the most recent sessions."""
+    rows = conn.execute(
+        """
+        SELECT
+            session_id,
+            metadata,
+            timestamp
+        FROM imprints
+        WHERE event_type = 'session_end' AND metadata IS NOT NULL
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+
+    summaries = []
+    for row in rows:
+        try:
+            meta = json.loads(row["metadata"])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        summary = meta.get("summary")
+        if not summary:
+            continue
+        date = row["timestamp"][:10] if row["timestamp"] else "?"
+        duration = meta.get("duration_min")
+        duration_str = f" ({duration}m)" if duration else ""
+        summaries.append(f"- **{date}**{duration_str}: {summary}")
+    return summaries
+
+
+def detect_unfinished_work(conn):
+    """Scan the last session for signs of unfinished work."""
+    # Find the most recent session
+    row = conn.execute(
+        "SELECT session_id FROM imprints WHERE event_type = 'session_end' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if not row:
+        return []
+
+    last_session = row["session_id"]
+    messages = conn.execute(
+        """
+        SELECT content FROM imprints
+        WHERE session_id = ? AND event_type = 'agent_message'
+        ORDER BY id DESC LIMIT 3
+        """,
+        (last_session,),
+    ).fetchall()
+
+    signals = []
+    patterns = [
+        ("TODO", "TODO items mentioned"),
+        ("FIXME", "FIXME items mentioned"),
+        ("error", "errors encountered"),
+        ("failed", "failures encountered"),
+        ("not yet", "incomplete work noted"),
+        ("still need", "outstanding tasks noted"),
+        ("next step", "next steps outlined"),
     ]
-    parts = []
-    for col in display_prefs:
-        if col in columns and row[col] is not None:
-            val = str(row[col])[:80]
-            parts.append(f"**{col}:** {val}")
-            if len(parts) >= 3:
-                break
-    if not parts:
-        skip = {"id", "created_at", "updated_at", "timestamp", "metadata"}
-        for col in columns:
-            if col not in skip and row[col] is not None:
-                parts.append(f"**{col}:** {str(row[col])[:80]}")
-                if len(parts) >= 3:
-                    break
-    return " | ".join(parts) if parts else "(empty row)"
+
+    seen = set()
+    for msg in messages:
+        content = (msg["content"] or "").lower()
+        for keyword, label in patterns:
+            if keyword.lower() in content and label not in seen:
+                signals.append(f"- {label}")
+                seen.add(label)
+    return signals
 
 
 def get_session_context():
-    """Introspect the DB and build session context dynamically."""
+    """Build curated session context from summaries and unfinished work."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-
-    cur.execute(
-        """
-        SELECT name FROM sqlite_master
-        WHERE type='table' AND name NOT LIKE 'sqlite_%'
-        ORDER BY name
-    """
-    )
-    tables = [r[0] for r in cur.fetchall()]
 
     lines = ["# Larvling Session Context", ""]
 
-    for table in tables:
-        cur.execute(f"SELECT COUNT(*) FROM [{table}]")
-        count = cur.fetchone()[0]
-
-        cur.execute(f"PRAGMA table_info([{table}])")
-        columns = [col["name"] for col in cur.fetchall()]
-
-        order_col = "id"
-        for candidate in ["timestamp", "created_at", "updated_at", "start_time"]:
-            if candidate in columns:
-                order_col = candidate
-                break
-
-        cur.execute(f"SELECT * FROM [{table}] ORDER BY [{order_col}] DESC LIMIT 5")
-        recent = cur.fetchall()
-
-        lines.append(f"## {table} ({count})")
-        for row in recent:
-            lines.append(f"- {summarize_row(row, columns)}")
+    # Recent session summaries
+    summaries = get_recent_summaries(conn)
+    if summaries:
+        lines.append("## Recent Sessions")
+        lines.extend(summaries)
         lines.append("")
+
+    # Unfinished work from last session
+    signals = detect_unfinished_work(conn)
+    if signals:
+        lines.append("## Unfinished Work (last session)")
+        lines.extend(signals)
+        lines.append("")
+
+    # Fallback: if no summaries yet, show recent imprints so context isn't empty
+    if not summaries:
+        rows = conn.execute(
+            "SELECT event_type, content FROM imprints ORDER BY id DESC LIMIT 5"
+        ).fetchall()
+        if rows:
+            lines.append("## imprints ({})".format(
+                conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
+            ))
+            for row in rows:
+                content = (row["content"] or "")[:80]
+                lines.append(f"- **{row['event_type']}:** {content}")
+            lines.append("")
 
     conn.close()
     return "\n".join(lines)

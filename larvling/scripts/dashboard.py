@@ -34,9 +34,14 @@ def get_sessions(conn):
         for m in messages:
             if m["event_type"] == "session_end" and m["metadata"]:
                 try:
-                    end_meta = json.loads(m["metadata"])
+                    candidate = json.loads(m["metadata"])
                 except (json.JSONDecodeError, TypeError):
-                    pass
+                    continue
+                # Prefer the entry that has a summary
+                if candidate.get("summary") or not end_meta:
+                    end_meta = candidate
+                if end_meta.get("summary"):
+                    break
         user_count = sum(1 for m in messages if m["event_type"] == "user_message")
         agent_count = sum(1 for m in messages if m["event_type"] == "agent_message")
         if user_count + agent_count == 0:
@@ -107,11 +112,12 @@ def render_sidebar_item(session, index):
 
     duration = meta.get("duration_min") or 0
     duration_str = f"{duration}m" if duration else ""
-    summary = f"{session['msg_count']} messages"
+    summary = escape(meta.get("summary") or f"{session['msg_count']} messages")
     active = "active" if index == 0 else ""
     sid = escape(session["session_id"] or "")
 
-    return f"""<div class="sidebar-item {active}" data-sid="{sid}" data-started="{escape(started)}" data-msgs="{session['msg_count']}" data-duration="{duration}">
+    ended = session["ended"] or started
+    return f"""<div class="sidebar-item {active}" data-sid="{sid}" data-started="{escape(started)}" data-ended="{escape(ended)}" data-msgs="{session['msg_count']}" data-duration="{duration}">
         <div class="si-top">
             <span class="si-date">{escape(date_part)}</span>
             <span class="si-time">{escape(time_part)}</span>
@@ -354,10 +360,10 @@ function applySort(value) {
     var items = Array.from(list.querySelectorAll('.sidebar-item'));
     items.sort(function(a, b) {
         switch (value) {
-            case 'oldest': return a.dataset.started.localeCompare(b.dataset.started);
+            case 'oldest': return (a.dataset.ended || a.dataset.started).localeCompare(b.dataset.ended || b.dataset.started);
             case 'most-msgs': return (parseInt(b.dataset.msgs) || 0) - (parseInt(a.dataset.msgs) || 0);
             case 'longest': return (parseFloat(b.dataset.duration) || 0) - (parseFloat(a.dataset.duration) || 0);
-            default: return b.dataset.started.localeCompare(a.dataset.started);
+            default: return (b.dataset.ended || b.dataset.started).localeCompare(a.dataset.ended || a.dataset.started);
         }
     });
     items.forEach(function(el) { list.appendChild(el); });
