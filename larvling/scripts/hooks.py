@@ -157,7 +157,7 @@ def get_session_duration(conn, session_id):
 
 
 def get_session_summary(conn, session_id):
-    """Get the first user prompt as the session summary."""
+    """Get the first user prompt as the session title."""
     row = conn.execute(
         "SELECT content FROM imprints WHERE session_id = ? AND event_type = 'user_message' ORDER BY id LIMIT 1",
         (session_id,),
@@ -166,7 +166,7 @@ def get_session_summary(conn, session_id):
 
 
 def handle_session_end(data):
-    """Log session duration and summary from a SessionEnd event."""
+    """Log session duration and title from a SessionEnd event."""
     session_id = data.get("session_id")
     if not session_id:
         return

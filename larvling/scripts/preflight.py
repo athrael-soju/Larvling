@@ -55,7 +55,8 @@ def get_recent_summaries(conn, limit=3):
             meta = json.loads(row["metadata"])
         except (json.JSONDecodeError, TypeError):
             continue
-        summary = meta.get("summary")
+        # Prefer session summary (LLM-generated) over session title (first prompt)
+        summary = meta.get("llm_summary") or meta.get("summary")
         if not summary:
             continue
         date = row["timestamp"][:10] if row["timestamp"] else "?"

@@ -108,7 +108,9 @@ def export_session(session_id):
             if meta.get("duration_min"):
                 lines.append(f"**Duration:** {meta['duration_min']} minutes")
             if meta.get("summary"):
-                lines.append(f"**Summary:** {meta['summary']}")
+                lines.append(f"**Title:** {meta['summary']}")
+            if meta.get("llm_summary"):
+                lines.append(f"**Summary:** {meta['llm_summary']}")
             lines.append("")
             break
 
