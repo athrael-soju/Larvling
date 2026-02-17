@@ -63,45 +63,6 @@ def get_recent_summaries(conn, limit=3):
     return summaries
 
 
-def detect_unfinished_work(conn):
-    """Scan the last session for signs of unfinished work."""
-    # Find the most recent session
-    row = conn.execute(
-        "SELECT session_id FROM imprints WHERE event_type = 'session_end' ORDER BY id DESC LIMIT 1"
-    ).fetchone()
-    if not row:
-        return []
-
-    last_session = row["session_id"]
-    messages = conn.execute(
-        """
-        SELECT content FROM imprints
-        WHERE session_id = ? AND event_type = 'agent_message'
-        ORDER BY id DESC LIMIT 3
-        """,
-        (last_session,),
-    ).fetchall()
-
-    signals = []
-    patterns = [
-        ("TODO", "TODO items mentioned"),
-        ("FIXME", "FIXME items mentioned"),
-        ("error", "errors encountered"),
-        ("failed", "failures encountered"),
-        ("not yet", "incomplete work noted"),
-        ("still need", "outstanding tasks noted"),
-        ("next step", "next steps outlined"),
-    ]
-
-    seen = set()
-    for msg in messages:
-        content = (msg["content"] or "").lower()
-        for keyword, label in patterns:
-            if keyword.lower() in content and label not in seen:
-                signals.append(f"- {label}")
-                seen.add(label)
-    return signals
-
 
 def get_git_context():
     """Get file paths from recent git activity. Returns list of file names."""
@@ -218,13 +179,6 @@ def get_session_context():
             lines.extend(relevant)
             lines.append("")
 
-    # Unfinished work from last session
-    signals = detect_unfinished_work(conn)
-    if signals:
-        lines.append("## Unfinished Work (last session)")
-        lines.extend(signals)
-        lines.append("")
-
     # Fallback: if no summaries yet, show recent imprints so context isn't empty
     if not summaries:
         rows = conn.execute(
@@ -249,29 +203,9 @@ def main():
     fresh = ensure_audit_table()
 
     if fresh:
-        print("# Larvling — First Run")
-        print()
-        print("Larvling has just been initialized for the first time in this project.")
-        print("The database has been created at `.claude/larvling.db`.")
-        print("A browsable dashboard is available at `.claude/dashboard.html`.")
-        print()
-        print("## What Larvling Does")
-        print("- Automatically imprints every conversation (prompts, responses, session timing)")
-        print("- Injects context from past sessions at the start of each new one")
-        print("- Keeps a searchable HTML dashboard up to date after every hook")
-        print()
-        print("## Commands")
-        print("- `/summarize` — Generate an LLM summary for any session")
-        print("- `/export` — Export a session conversation to markdown")
-        print("- `/delete` — Permanently delete a session from the database")
-        print("- `/search` — Search across all session content")
-        print("- `/stats` — View aggregate usage statistics")
-        print()
-        print("## Agent Instructions")
-        print("Welcome the user warmly. Let them know Larvling is now installed and will")
-        print("quietly track their sessions from here on — no extra effort needed. Mention")
-        print("the dashboard at `.claude/dashboard.html` and the slash commands above.")
-        print("Keep it short, friendly, and conversational. Don't overwhelm with details.")
+        print("# Larvling — First Run\n")
+        print("Database created at `.claude/larvling.db`.")
+        print("Dashboard at `.claude/dashboard.html`.")
     else:
         print(get_session_context())
 

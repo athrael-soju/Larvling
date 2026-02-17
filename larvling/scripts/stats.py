@@ -91,21 +91,6 @@ def compute_stats(conn):
 
     stats["activity_by_day"] = day_counts
 
-    # Activity by week (last 8 weeks)
-    week_counts = {}
-    for i in range(7, -1, -1):
-        d = today - timedelta(weeks=i)
-        week_counts[d.strftime("%Y-W%W")] = 0
-
-    rows = conn.execute(
-        "SELECT strftime('%Y-W%W', timestamp) as week, COUNT(*) as cnt FROM imprints "
-        "WHERE timestamp >= DATE('now', '-56 days') GROUP BY strftime('%Y-W%W', timestamp)"
-    ).fetchall()
-    for row in rows:
-        if row[0] in week_counts:
-            week_counts[row[0]] = row[1]
-
-    stats["activity_by_week"] = week_counts
 
     return stats
 
