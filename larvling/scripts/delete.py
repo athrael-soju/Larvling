@@ -1,5 +1,5 @@
 """
-Larvling Delete — remove a session's imprints from the database.
+Larvling Delete - remove a session's imprints from the database.
 
 Usage:
     python delete.py <session_id>    # delete all imprints for a session

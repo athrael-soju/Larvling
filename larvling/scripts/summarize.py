@@ -1,5 +1,5 @@
 """
-Larvling Summarize — fetch conversation pairs and store session summaries.
+Larvling Summarize - fetch conversation pairs and store session summaries.
 
 Usage:
     python summarize.py --list                       # list sessions
@@ -16,9 +16,15 @@ import json
 import sys
 
 from db import (
-    get_db, get_session_end_meta, imprint, parse_meta, resolve_session,
-    print_sessions, reconfigure_stdout,
-    get_session_duration, get_session_title,
+    get_db,
+    get_session_end_meta,
+    imprint,
+    parse_meta,
+    resolve_session,
+    print_sessions,
+    reconfigure_stdout,
+    get_session_duration,
+    get_session_title,
 )
 
 
@@ -65,12 +71,14 @@ def get_pairs(session_id):
             ts = rows[i]["timestamp"]
             i += 1
 
-        pairs.append({
-            "index": len(pairs) + 1,
-            "user": user_msg or "",
-            "agent": agent_msg or "",
-            "timestamp": ts or "",
-        })
+        pairs.append(
+            {
+                "index": len(pairs) + 1,
+                "user": user_msg or "",
+                "agent": agent_msg or "",
+                "timestamp": ts or "",
+            }
+        )
 
     return pairs
 
@@ -123,7 +131,7 @@ def store_summary(session_id, summary_text):
         )
         conn.commit()
     else:
-        # No session_end row — build full metadata before creating one
+        # No session_end row - build full metadata before creating one
         meta = {"llm_summary": summary_text}
         meta.update(get_session_duration(conn, session_id))
         title = get_session_title(conn, session_id)
@@ -160,7 +168,10 @@ def main():
         if summary:
             print(summary)
         else:
-            print(f"No session summary found for session matching '{session_id}'", file=sys.stderr)
+            print(
+                f"No session summary found for session matching '{session_id}'",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
     elif "--store" in sys.argv:

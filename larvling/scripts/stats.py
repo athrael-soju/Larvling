@@ -1,5 +1,5 @@
 """
-Larvling Stats — compute aggregate statistics from larvling.db.
+Larvling Stats - compute aggregate statistics from larvling.db.
 
 Usage:
     python stats.py         # formatted text output
@@ -21,9 +21,9 @@ def compute_stats(conn):
         "SELECT COUNT(DISTINCT session_id) FROM imprints WHERE session_id IS NOT NULL"
     ).fetchone()[0]
 
-    stats["total_imprints"] = conn.execute(
-        "SELECT COUNT(*) FROM imprints"
-    ).fetchone()[0]
+    stats["total_imprints"] = conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[
+        0
+    ]
 
     stats["total_messages"] = conn.execute(
         "SELECT COUNT(*) FROM imprints WHERE event_type IN ('user_message', 'agent_message')"
@@ -56,7 +56,9 @@ def compute_stats(conn):
         else:
             without_summary += 1
 
-    stats["avg_duration_min"] = round(sum(durations) / len(durations), 1) if durations else 0
+    stats["avg_duration_min"] = (
+        round(sum(durations) / len(durations), 1) if durations else 0
+    )
     stats["sessions_with_summary"] = with_summary
     stats["sessions_without_summary"] = without_summary
 
@@ -89,7 +91,6 @@ def compute_stats(conn):
             day_counts[row[0]] = row[1]
 
     stats["activity_by_day"] = day_counts
-
 
     return stats
 

@@ -145,7 +145,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
-<body data-revision="{{REVISION}}">
+<body>
 
 <div class="topbar">
     <a href="https://github.com/athrael-soju/Larvling" target="_blank" class="topbar-link">
@@ -481,23 +481,6 @@ setInterval(function() {
             localStorage.setItem('larvling-stats', isOpen ? 'open' : 'closed');
         });
     }
-})();
-
-(function() {
-    var currentRev = document.body.dataset.revision;
-    setInterval(function() {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', location.href, true);
-        xhr.onload = function() {
-            if (xhr.status === 200 || xhr.status === 0) {
-                var match = xhr.responseText.match(/data-revision="(\d+)"/);
-                if (match && match[1] !== currentRev) {
-                    location.reload();
-                }
-            }
-        };
-        xhr.send();
-    }, 3000);
 })();
 </script>
 </body>

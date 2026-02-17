@@ -45,3 +45,5 @@ After storing, regenerate the dashboard:
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py"
 ```
+
+**Important:** After storing a summary, always display it to the user immediately. Don't wait to be asked.

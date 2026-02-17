@@ -1,5 +1,5 @@
 """
-Larvling Hooks — unified handler for conversation lifecycle events.
+Larvling Hooks - unified handler for conversation lifecycle events.
 
 Handles three hook events:
   - UserPromptSubmit: logs the user's prompt directly from stdin JSON
@@ -103,7 +103,9 @@ def strip_ide_tags(text):
     """Remove leading IDE context tags (opened files, selections) prepended by VSCode."""
     return re.sub(
         r"^(?:<ide_(?:opened_file|selection)>.*?</ide_(?:opened_file|selection)>\s*)+",
-        "", text, flags=re.DOTALL,
+        "",
+        text,
+        flags=re.DOTALL,
     ).strip()
 
 

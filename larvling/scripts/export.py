@@ -1,5 +1,5 @@
 """
-Larvling Export — export a session's conversation to markdown.
+Larvling Export - export a session's conversation to markdown.
 
 Usage:
     python export.py <session_id>            # prints markdown to stdout

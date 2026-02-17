@@ -1,5 +1,5 @@
 """
-Larvling Preflight — SessionStart hook.
+Larvling Preflight - SessionStart hook.
 Creates imprints table on first run, then injects session context.
 """
 
@@ -63,13 +63,15 @@ def get_recent_summaries(conn, limit=3):
     return summaries
 
 
-
 def get_git_context():
     """Get file paths from recent git activity. Returns list of file names."""
     files = []
 
     # Uncommitted changes (unstaged + staged)
-    for cmd in [["git", "diff", "--name-only"], ["git", "diff", "--name-only", "--cached"]]:
+    for cmd in [
+        ["git", "diff", "--name-only"],
+        ["git", "diff", "--name-only", "--cached"],
+    ]:
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
             if result.returncode == 0:
@@ -81,7 +83,9 @@ def get_git_context():
     try:
         result = subprocess.run(
             ["git", "log", "--pretty=format:", "-5", "--name-only"],
-            capture_output=True, text=True, timeout=3,
+            capture_output=True,
+            text=True,
+            timeout=3,
         )
         if result.returncode == 0:
             for line in result.stdout.strip().splitlines():
@@ -112,7 +116,9 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
         basename = os.path.basename(fname)
         if not basename or len(basename) < 3:
             continue
-        safe_name = basename.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        safe_name = (
+            basename.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        )
         rows = conn.execute(
             "SELECT DISTINCT session_id FROM imprints "
             "WHERE content LIKE ? ESCAPE '\\' AND session_id IS NOT NULL "
@@ -127,7 +133,9 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
     if not session_hits:
         return []
 
-    top_sids = sorted(session_hits, key=lambda sid: session_hits[sid], reverse=True)[:limit]
+    top_sids = sorted(session_hits, key=lambda sid: session_hits[sid], reverse=True)[
+        :limit
+    ]
 
     results = []
     for sid in top_sids:
@@ -178,9 +186,11 @@ def get_session_context():
             "SELECT event_type, content FROM imprints ORDER BY id DESC LIMIT 5"
         ).fetchall()
         if rows:
-            lines.append("## imprints ({})".format(
-                conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
-            ))
+            lines.append(
+                "## imprints ({})".format(
+                    conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
+                )
+            )
             for row in rows:
                 content = (row["content"] or "")[:80]
                 lines.append(f"- **{row['event_type']}:** {content}")
@@ -196,7 +206,7 @@ def main():
     fresh = ensure_audit_table()
 
     if fresh:
-        print("# Larvling — First Run\n")
+        print("# Larvling - First Run\n")
         print("Database created at `.claude/larvling.db`.")
         print("Dashboard at `.claude/dashboard.html`.")
     else:

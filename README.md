@@ -102,7 +102,7 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 | `/export` | Export a session's full conversation to a markdown file |
 | `/delete` | Permanently delete a session and all its imprints from the database |
 | `/search` | Search across all session content with grouped results and context snippets |
-| `/stats` | View aggregate statistics — session counts, tool usage, activity charts |
+| `/stats` | View aggregate statistics - session counts, tool usage, activity charts |
 
 ## Dashboard
 
@@ -111,7 +111,7 @@ The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessi
 - **Download summary** - save the LLM-generated summary as a markdown file (only shown if a summary exists)
 - **Export session** - download the full conversation as markdown
 
-The dashboard auto-refreshes every 3 seconds when the underlying data changes.
+The dashboard is regenerated automatically by hooks whenever session data changes. If viewed through VS Code Live Preview (or any file-watching server), it reloads in place.
 
 ## Files
 

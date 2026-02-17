@@ -1,5 +1,5 @@
 """
-Larvling Search — search session content using LIKE queries.
+Larvling Search - search session content using LIKE queries.
 
 Usage:
     python search.py "query"                    # search sessions
@@ -61,11 +61,13 @@ def search_sessions(conn, query, limit=20, context_chars=80):
         if len(sessions[sid]["snippets"]) < 3:
             snippet = extract_snippet(content, query, context_chars)
             if snippet:
-                sessions[sid]["snippets"].append({
-                    "event_type": row[2],
-                    "timestamp": row[3] or "",
-                    "snippet": snippet,
-                })
+                sessions[sid]["snippets"].append(
+                    {
+                        "event_type": row[2],
+                        "timestamp": row[3] or "",
+                        "snippet": snippet,
+                    }
+                )
 
     # Fetch session titles
     for sid, data in sessions.items():
@@ -89,7 +91,7 @@ def format_results(results, query):
 
     for r in results:
         title = (r["title"] or "(untitled)").split("\n")[0][:80]
-        lines.append(f"## {r['session_id'][:8]} — {title} ({r['match_count']} matches)")
+        lines.append(f"## {r['session_id'][:8]} - {title} ({r['match_count']} matches)")
         for s in r["snippets"]:
             role = "You" if s["event_type"] == "user_message" else "Agent"
             lines.append(f"  [{role}] {s['snippet']}")

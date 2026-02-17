@@ -1,5 +1,5 @@
 """
-Larvling Dashboard — generates a static HTML dashboard from larvling.db.
+Larvling Dashboard - generates a static HTML dashboard from larvling.db.
 Two-panel layout: session list on left, conversation on right.
 Zero dependencies: just sqlite3 + Python string templating.
 """
@@ -115,7 +115,11 @@ def render_sidebar_item(session, index):
 
     ended = session["ended"] or started
     llm_summary = meta.get("llm_summary") or ""
-    summary_item = f'<div class="menu-item si-summary-dl" data-summary="{escape(llm_summary)}">&#x1F4CB; Download summary</div>' if llm_summary else ""
+    summary_item = (
+        f'<div class="menu-item si-summary-dl" data-summary="{escape(llm_summary)}">&#x1F4CB; Download summary</div>'
+        if llm_summary
+        else ""
+    )
     return f"""<div class="sidebar-item {active}" data-sid="{sid}" data-started="{escape(started)}" data-ended="{escape(ended)}" data-msgs="{session['msg_count']}" data-duration="{duration}">
         <div class="si-top">
             <span class="si-date">{escape(date_part)}</span>
@@ -178,10 +182,10 @@ def render_stats_bar(conn):
         f'<div class="stat-card"><div class="stat-value">{stats["total_messages"]}</div><div class="stat-label">Messages</div></div>'
         f'<div class="stat-card"><div class="stat-value">{stats["avg_duration_min"]}m</div><div class="stat-label">Avg Duration</div></div>'
         f'<div class="stat-card"><div class="stat-value">{pct_summarized}%</div><div class="stat-label">Summarized</div></div>'
-        '</div>'
+        "</div>"
     )
 
-    # Top 5 tools — horizontal bars
+    # Top 5 tools - horizontal bars
     top_tools = dict(list(stats["tool_usage"].items())[:5])
     tools_html = ""
     if top_tools:
@@ -196,7 +200,7 @@ def render_stats_bar(conn):
             )
         tools_html = f'<div class="stats-chart"><div class="chart-title">Top Tools</div>{bars}</div>'
 
-    # 14-day activity — vertical bars
+    # 14-day activity - vertical bars
     days = stats["activity_by_day"]
     max_day = max(days.values()) if any(days.values()) else 1
     day_bars = ""
@@ -223,8 +227,7 @@ def render_page(sidebar_html, details_html, stats_html, revision):
         template = f.read()
 
     return (
-        template
-        .replace("{{LOGO_URL}}", LOGO_URL)
+        template.replace("{{LOGO_URL}}", LOGO_URL)
         .replace("{{STATS_BAR}}", stats_html)
         .replace("{{SIDEBAR}}", sidebar_html)
         .replace("{{DETAILS}}", details_html)
@@ -243,11 +246,20 @@ def main():
     if os.path.exists(HTML_PATH):
         with open(HTML_PATH, "r", encoding="utf-8") as f:
             head = f.read(1024)
-        template_modified = os.path.getmtime(TEMPLATE_PATH) > os.path.getmtime(HTML_PATH)
+        template_modified = os.path.getmtime(TEMPLATE_PATH) > os.path.getmtime(
+            HTML_PATH
+        )
         script_modified = os.path.getmtime(__file__) > os.path.getmtime(HTML_PATH)
         stats_path = os.path.join(SCRIPT_DIR, "stats.py")
-        stats_modified = os.path.exists(stats_path) and os.path.getmtime(stats_path) > os.path.getmtime(HTML_PATH)
-        if f'content="{revision}"' in head and not template_modified and not script_modified and not stats_modified:
+        stats_modified = os.path.exists(stats_path) and os.path.getmtime(
+            stats_path
+        ) > os.path.getmtime(HTML_PATH)
+        if (
+            f'content="{revision}"' in head
+            and not template_modified
+            and not script_modified
+            and not stats_modified
+        ):
             conn.close()
             print(f"Dashboard up to date: {HTML_PATH}")
             return
