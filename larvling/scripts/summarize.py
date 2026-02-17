@@ -13,16 +13,18 @@ Terminology:
 """
 
 import json
-import sqlite3
 import sys
 
-from db import get_db, resolve_session, list_sessions as _list_sessions
+from db import (
+    get_db, get_session_end_meta, imprint, parse_meta, resolve_session,
+    list_sessions as _list_sessions, reconfigure_stdout,
+    get_session_duration, get_session_summary,
+)
 
 
 def list_sessions():
     """Print available sessions with summary status."""
     conn = get_db()
-    conn.row_factory = sqlite3.Row
     _list_sessions(conn, show_summary_status=True)
     conn.close()
 
@@ -33,7 +35,6 @@ def get_pairs(session_id):
     Each pair is: {"index": N, "user": "...", "agent": "...", "timestamp": "..."}
     """
     conn = get_db()
-    conn.row_factory = sqlite3.Row
     session_id = resolve_session(conn, session_id)
     if not session_id:
         conn.close()
@@ -84,31 +85,14 @@ def get_pairs(session_id):
 def get_summary(session_id):
     """Get the existing session summary for a session, if any."""
     conn = get_db()
-    conn.row_factory = sqlite3.Row
     session_id = resolve_session(conn, session_id)
     if not session_id:
         conn.close()
         return None
 
-    rows = conn.execute(
-        """
-        SELECT metadata FROM imprints
-        WHERE session_id = ? AND event_type = 'session_end' AND metadata IS NOT NULL
-        ORDER BY id DESC
-        """,
-        (session_id,),
-    ).fetchall()
+    meta = get_session_end_meta(conn, session_id)
     conn.close()
-
-    for row in rows:
-        try:
-            meta = json.loads(row["metadata"])
-        except (json.JSONDecodeError, TypeError):
-            continue
-        if meta.get("llm_summary"):
-            return meta["llm_summary"]
-
-    return None
+    return meta.get("llm_summary")
 
 
 def store_summary(session_id, summary_text):
@@ -118,7 +102,6 @@ def store_summary(session_id, summary_text):
     If no session_end row exists, creates one.
     """
     conn = get_db()
-    conn.row_factory = sqlite3.Row
     session_id = resolve_session(conn, session_id)
     if not session_id:
         conn.close()
@@ -138,12 +121,7 @@ def store_summary(session_id, summary_text):
     if rows:
         # Update existing session_end
         row = rows[0]
-        meta = {}
-        if row["metadata"]:
-            try:
-                meta = json.loads(row["metadata"])
-            except (json.JSONDecodeError, TypeError):
-                pass
+        meta = parse_meta(row["metadata"])
         meta["llm_summary"] = summary_text
         conn.execute(
             "UPDATE imprints SET metadata = ? WHERE id = ?",
@@ -152,8 +130,6 @@ def store_summary(session_id, summary_text):
         conn.commit()
     else:
         # No session_end row — build full metadata before creating one
-        from db import imprint
-        from hooks import get_session_duration, get_session_summary
         meta = {"llm_summary": summary_text}
         meta.update(get_session_duration(conn, session_id))
         title = get_session_summary(conn, session_id)
@@ -166,6 +142,8 @@ def store_summary(session_id, summary_text):
 
 
 def main():
+    reconfigure_stdout()
+
     if len(sys.argv) < 2:
         print(__doc__.strip(), file=sys.stderr)
         sys.exit(1)

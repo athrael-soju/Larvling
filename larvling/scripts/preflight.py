@@ -5,17 +5,17 @@ Creates imprints table on first run, then injects session context.
 
 import json
 import os
-import sqlite3
+import subprocess
 import sys
 
-from db import DB_PATH, get_db
+from db import DB_PATH, get_db, get_session_end_meta, parse_meta, reconfigure_stdout
 
 
 def ensure_audit_table():
     """Create the imprints table if the DB doesn't exist yet. Returns True if this was a fresh creation."""
     fresh = not os.path.exists(DB_PATH)
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db()
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS imprints (
@@ -51,10 +51,7 @@ def get_recent_summaries(conn, limit=3):
 
     summaries = []
     for row in rows:
-        try:
-            meta = json.loads(row["metadata"])
-        except (json.JSONDecodeError, TypeError):
-            continue
+        meta = parse_meta(row["metadata"])
         # Prefer session summary (LLM-generated) over session title (first prompt)
         summary = meta.get("llm_summary") or meta.get("summary")
         if not summary:
@@ -66,66 +63,113 @@ def get_recent_summaries(conn, limit=3):
     return summaries
 
 
-def detect_unfinished_work(conn):
-    """Scan the last session for signs of unfinished work."""
-    # Find the most recent session
-    row = conn.execute(
-        "SELECT session_id FROM imprints WHERE event_type = 'session_end' ORDER BY id DESC LIMIT 1"
-    ).fetchone()
-    if not row:
+
+def get_git_context():
+    """Get file paths from recent git activity. Returns list of file names."""
+    files = []
+
+    # Uncommitted changes (unstaged + staged)
+    for cmd in [["git", "diff", "--name-only"], ["git", "diff", "--name-only", "--cached"]]:
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+            if result.returncode == 0:
+                files.extend(result.stdout.strip().splitlines())
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return []
+
+    # Recent commits
+    try:
+        result = subprocess.run(
+            ["git", "log", "--pretty=format:", "-5", "--name-only"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().splitlines():
+                line = line.strip()
+                if line:
+                    files.append(line)
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+
+    # Deduplicate, cap at 20 (diff files prioritized over log files)
+    seen = set()
+    unique = []
+    for f in files:
+        f = f.strip()
+        if f and f not in seen:
+            seen.add(f)
+            unique.append(f)
+    return unique[:20]
+
+
+def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
+    """Find sessions that reference any of the given file names."""
+    if not file_names:
         return []
 
-    last_session = row["session_id"]
-    messages = conn.execute(
-        """
-        SELECT content FROM imprints
-        WHERE session_id = ? AND event_type = 'agent_message'
-        ORDER BY id DESC LIMIT 3
-        """,
-        (last_session,),
-    ).fetchall()
+    session_hits = {}
+    for fname in file_names:
+        basename = os.path.basename(fname)
+        if not basename or len(basename) < 3:
+            continue
+        rows = conn.execute(
+            "SELECT DISTINCT session_id FROM imprints "
+            "WHERE content LIKE ? AND session_id IS NOT NULL "
+            "AND event_type IN ('user_message', 'agent_message')",
+            (f"%{basename}%",),
+        ).fetchall()
+        for row in rows:
+            sid = row["session_id"]
+            if sid not in exclude_sids:
+                session_hits[sid] = session_hits.get(sid, 0) + 1
 
-    signals = []
-    patterns = [
-        ("TODO", "TODO items mentioned"),
-        ("FIXME", "FIXME items mentioned"),
-        ("error", "errors encountered"),
-        ("failed", "failures encountered"),
-        ("not yet", "incomplete work noted"),
-        ("still need", "outstanding tasks noted"),
-        ("next step", "next steps outlined"),
-    ]
+    if not session_hits:
+        return []
 
-    seen = set()
-    for msg in messages:
-        content = (msg["content"] or "").lower()
-        for keyword, label in patterns:
-            if keyword.lower() in content and label not in seen:
-                signals.append(f"- {label}")
-                seen.add(label)
-    return signals
+    top_sids = sorted(session_hits, key=lambda sid: session_hits[sid], reverse=True)[:limit]
+
+    results = []
+    for sid in top_sids:
+        meta = get_session_end_meta(conn, sid)
+        summary = meta.get("llm_summary") or meta.get("summary")
+        if not summary:
+            continue
+        date = (meta.get("started_at") or "?")[:10]
+        duration = meta.get("duration_min")
+        duration_str = f" ({duration}m)" if duration else ""
+        results.append(f"- **{date}**{duration_str}: {summary}")
+
+    return results
 
 
 def get_session_context():
-    """Build curated session context from summaries and unfinished work."""
+    """Build curated session context from summaries, relevant sessions, and unfinished work."""
     conn = get_db()
-    conn.row_factory = sqlite3.Row
 
     lines = ["# Larvling Session Context", ""]
 
     # Recent session summaries
     summaries = get_recent_summaries(conn)
+    recent_sids = set()
     if summaries:
         lines.append("## Recent Sessions")
         lines.extend(summaries)
         lines.append("")
+        rows = conn.execute(
+            "SELECT session_id FROM imprints "
+            "WHERE event_type = 'session_end' AND metadata IS NOT NULL "
+            "ORDER BY id DESC LIMIT 3"
+        ).fetchall()
+        recent_sids = {row["session_id"] for row in rows}
 
-    # Unfinished work from last session
-    signals = detect_unfinished_work(conn)
-    if signals:
-        lines.append("## Unfinished Work (last session)")
-        lines.extend(signals)
-        lines.append("")
+    # Git-aware relevant sessions
+    git_files = get_git_context()
+    if git_files:
+        relevant = find_relevant_sessions(conn, git_files, recent_sids)
+        if relevant:
+            lines.append("## Relevant Sessions")
+            lines.extend(relevant)
+            lines.append("")
 
     # Fallback: if no summaries yet, show recent imprints so context isn't empty
     if not summaries:
@@ -146,34 +190,14 @@ def get_session_context():
 
 
 def main():
-    reconfigure = getattr(sys.stdout, "reconfigure", None)
-    if reconfigure:
-        reconfigure(encoding="utf-8")
+    reconfigure_stdout()
 
     fresh = ensure_audit_table()
 
     if fresh:
-        print("# Larvling — First Run")
-        print()
-        print("Larvling has just been initialized for the first time in this project.")
-        print("The database has been created at `.claude/larvling.db`.")
-        print("A browsable dashboard is available at `.claude/dashboard.html`.")
-        print()
-        print("## What Larvling Does")
-        print("- Automatically imprints every conversation (prompts, responses, session timing)")
-        print("- Injects context from past sessions at the start of each new one")
-        print("- Keeps a searchable HTML dashboard up to date after every hook")
-        print()
-        print("## Commands")
-        print("- `/summarize` — Generate an LLM summary for any session")
-        print("- `/export` — Export a session conversation to markdown")
-        print("- `/delete` — Permanently delete a session from the database")
-        print()
-        print("## Agent Instructions")
-        print("Welcome the user warmly. Let them know Larvling is now installed and will")
-        print("quietly track their sessions from here on — no extra effort needed. Mention")
-        print("the dashboard at `.claude/dashboard.html` and the three slash commands above.")
-        print("Keep it short, friendly, and conversational. Don't overwhelm with details.")
+        print("# Larvling — First Run\n")
+        print("Database created at `.claude/larvling.db`.")
+        print("Dashboard at `.claude/dashboard.html`.")
     else:
         print(get_session_context())
 

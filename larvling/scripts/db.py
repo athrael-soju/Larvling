@@ -3,16 +3,35 @@
 import json
 import os
 import sqlite3
+import sys
 
 PROJECT_ROOT = os.getcwd()
 DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
 
 
 def get_db():
-    """Open a connection to larvling.db with WAL mode."""
+    """Open a connection to larvling.db with WAL mode and Row factory."""
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.row_factory = sqlite3.Row
     return conn
+
+
+def parse_meta(metadata_str):
+    """Parse a metadata JSON string. Returns dict (empty on failure)."""
+    if not metadata_str:
+        return {}
+    try:
+        return json.loads(metadata_str)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
+def reconfigure_stdout():
+    """Reconfigure stdout for UTF-8 on Windows."""
+    fn = getattr(sys.stdout, "reconfigure", None)
+    if fn:
+        fn(encoding="utf-8")
 
 
 def imprint(conn, session_id, event_type, content, metadata=None):
@@ -24,6 +43,24 @@ def imprint(conn, session_id, event_type, content, metadata=None):
     conn.commit()
 
 
+def require_db():
+    """Exit with an error if the database doesn't exist."""
+    if not os.path.exists(DB_PATH):
+        print("No database found at", DB_PATH, file=sys.stderr)
+        sys.exit(1)
+
+
+def get_session_end_meta(conn, session_id):
+    """Get parsed metadata from the most recent session_end imprint."""
+    row = conn.execute(
+        "SELECT metadata FROM imprints "
+        "WHERE session_id = ? AND event_type = 'session_end' AND metadata IS NOT NULL "
+        "ORDER BY id DESC LIMIT 1",
+        (session_id,),
+    ).fetchone()
+    return parse_meta(row["metadata"]) if row else {}
+
+
 def resolve_session(conn, short_id):
     """Resolve a short session ID to a full one."""
     if len(short_id) >= 36:
@@ -31,6 +68,34 @@ def resolve_session(conn, short_id):
     row = conn.execute(
         "SELECT DISTINCT session_id FROM imprints WHERE session_id LIKE ?",
         (short_id + "%",),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def get_session_duration(conn, session_id):
+    """Calculate session duration from first to last imprint."""
+    cur = conn.execute(
+        """
+        SELECT
+            MIN(timestamp) as first_msg,
+            MAX(timestamp) as last_msg,
+            ROUND((julianday(MAX(timestamp)) - julianday(MIN(timestamp))) * 1440, 1) as duration_min
+        FROM imprints
+        WHERE session_id = ?
+        """,
+        (session_id,),
+    )
+    row = cur.fetchone()
+    if row and row[2] is not None:
+        return {"started_at": row[0], "ended_at": row[1], "duration_min": row[2]}
+    return {}
+
+
+def get_session_summary(conn, session_id):
+    """Get the first user prompt as the session title."""
+    row = conn.execute(
+        "SELECT content FROM imprints WHERE session_id = ? AND event_type = 'user_message' ORDER BY id LIMIT 1",
+        (session_id,),
     ).fetchone()
     return row[0] if row else None
 
@@ -65,11 +130,7 @@ def list_sessions(conn, show_summary_status=False):
         return
 
     for row in rows:
-        meta = {}
-        try:
-            meta = json.loads(row["metadata"])
-        except (json.JSONDecodeError, TypeError):
-            pass
+        meta = parse_meta(row["metadata"])
         date = row["timestamp"][:16] if row["timestamp"] else "?"
         duration = meta.get("duration_min")
         dur = f" ({duration}m)" if duration else ""

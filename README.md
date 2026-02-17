@@ -6,9 +6,9 @@
 
 Your friendly memory companion for Claude Code. Larvling quietly imprints every conversation - prompts, responses, tool usage - and keeps it all in a searchable dashboard. No config needed, just install and go.
 
-## Why Larvling?
+## The 6 Principles of Larvling
 
-- **Tiny** - under 44 KB total. Smaller than most READMEs out there
+- **Tiny** - under 100 KB total. Smaller than most READMEs out there
 - **Zero dependencies** - no pip install, no node_modules, no build step. Just Python 3.8+ and the standard library
 - **Portable** - works on any device that supports Claude Code plugins: macOS, Linux, Windows
 - **Private** - all data stays local in a single SQLite file. Nothing leaves your machine
@@ -101,6 +101,8 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 | `/summarize` | Generate an LLM-written summary of a session. Stored in the DB for context injection and downloadable from the dashboard |
 | `/export` | Export a session's full conversation to a markdown file |
 | `/delete` | Permanently delete a session and all its imprints from the database |
+| `/search` | Search across all session content with grouped results and context snippets |
+| `/stats` | View aggregate statistics — session counts, tool usage, activity charts |
 
 ## Dashboard
 
@@ -124,10 +126,14 @@ The dashboard auto-refreshes every 3 seconds when the underlying data changes.
 | `larvling/scripts/summarize.py` | DB helpers for the `/summarize` command |
 | `larvling/scripts/export.py` | Exports a session conversation to markdown |
 | `larvling/scripts/delete.py` | Deletes a session's imprints from the database |
+| `larvling/scripts/search.py` | Searches across all session content |
+| `larvling/scripts/stats.py` | Generates aggregate usage statistics |
 | `larvling/scripts/db.py` | Shared database helpers |
 | `larvling/commands/summarize.md` | Slash command definition for `/summarize` |
 | `larvling/commands/export.md` | Slash command definition for `/export` |
 | `larvling/commands/delete.md` | Slash command definition for `/delete` |
+| `larvling/commands/search.md` | Slash command definition for `/search` |
+| `larvling/commands/stats.md` | Slash command definition for `/stats` |
 | `larvling/CLAUDE.md` | Instructions for the agent |
 
 ## Uninstall

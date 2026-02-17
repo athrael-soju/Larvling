@@ -3,70 +3,45 @@ name: summarize
 description: Generate a session summary for a Larvling session
 arguments:
   - name: session
-    description: "Session ID (short or full). Use 'list' to see available sessions."
+    description: "Session ID (short or full). Use 'list' to see available sessions, or 'all' to summarize all unsummarized sessions."
     required: false
 ---
 
-Generate a session summary for a Larvling conversation session. You are the summarizer — read the conversation data and produce the summary yourself.
-
-## Instructions
-
-### Step 1: Session selection
-
-If the user passed `list` as the session argument, or no argument at all, run:
+List sessions with summary status:
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" --list
 ```
-Show the results so the user can pick a session. Sessions marked `[summarized]` already have a session summary — the user can choose to regenerate.
 
-### Step 2: Check for existing summary
-
-Once you have a session ID, check if a summary already exists:
+Check for existing summary:
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --get
 ```
-If one exists, show it and ask if the user wants to regenerate or keep it.
 
-### Step 3: Fetch conversation pairs
-
+Fetch conversation pairs:
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --pairs
 ```
 
-This returns JSON with all user/agent message pairs for the session.
+## Summarization approach
 
-### Step 4: Incremental summarization
+Do NOT summarize everything at once. Use incremental passes:
 
-Do NOT try to summarize everything at once. Use this incremental approach:
+1. **Pair summaries**: For each user/agent pair, write 1-2 sentences capturing what was discussed and accomplished.
+2. **Group summaries**: Combine pairs into groups of 3-5 and summarize each group into a paragraph.
+3. **Final summary**: Combine group summaries into one cohesive session summary covering what was accomplished, key decisions, and any unresolved items.
 
-1. **First pass — pair summaries**: For each user/agent pair, write a 1-2 sentence summary capturing what was discussed and what was accomplished.
-
-2. **Second pass — combine**: Take the pair summaries and combine them into groups of 3-5. Summarize each group into a paragraph.
-
-3. **Final pass**: Combine all group summaries into one cohesive session summary. It should cover:
-   - What the user wanted to accomplish
-   - Key decisions made
-   - What was built, fixed, or changed
-   - Any unresolved items or next steps
-
-For small sessions (5 or fewer pairs), you can skip straight to the final summary.
-
-### Step 5: Store the summary
+For small sessions (5 or fewer pairs), skip straight to the final summary.
 
 Prepend an exchange count header: `[N exchanges]`
 
-Example stored summary:
+Store the summary:
 ```
-[28 exchanges]
-
-The user implemented three major features for the Larvling plugin...
+python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --store "SUMMARY"
 ```
 
-Store the final summary in the database:
-```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --store "YOUR FORMATTED SUMMARY HERE"
-```
+For `all`: process each unsummarized session (marked `[not summarized]`) using the steps above.
 
-The summary will appear in the dashboard sidebar and be used for context injection. Sessions with summaries show a download icon in the dashboard that lets the user save it to a file.
-
-Tell the user the summary has been saved.
+After storing, regenerate the dashboard:
+```
+python "${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py"
+```
