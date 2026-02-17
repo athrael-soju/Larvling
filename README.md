@@ -19,22 +19,33 @@ Your friendly memory companion for Claude Code. Larvling quietly imprints every 
 
 Requires Claude Code 1.0.33+.
 
-**From the terminal (CLI):**
+**1. Add the marketplace source:**
 
 ```bash
-# Add the marketplace source
+# From the terminal
 claude plugin marketplace add https://github.com/athrael-soju/Larvling
 
-# Install the plugin (local scope - this repo only)
-claude plugin install larvling@athrael-soju --scope local
-```
-
-**From within Claude Code:**
-
-```
+# Or from within Claude Code
 /plugin marketplace add https://github.com/athrael-soju/Larvling
+```
+
+**2. Install the plugin with your preferred scope:**
+
+| Scope | Flag | Effect |
+|-------|------|--------|
+| Local | `--scope local` | Active only in the current project |
+| Project | `--scope project` | Active for all users of the project (writes to `.claude/plugins.json`) |
+| User | `--scope user` | Active across all your projects |
+
+```bash
+# From the terminal
+claude plugin install larvling@athrael-soju --scope local
+
+# Or from within Claude Code
 /plugin install larvling@athrael-soju --scope local
 ```
+
+> **Which scope should I use?** `local` is recommended for most users — it keeps Larvling scoped to the project you're working in. Use `user` if you want Larvling active everywhere, or `project` to share the plugin config with your team via source control.
 
 **For local development / testing:**
 
@@ -137,22 +148,15 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 
 ## Uninstall
 
-**From the terminal (CLI):**
-
 ```bash
-claude plugin uninstall larvling@larvling
+# From the terminal (use the same scope you installed with)
+claude plugin uninstall larvling@larvling --scope local
+
+# Or from within Claude Code
+/plugin uninstall larvling@larvling --scope local
 
 # Optionally remove the marketplace source
 claude plugin marketplace remove athrael-soju
-```
-
-**From within Claude Code:**
-
-```
-/plugin uninstall larvling@larvling
-
-# Optionally remove the marketplace source
-/plugin marketplace remove larvling
 ```
 
 To also remove stored data, delete the Larvling files from your project's `.claude/` directory:
