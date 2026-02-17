@@ -109,7 +109,7 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessions. Each session has a "..." menu with:
 
 - **Download summary** - save the LLM-generated summary as a markdown file (only shown if a summary exists)
-- **Export conversation** - download the full conversation as markdown
+- **Export session** - download the full conversation as markdown
 
 The dashboard auto-refreshes every 3 seconds when the underlying data changes.
 
