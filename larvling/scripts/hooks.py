@@ -181,15 +181,32 @@ def handle_stop(data):
     conn.close()
 
 
+def _log_error(msg):
+    """Append an error to .claude/larvling-errors.log for debugging silent failures."""
+    try:
+        log_path = os.path.join(os.getcwd(), ".claude", "larvling-errors.log")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass
+
+
 def main():
-    raw = sys.stdin.read()
+    # Read stdin as bytes to avoid Windows text-mode encoding issues (cp1252)
+    # that can corrupt or hang on large payloads exceeding the 4KB pipe buffer.
+    try:
+        raw = sys.stdin.buffer.read().decode("utf-8")
+    except Exception as e:
+        _log_error(f"stdin read failed: {e}")
+        return
+
     if not raw.strip():
         return
 
     try:
         data = json.loads(raw)
-    except json.JSONDecodeError:
-        print("Failed to parse hook input", file=sys.stderr)
+    except json.JSONDecodeError as e:
+        _log_error(f"JSON parse failed ({len(raw)} bytes): {e}")
         return
 
     event = data.get("hook_event_name", "")
