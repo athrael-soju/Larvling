@@ -111,7 +111,7 @@ The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessi
 - **Download summary** - save the LLM-generated summary as a markdown file (only shown if a summary exists)
 - **Export session** - download the full conversation as markdown
 
-The dashboard is regenerated automatically by hooks whenever session data changes. If viewed through VS Code Live Preview (or any file-watching server), it reloads in place.
+The dashboard polls every 3 seconds and reloads automatically when new data is available.
 
 ## Files
 
