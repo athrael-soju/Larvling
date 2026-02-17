@@ -159,11 +159,11 @@
                 <h4>The 6 Principles of Larvling</h4>
                 <ul>
                     <li><strong>Tiny</strong> - under 50 KB of logic, under 100 KB total</li>
-                    <li><strong>Zero dependencies</strong> - just Python 3.8+ and the standard library</li>
-                    <li><strong>Portable</strong> - macOS, Linux, Windows</li>
+                    <li><strong>Zero dependencies</strong> - no pip install, no node_modules, no build step</li>
+                    <li><strong>Portable</strong> - works on any device that supports Claude Code plugins: macOS, Linux, Windows</li>
                     <li><strong>Private</strong> - all data stays local in a single SQLite file</li>
                     <li><strong>Instant</strong> - no setup, no config, no onboarding</li>
-                    <li><strong>Lightweight</strong> - SQLite WAL mode, near-zero overhead</li>
+                    <li><strong>Lightweight</strong> - SQLite WAL mode means near-zero overhead</li>
                 </ul>
             </div>
         </div>
