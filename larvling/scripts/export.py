@@ -11,7 +11,7 @@ Usage:
 import os
 import sys
 
-from db import get_db, resolve_session, list_sessions, parse_meta, reconfigure_stdout
+from db import get_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout
 
 
 def export_session(session_id, conn=None):
@@ -129,9 +129,7 @@ def main():
         sys.exit(1)
 
     if sys.argv[1] == "--list":
-        conn = get_db()
-        list_sessions(conn)
-        conn.close()
+        print_sessions()
         return
 
     if sys.argv[1] == "--all":

@@ -17,16 +17,9 @@ import sys
 
 from db import (
     get_db, get_session_end_meta, imprint, parse_meta, resolve_session,
-    list_sessions as _list_sessions, reconfigure_stdout,
+    print_sessions, reconfigure_stdout,
     get_session_duration, get_session_summary,
 )
-
-
-def list_sessions():
-    """Print available sessions with summary status."""
-    conn = get_db()
-    _list_sessions(conn, show_summary_status=True)
-    conn.close()
 
 
 def get_pairs(session_id):
@@ -105,7 +98,7 @@ def store_summary(session_id, summary_text):
     session_id = resolve_session(conn, session_id)
     if not session_id:
         conn.close()
-        print(f"No session found matching input", file=sys.stderr)
+        print(f"No session found matching '{session_id}'", file=sys.stderr)
         sys.exit(1)
 
     # Find the best session_end row (prefer one with existing metadata)
@@ -149,7 +142,7 @@ def main():
         sys.exit(1)
 
     if sys.argv[1] == "--list":
-        list_sessions()
+        print_sessions(show_summary_status=True)
         return
 
     session_id = sys.argv[1]

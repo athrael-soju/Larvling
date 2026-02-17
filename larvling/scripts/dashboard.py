@@ -19,7 +19,11 @@ HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
 
 
 def get_sessions(conn):
-    """Get imprints grouped by session, newest first."""
+    """Get imprints grouped by session, newest first.
+
+    Messages within each session are in reverse chronological order (DESC)
+    so the conversation panel shows the most recent exchange at the top.
+    """
     rows = conn.execute(
         "SELECT * FROM imprints WHERE session_id IS NOT NULL ORDER BY id DESC"
     ).fetchall()

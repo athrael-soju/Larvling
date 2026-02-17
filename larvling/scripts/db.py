@@ -143,3 +143,10 @@ def list_sessions(conn, show_summary_status=False):
             print(f"{row['session_id'][:8]}  {date}{dur}{tag}  {first_prompt}")
         else:
             print(f"{row['session_id'][:8]}  {date}{dur}  {first_prompt}")
+
+
+def print_sessions(**kwargs):
+    """Open DB, print session list, close. Passes kwargs to list_sessions."""
+    conn = get_db()
+    list_sessions(conn, **kwargs)
+    conn.close()

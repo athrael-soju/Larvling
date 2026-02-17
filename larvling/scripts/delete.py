@@ -9,7 +9,7 @@ Usage:
 
 import sys
 
-from db import get_db, resolve_session, list_sessions, reconfigure_stdout
+from db import get_db, resolve_session, print_sessions, reconfigure_stdout
 
 
 def delete_session(session_id):
@@ -18,7 +18,7 @@ def delete_session(session_id):
     session_id = resolve_session(conn, session_id)
     if not session_id:
         conn.close()
-        print(f"No session found matching input", file=sys.stderr)
+        print(f"No session found matching '{session_id}'", file=sys.stderr)
         sys.exit(1)
 
     count = conn.execute(
@@ -59,9 +59,7 @@ def main():
         sys.exit(1)
 
     if sys.argv[1] == "--list":
-        conn = get_db()
-        list_sessions(conn)
-        conn.close()
+        print_sessions()
         return
 
     if sys.argv[1] == "--all":
