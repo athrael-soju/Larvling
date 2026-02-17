@@ -102,7 +102,6 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 | `/export` | Export a session's full conversation to a markdown file |
 | `/delete` | Permanently delete a session and all its imprints from the database |
 | `/search` | Search across all session content with grouped results and context snippets |
-| `/stats` | View aggregate statistics - session counts, tool usage, activity charts |
 
 ## Dashboard
 
@@ -129,13 +128,11 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 | `larvling/scripts/export.py` | Exports a session conversation to markdown |
 | `larvling/scripts/delete.py` | Deletes a session's imprints from the database |
 | `larvling/scripts/search.py` | Searches across all session content |
-| `larvling/scripts/stats.py` | Generates aggregate usage statistics |
 | `larvling/scripts/db.py` | Shared database helpers |
 | `larvling/commands/summarize.md` | Slash command definition for `/summarize` |
 | `larvling/commands/export.md` | Slash command definition for `/export` |
 | `larvling/commands/delete.md` | Slash command definition for `/delete` |
 | `larvling/commands/search.md` | Slash command definition for `/search` |
-| `larvling/commands/stats.md` | Slash command definition for `/stats` |
 | `larvling/CLAUDE.md` | Instructions for the agent |
 
 ## Uninstall
