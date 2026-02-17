@@ -7,42 +7,24 @@ arguments:
     required: false
 ---
 
-Permanently delete a Larvling session and all its imprints from the database.
-
-## Instructions
-
-### Step 1: Session selection
-
-If the user passed `list` as the session argument, or no argument at all, run:
+List sessions:
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/delete.py" --list
 ```
-Show the results so the user can pick a session to delete.
 
-### Step 2: Confirm with the user
+**Always confirm with the user before deleting. This is irreversible.**
 
-Before deleting, tell the user exactly what will be removed:
-- For a single session: the session ID and how many messages it contains
-- For `all`: the total number of sessions and imprints
-
-Ask for explicit confirmation before proceeding. This is irreversible.
-
-### Step 3: Delete
-
-For a single session:
+Delete a single session:
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/delete.py" <session_id>
 ```
 
-For all sessions:
+Delete all sessions:
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/delete.py" --all
 ```
 
-### Step 4: Regenerate dashboard
-
+After deleting, regenerate the dashboard:
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py"
 ```
-
-Tell the user the session(s) have been deleted and the dashboard has been updated.
