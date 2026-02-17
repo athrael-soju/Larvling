@@ -13,7 +13,7 @@ import re
 import sys
 import time
 
-from db import get_db, imprint, get_session_duration, get_session_summary
+from db import get_db, imprint, get_session_duration, get_session_title
 
 
 def _is_real_user_message(entry):
@@ -146,7 +146,7 @@ def handle_session_end(data):
     conn = get_db()
     meta = {}
     meta.update(get_session_duration(conn, session_id))
-    summary = get_session_summary(conn, session_id)
+    summary = get_session_title(conn, session_id)
     if summary:
         meta["summary"] = summary
     imprint(conn, session_id, "session_end", "Session ended", meta)

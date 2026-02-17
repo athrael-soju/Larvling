@@ -91,7 +91,7 @@ def get_session_duration(conn, session_id):
     return {}
 
 
-def get_session_summary(conn, session_id):
+def get_session_title(conn, session_id):
     """Get the first user prompt as the session title."""
     row = conn.execute(
         "SELECT content FROM imprints WHERE session_id = ? AND event_type = 'user_message' ORDER BY id LIMIT 1",

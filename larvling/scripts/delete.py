@@ -15,10 +15,11 @@ from db import get_db, resolve_session, print_sessions, reconfigure_stdout
 def delete_session(session_id):
     """Delete all imprints for a session."""
     conn = get_db()
-    session_id = resolve_session(conn, session_id)
+    original = session_id
+    session_id = resolve_session(conn, original)
     if not session_id:
         conn.close()
-        print(f"No session found matching '{session_id}'", file=sys.stderr)
+        print(f"No session found matching '{original}'", file=sys.stderr)
         sys.exit(1)
 
     count = conn.execute(

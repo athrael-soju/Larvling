@@ -112,11 +112,12 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
         basename = os.path.basename(fname)
         if not basename or len(basename) < 3:
             continue
+        safe_name = basename.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         rows = conn.execute(
             "SELECT DISTINCT session_id FROM imprints "
-            "WHERE content LIKE ? AND session_id IS NOT NULL "
+            "WHERE content LIKE ? ESCAPE '\\' AND session_id IS NOT NULL "
             "AND event_type IN ('user_message', 'agent_message')",
-            (f"%{basename}%",),
+            (f"%{safe_name}%",),
         ).fetchall()
         for row in rows:
             sid = row["session_id"]

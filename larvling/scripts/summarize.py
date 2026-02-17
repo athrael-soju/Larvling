@@ -18,7 +18,7 @@ import sys
 from db import (
     get_db, get_session_end_meta, imprint, parse_meta, resolve_session,
     print_sessions, reconfigure_stdout,
-    get_session_duration, get_session_summary,
+    get_session_duration, get_session_title,
 )
 
 
@@ -95,10 +95,11 @@ def store_summary(session_id, summary_text):
     If no session_end row exists, creates one.
     """
     conn = get_db()
-    session_id = resolve_session(conn, session_id)
+    original = session_id
+    session_id = resolve_session(conn, original)
     if not session_id:
         conn.close()
-        print(f"No session found matching '{session_id}'", file=sys.stderr)
+        print(f"No session found matching '{original}'", file=sys.stderr)
         sys.exit(1)
 
     # Find the best session_end row (prefer one with existing metadata)
@@ -125,7 +126,7 @@ def store_summary(session_id, summary_text):
         # No session_end row — build full metadata before creating one
         meta = {"llm_summary": summary_text}
         meta.update(get_session_duration(conn, session_id))
-        title = get_session_summary(conn, session_id)
+        title = get_session_title(conn, session_id)
         if title:
             meta["summary"] = title
         imprint(conn, session_id, "session_end", "Session ended", meta)
