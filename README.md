@@ -17,7 +17,7 @@ Your friendly memory companion for Claude Code. Larvling quietly imprints every 
 
 ## Install
 
-Requires Python 3.8+ and Claude Code 1.0.33+.
+Requires Claude Code 1.0.33+.
 
 **From the terminal (CLI):**
 
