@@ -43,6 +43,24 @@ def imprint(conn, session_id, event_type, content, metadata=None):
     conn.commit()
 
 
+def require_db():
+    """Exit with an error if the database doesn't exist."""
+    if not os.path.exists(DB_PATH):
+        print("No database found at", DB_PATH, file=sys.stderr)
+        sys.exit(1)
+
+
+def get_session_end_meta(conn, session_id):
+    """Get parsed metadata from the most recent session_end imprint."""
+    row = conn.execute(
+        "SELECT metadata FROM imprints "
+        "WHERE session_id = ? AND event_type = 'session_end' AND metadata IS NOT NULL "
+        "ORDER BY id DESC LIMIT 1",
+        (session_id,),
+    ).fetchone()
+    return parse_meta(row["metadata"]) if row else {}
+
+
 def resolve_session(conn, short_id):
     """Resolve a short session ID to a full one."""
     if len(short_id) >= 36:

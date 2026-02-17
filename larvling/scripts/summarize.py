@@ -16,8 +16,9 @@ import json
 import sys
 
 from db import (
-    get_db, imprint, resolve_session, list_sessions as _list_sessions,
-    parse_meta, reconfigure_stdout, get_session_duration, get_session_summary,
+    get_db, get_session_end_meta, imprint, parse_meta, resolve_session,
+    list_sessions as _list_sessions, reconfigure_stdout,
+    get_session_duration, get_session_summary,
 )
 
 
@@ -89,22 +90,9 @@ def get_summary(session_id):
         conn.close()
         return None
 
-    rows = conn.execute(
-        """
-        SELECT metadata FROM imprints
-        WHERE session_id = ? AND event_type = 'session_end' AND metadata IS NOT NULL
-        ORDER BY id DESC
-        """,
-        (session_id,),
-    ).fetchall()
+    meta = get_session_end_meta(conn, session_id)
     conn.close()
-
-    for row in rows:
-        meta = parse_meta(row["metadata"])
-        if meta.get("llm_summary"):
-            return meta["llm_summary"]
-
-    return None
+    return meta.get("llm_summary")
 
 
 def store_summary(session_id, summary_text):

@@ -7,11 +7,10 @@ Usage:
 """
 
 import json
-import os
 import sys
 from datetime import datetime, timedelta
 
-from db import DB_PATH, get_db, parse_meta, reconfigure_stdout
+from db import get_db, parse_meta, require_db, reconfigure_stdout
 
 
 def compute_stats(conn):
@@ -139,10 +138,7 @@ def format_stats(stats):
 def main():
     reconfigure_stdout()
 
-    if not os.path.exists(DB_PATH):
-        print("No database found at", DB_PATH, file=sys.stderr)
-        sys.exit(1)
-
+    require_db()
     conn = get_db()
     stats = compute_stats(conn)
     conn.close()

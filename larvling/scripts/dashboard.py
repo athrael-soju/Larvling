@@ -9,7 +9,7 @@ import os
 import sys
 from html import escape
 
-from db import DB_PATH, get_db, parse_meta, reconfigure_stdout
+from db import DB_PATH, get_db, parse_meta, require_db, reconfigure_stdout
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
@@ -229,10 +229,7 @@ def render_page(sidebar_html, details_html, stats_html, revision):
 
 
 def main():
-    if not os.path.exists(DB_PATH):
-        print("No database found at", DB_PATH, file=sys.stderr)
-        sys.exit(1)
-
+    require_db()
     reconfigure_stdout()
 
     conn = get_db()

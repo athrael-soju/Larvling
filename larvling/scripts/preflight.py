@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 
-from db import DB_PATH, get_db, parse_meta, reconfigure_stdout
+from db import DB_PATH, get_db, get_session_end_meta, parse_meta, reconfigure_stdout
 
 
 def ensure_audit_table():
@@ -130,19 +130,11 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
 
     results = []
     for sid in top_sids:
-        row = conn.execute(
-            "SELECT metadata, timestamp FROM imprints "
-            "WHERE session_id = ? AND event_type = 'session_end' AND metadata IS NOT NULL "
-            "ORDER BY id DESC LIMIT 1",
-            (sid,),
-        ).fetchone()
-        if not row:
-            continue
-        meta = parse_meta(row["metadata"])
+        meta = get_session_end_meta(conn, sid)
         summary = meta.get("llm_summary") or meta.get("summary")
         if not summary:
             continue
-        date = row["timestamp"][:10] if row["timestamp"] else "?"
+        date = (meta.get("started_at") or "?")[:10]
         duration = meta.get("duration_min")
         duration_str = f" ({duration}m)" if duration else ""
         results.append(f"- **{date}**{duration_str}: {summary}")

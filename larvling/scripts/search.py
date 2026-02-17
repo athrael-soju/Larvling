@@ -9,10 +9,9 @@ Usage:
 """
 
 import json
-import os
 import sys
 
-from db import DB_PATH, get_db, parse_meta, reconfigure_stdout
+from db import get_db, get_session_end_meta, require_db, reconfigure_stdout
 
 
 def extract_snippet(content, query, context_chars=80):
@@ -70,15 +69,8 @@ def search_sessions(conn, query, limit=20, context_chars=80):
 
     # Fetch session titles
     for sid, data in sessions.items():
-        row = conn.execute(
-            "SELECT metadata FROM imprints "
-            "WHERE session_id = ? AND event_type = 'session_end' AND metadata IS NOT NULL "
-            "ORDER BY id DESC LIMIT 1",
-            (sid,),
-        ).fetchone()
-        if row and row[0]:
-            meta = parse_meta(row[0])
-            data["title"] = meta.get("summary", "")
+        meta = get_session_end_meta(conn, sid)
+        data["title"] = meta.get("summary", "")
 
     return list(sessions.values())[:limit]
 
@@ -118,9 +110,7 @@ def main():
         print("Search query cannot be empty", file=sys.stderr)
         sys.exit(1)
 
-    if not os.path.exists(DB_PATH):
-        print("No database found at", DB_PATH, file=sys.stderr)
-        sys.exit(1)
+    require_db()
 
     limit = 20
     context_chars = 80
