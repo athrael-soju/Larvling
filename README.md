@@ -106,6 +106,8 @@ Larvling hooks into the Claude Code lifecycle and remembers everything:
 
 ## Dashboard
 
+<img width="1917" height="1031" alt="image" src="https://github.com/user-attachments/assets/63f94432-e1be-4ef8-b56b-8934bb37358d" />
+
 The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessions. Each session has a "..." menu with:
 
 - **Download summary** - save the LLM-generated summary as a markdown file (only shown if a summary exists)
