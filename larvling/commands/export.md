@@ -3,7 +3,7 @@ name: export
 description: Export a Larvling session conversation to markdown
 arguments:
   - name: session
-    description: "Session ID (short or full) to export. Use 'list' to see available sessions."
+    description: "Session ID (short or full) to export. Use 'list' to see available sessions, or 'all' to export everything."
     required: false
 ---
 
@@ -19,7 +19,13 @@ Run the export script from the Larvling plugin:
    ```
    Show the results to the user so they can pick a session.
 
-2. If the user provided a session ID, export directly to a file:
+2. If the user passed `all` as the session argument, export all sessions:
+   ```
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" --all .claude/exports
+   ```
+   Tell the user how many sessions were exported and where.
+
+3. If the user provided a session ID, export directly to a file:
    ```
    python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" <session_id> .claude/exports/<session_id>.md
    ```

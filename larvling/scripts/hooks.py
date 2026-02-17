@@ -13,7 +13,7 @@ import re
 import sys
 import time
 
-from db import get_db, imprint
+from db import get_db, imprint, get_session_duration, get_session_summary
 
 
 def _is_real_user_message(entry):
@@ -135,34 +135,6 @@ def handle_user_prompt(data):
     conn = get_db()
     imprint(conn, session_id, "user_message", prompt, meta)
     conn.close()
-
-
-def get_session_duration(conn, session_id):
-    """Calculate session duration from first to last imprint."""
-    cur = conn.execute(
-        """
-        SELECT
-            MIN(timestamp) as first_msg,
-            MAX(timestamp) as last_msg,
-            ROUND((julianday(MAX(timestamp)) - julianday(MIN(timestamp))) * 1440, 1) as duration_min
-        FROM imprints
-        WHERE session_id = ?
-        """,
-        (session_id,),
-    )
-    row = cur.fetchone()
-    if row and row[2] is not None:
-        return {"started_at": row[0], "ended_at": row[1], "duration_min": row[2]}
-    return {}
-
-
-def get_session_summary(conn, session_id):
-    """Get the first user prompt as the session title."""
-    row = conn.execute(
-        "SELECT content FROM imprints WHERE session_id = ? AND event_type = 'user_message' ORDER BY id LIMIT 1",
-        (session_id,),
-    ).fetchone()
-    return row[0] if row else None
 
 
 def handle_session_end(data):

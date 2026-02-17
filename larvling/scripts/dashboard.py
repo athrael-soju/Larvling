@@ -6,15 +6,14 @@ Zero dependencies: just sqlite3 + Python string templating.
 
 import json
 import os
-import sqlite3
 import sys
 from html import escape
 
-from db import DB_PATH, get_db
+from db import DB_PATH, get_db, parse_meta, reconfigure_stdout
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
-LOGO_URL = "https://raw.githubusercontent.com/athrael-soju/Zergling/main/larvling.png"
+LOGO_URL = "https://raw.githubusercontent.com/athrael-soju/Larvling/main/larvling.png"
 
 HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
 
@@ -34,9 +33,8 @@ def get_sessions(conn):
         end_meta = {}
         for m in messages:
             if m["event_type"] == "session_end" and m["metadata"]:
-                try:
-                    candidate = json.loads(m["metadata"])
-                except (json.JSONDecodeError, TypeError):
+                candidate = parse_meta(m["metadata"])
+                if not candidate:
                     continue
                 if candidate.get("summary") or not end_meta:
                     end_meta = candidate
@@ -69,12 +67,7 @@ def render_message(msg):
     timestamp = msg["timestamp"] or ""
     time_short = timestamp.split(" ")[-1][:5] if " " in timestamp else timestamp[:5]
 
-    meta = {}
-    if msg["metadata"]:
-        try:
-            meta = json.loads(msg["metadata"])
-        except (json.JSONDecodeError, TypeError):
-            pass
+    meta = parse_meta(msg["metadata"])
 
     if event == "user_message":
         return f"""<div class="msg msg-user">
@@ -167,7 +160,60 @@ def render_detail_panel(session):
     </div>"""
 
 
-def render_page(sidebar_html, details_html, revision):
+def render_stats_bar(conn):
+    """Generate HTML for the collapsible stats bar."""
+    from stats import compute_stats
+
+    stats = compute_stats(conn)
+    total_end = stats["sessions_with_summary"] + stats["sessions_without_summary"]
+    pct_summarized = round(100 * stats["sessions_with_summary"] / max(total_end, 1))
+
+    cards = (
+        '<div class="stats-cards">'
+        f'<div class="stat-card"><div class="stat-value">{stats["total_sessions"]}</div><div class="stat-label">Sessions</div></div>'
+        f'<div class="stat-card"><div class="stat-value">{stats["total_messages"]}</div><div class="stat-label">Messages</div></div>'
+        f'<div class="stat-card"><div class="stat-value">{stats["avg_duration_min"]}m</div><div class="stat-label">Avg Duration</div></div>'
+        f'<div class="stat-card"><div class="stat-value">{pct_summarized}%</div><div class="stat-label">Summarized</div></div>'
+        '</div>'
+    )
+
+    # Top 5 tools — horizontal bars
+    top_tools = dict(list(stats["tool_usage"].items())[:5])
+    tools_html = ""
+    if top_tools:
+        max_tool = max(top_tools.values())
+        bars = ""
+        for name, count in top_tools.items():
+            pct = round(100 * count / max(max_tool, 1))
+            bars += (
+                f'<div class="tool-row"><span class="tool-name">{escape(name)}</span>'
+                f'<div class="tool-bar-track"><div class="tool-bar-fill" style="width:{pct}%"></div></div>'
+                f'<span class="tool-count">{count}</span></div>'
+            )
+        tools_html = f'<div class="stats-chart"><div class="chart-title">Top Tools</div>{bars}</div>'
+
+    # 14-day activity — vertical bars
+    days = stats["activity_by_day"]
+    max_day = max(days.values()) if any(days.values()) else 1
+    day_bars = ""
+    for day, count in days.items():
+        pct = round(100 * count / max(max_day, 1))
+        day_bars += (
+            f'<div class="day-col"><div class="day-bar" style="height:{max(pct, 2)}%"'
+            f' title="{day}: {count}"></div><span class="day-label">{day[8:]}</span></div>'
+        )
+    activity_html = (
+        f'<div class="stats-chart"><div class="chart-title">Activity (14 days)</div>'
+        f'<div class="day-chart">{day_bars}</div></div>'
+    )
+
+    return (
+        f'<div class="stats-bar" id="stats-bar">{cards}'
+        f'<div class="stats-charts">{tools_html}{activity_html}</div></div>'
+    )
+
+
+def render_page(sidebar_html, details_html, stats_html, revision):
     """Load the HTML template and fill in placeholders."""
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
         template = f.read()
@@ -175,6 +221,7 @@ def render_page(sidebar_html, details_html, revision):
     return (
         template
         .replace("{{LOGO_URL}}", LOGO_URL)
+        .replace("{{STATS_BAR}}", stats_html)
         .replace("{{SIDEBAR}}", sidebar_html)
         .replace("{{DETAILS}}", details_html)
         .replace("{{REVISION}}", str(revision))
@@ -186,8 +233,9 @@ def main():
         print("No database found at", DB_PATH, file=sys.stderr)
         sys.exit(1)
 
+    reconfigure_stdout()
+
     conn = get_db()
-    conn.row_factory = sqlite3.Row
     revision = conn.execute("SELECT MAX(id) FROM imprints").fetchone()[0] or 0
 
     # Skip regeneration if dashboard is already current AND the template hasn't changed
@@ -196,7 +244,9 @@ def main():
             head = f.read(1024)
         template_modified = os.path.getmtime(TEMPLATE_PATH) > os.path.getmtime(HTML_PATH)
         script_modified = os.path.getmtime(__file__) > os.path.getmtime(HTML_PATH)
-        if f'content="{revision}"' in head and not template_modified and not script_modified:
+        stats_path = os.path.join(SCRIPT_DIR, "stats.py")
+        stats_modified = os.path.exists(stats_path) and os.path.getmtime(stats_path) > os.path.getmtime(HTML_PATH)
+        if f'content="{revision}"' in head and not template_modified and not script_modified and not stats_modified:
             conn.close()
             print(f"Dashboard up to date: {HTML_PATH}")
             return
@@ -205,10 +255,11 @@ def main():
 
     sidebar_html = "\n".join(render_sidebar_item(s, i) for i, s in enumerate(sessions))
     details_html = "\n".join(render_detail_panel(s) for s in sessions)
+    stats_html = render_stats_bar(conn)
 
     conn.close()
 
-    html = render_page(sidebar_html, details_html, revision)
+    html = render_page(sidebar_html, details_html, stats_html, revision)
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(html)

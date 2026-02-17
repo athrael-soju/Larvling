@@ -5,25 +5,26 @@ Usage:
     python export.py <session_id>            # prints markdown to stdout
     python export.py <session_id> <outfile>  # writes to file
     python export.py --list                  # list available sessions
+    python export.py --all <outdir>          # export all sessions to a directory
 """
 
-import json
 import os
-import sqlite3
 import sys
 
-from db import get_db, resolve_session, list_sessions
+from db import get_db, resolve_session, list_sessions, parse_meta, reconfigure_stdout
 
 
-def export_session(session_id):
+def export_session(session_id, conn=None):
     """Export a session to markdown. Returns the markdown string."""
-    conn = get_db()
-    conn.row_factory = sqlite3.Row
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db()
 
     # Resolve short IDs
     session_id = resolve_session(conn, session_id)
     if not session_id:
-        conn.close()
+        if own_conn:
+            conn.close()
         return None
 
     messages = conn.execute(
@@ -37,7 +38,8 @@ def export_session(session_id):
     ).fetchall()
 
     if not messages:
-        conn.close()
+        if own_conn:
+            conn.close()
         return None
 
     lines = [f"# Session {session_id[:8]}", ""]
@@ -45,9 +47,8 @@ def export_session(session_id):
     # Session metadata from session_end
     for msg in messages:
         if msg["event_type"] == "session_end" and msg["metadata"]:
-            try:
-                meta = json.loads(msg["metadata"])
-            except (json.JSONDecodeError, TypeError):
+            meta = parse_meta(msg["metadata"])
+            if not meta:
                 continue
             if meta.get("started_at"):
                 lines.append(f"**Started:** {meta['started_at']}")
@@ -74,15 +75,11 @@ def export_session(session_id):
             lines.append("")
         elif msg["event_type"] == "agent_message":
             tools_str = ""
-            if msg["metadata"]:
-                try:
-                    meta = json.loads(msg["metadata"])
-                    tools = meta.get("tool_calls", {})
-                    if tools:
-                        parts = [f"{name} ({count}x)" for name, count in tools.items()]
-                        tools_str = f"  *Tools: {', '.join(parts)}*"
-                except (json.JSONDecodeError, TypeError):
-                    pass
+            meta = parse_meta(msg["metadata"])
+            tools = meta.get("tool_calls", {})
+            if tools:
+                parts = [f"{name} ({count}x)" for name, count in tools.items()]
+                tools_str = f"  *Tools: {', '.join(parts)}*"
             lines.append(f"### Agent  `{ts}`")
             if tools_str:
                 lines.append(tools_str)
@@ -90,20 +87,56 @@ def export_session(session_id):
             lines.append(msg["content"] or "")
             lines.append("")
 
-    conn.close()
+    if own_conn:
+        conn.close()
     return "\n".join(lines)
 
 
+def export_all(outdir):
+    """Export all sessions to individual markdown files in outdir."""
+    conn = get_db()
+    session_ids = [
+        row[0]
+        for row in conn.execute(
+            "SELECT DISTINCT session_id FROM imprints WHERE session_id IS NOT NULL"
+        ).fetchall()
+    ]
+
+    if not session_ids:
+        conn.close()
+        print("No sessions to export.", file=sys.stderr)
+        sys.exit(1)
+
+    os.makedirs(outdir, exist_ok=True)
+    exported = 0
+    for sid in session_ids:
+        md = export_session(sid, conn)
+        if md:
+            outfile = os.path.join(outdir, f"{sid[:8]}.md")
+            with open(outfile, "w", encoding="utf-8") as f:
+                f.write(md)
+            exported += 1
+
+    conn.close()
+    print(f"Exported {exported} sessions to {outdir}/")
+
+
 def main():
+    reconfigure_stdout()
+
     if len(sys.argv) < 2:
         print(__doc__.strip(), file=sys.stderr)
         sys.exit(1)
 
     if sys.argv[1] == "--list":
         conn = get_db()
-        conn.row_factory = sqlite3.Row
         list_sessions(conn)
         conn.close()
+        return
+
+    if sys.argv[1] == "--all":
+        outdir = sys.argv[2] if len(sys.argv) >= 3 else ".claude/exports"
+        export_all(outdir)
         return
 
     session_id = sys.argv[1]

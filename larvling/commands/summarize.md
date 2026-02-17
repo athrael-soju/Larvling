@@ -3,7 +3,7 @@ name: summarize
 description: Generate a session summary for a Larvling session
 arguments:
   - name: session
-    description: "Session ID (short or full). Use 'list' to see available sessions."
+    description: "Session ID (short or full). Use 'list' to see available sessions, or 'all' to summarize all unsummarized sessions."
     required: false
 ---
 
@@ -18,6 +18,8 @@ If the user passed `list` as the session argument, or no argument at all, run:
 python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" --list
 ```
 Show the results so the user can pick a session. Sessions marked `[summarized]` already have a session summary — the user can choose to regenerate.
+
+If the user passed `all` as the session argument, run the list command above to get all sessions, then process each **unsummarized** session (those marked `[no summary]`) by repeating Steps 2–5 for each one. Skip sessions that are already `[summarized]` unless the user explicitly asks to regenerate all. After finishing, report how many sessions were summarized.
 
 ### Step 2: Check for existing summary
 
@@ -69,4 +71,10 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --store "YOUR F
 
 The summary will appear in the dashboard sidebar and be used for context injection. Sessions with summaries show a download icon in the dashboard that lets the user save it to a file.
 
-Tell the user the summary has been saved.
+### Step 6: Regenerate dashboard
+
+```
+python "${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py"
+```
+
+Tell the user the summary has been saved and the dashboard has been updated.

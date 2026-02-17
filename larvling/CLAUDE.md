@@ -18,6 +18,8 @@ Everything lives in `.claude/larvling.db` (SQLite, WAL mode). The dashboard at `
 - `/summarize` — generate an LLM-written summary of a session (stored in DB for context injection, downloadable from the dashboard)
 - `/export` — export a session's full conversation to a markdown file
 - `/delete` — permanently delete a session and all its imprints from the database
+- `/stats` — view aggregate statistics (sessions, messages, tools, activity charts)
+- `/search <query>` — search across all session content with grouped results and context snippets
 
 ## For the Agent
 
