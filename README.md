@@ -8,7 +8,7 @@ Your friendly memory companion for Claude Code. Larvling quietly imprints every 
 
 ## The 6 Principles of Larvling
 
-- **Tiny** - under 100 KB total. Smaller than most READMEs out there
+- **Tiny** - under 50 KB of logic, under 100 KB total. Smaller than most READMEs out there
 - **Zero dependencies** - no pip install, no node_modules, no build step. Just Python 3.8+ and the standard library
 - **Portable** - works on any device that supports Claude Code plugins: macOS, Linux, Windows
 - **Private** - all data stays local in a single SQLite file. Nothing leaves your machine
