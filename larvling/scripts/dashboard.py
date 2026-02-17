@@ -124,7 +124,7 @@ def render_sidebar_item(session, index):
                 <span class="si-menu-btn" title="Actions">&#x22EF;</span>
                 <div class="si-menu">
                     {summary_item}
-                    <div class="menu-item si-export-dl">&#x1F4BE; Export conversation</div>
+                    <div class="menu-item si-export-dl">&#x1F4BE; Export session</div>
                 </div>
             </span>
         </div>
