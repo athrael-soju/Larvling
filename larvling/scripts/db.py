@@ -164,10 +164,15 @@ def create_schema(conn):
 
 
 def ensure_session(conn, session_id):
-    """Create a session row if it doesn't exist yet."""
+    """Create or touch a session row.
+
+    On first call creates the session. On subsequent calls (e.g. resume)
+    updates ended_at so the session sorts to the top in the dashboard.
+    """
     conn.execute(
-        "INSERT OR IGNORE INTO sessions (id, started_at) "
-        "VALUES (?, datetime('now'))",
+        "INSERT INTO sessions (id, started_at) "
+        "VALUES (?, datetime('now')) "
+        "ON CONFLICT(id) DO UPDATE SET ended_at = datetime('now')",
         (session_id,),
     )
 
