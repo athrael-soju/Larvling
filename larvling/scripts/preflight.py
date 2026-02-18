@@ -4,6 +4,7 @@ Ensures current schema exists, then injects session context.
 """
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -46,13 +47,17 @@ def ensure_schema():
         conn.close()
         return "current"
 
-    # Version mismatch — dump both schemas for Claude to handle
+    # Version mismatch — backup DB, then dump both schemas for Claude to handle
     old_schema = get_current_schema(conn)
     new_schema = get_desired_schema()
     conn.close()
 
+    backup_path = DB_PATH + f".v{db_version}.bak"
+    shutil.copy2(DB_PATH, backup_path)
+
     print("# Larvling - Schema Migration Required\n")
-    print(f"Database schema is version **{db_version}**, expected **{SCHEMA_VERSION}**.\n")
+    print(f"Database schema is version **{db_version}**, expected **{SCHEMA_VERSION}**.")
+    print(f"A backup has been saved to `{backup_path}`.\n")
     print("## Current Schema (in database)")
     print(f"```sql\n{old_schema}\n```\n")
     print("## Desired Schema")
