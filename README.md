@@ -8,7 +8,7 @@ Your friendly memory companion for Claude Code. Larvling quietly imprints every 
 
 ## The 6 Principles of Larvling
 
-- **Tiny** - under 50 KB of logic, under 100 KB total
+- **Tiny** - under 100 KB total
 - **Zero dependencies** - no pip install, no node_modules, no build step
 - **Portable** - works on any device that supports Claude Code plugins: macOS, Linux, Windows
 - **Private** - all data stays local in a single SQLite file
@@ -31,11 +31,11 @@ claude plugin marketplace add https://github.com/athrael-soju/Larvling
 
 **2. Install the plugin with your preferred scope:**
 
-| Scope | Flag | Effect |
-|-------|------|--------|
-| Local | `--scope local` | Active only in the current project |
+| Scope   | Flag              | Effect                                                                 |
+| ------- | ----------------- | ---------------------------------------------------------------------- |
+| Local   | `--scope local`   | Active only in the current project                                     |
 | Project | `--scope project` | Active for all users of the project (writes to `.claude/plugins.json`) |
-| User | `--scope user` | Active across all your projects |
+| User    | `--scope user`    | Active across all your projects                                        |
 
 ```bash
 # From the terminal
@@ -99,25 +99,25 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 
 ## How It Works
 
-Larvling hooks into the Claude Code lifecycle and remembers everything:
-
-- **Imprints** every user prompt and agent response to a local SQLite database
-- **Recalls** past session context on startup so the agent picks up where it left off
-- **Generates** a two-panel HTML dashboard with search, sort, and filter
+<p align="center">
+  <img src="diagram.png" alt="Larvling capabilities diagram" width="100%" />
+</p>
 
 ## Commands
 
-| Command | What it does |
-|---------|-------------|
+| Command      | What it does                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------ |
 | `/summarize` | Generate an LLM-written summary of a session. Stored in the DB for context injection and downloadable from the dashboard |
-| `/export` | Export a session's full conversation to a markdown file |
-| `/delete` | Permanently delete a session and all its imprints from the database |
-| `/search` | Search across all session content with grouped results and context snippets |
+| `/export`    | Export a session's full conversation to a markdown file                                                                  |
+| `/delete`    | Permanently delete a session and all its data from the database                                                          |
+| `/search`    | Search across all session content with grouped results and context snippets                                              |
+| `/memorize`  | Manage persistent facts and knowledge that get injected into every session                                               |
 
 ## Dashboard
 
-<img width="1917" height="1031" alt="image" src="https://github.com/user-attachments/assets/63f94432-e1be-4ef8-b56b-8934bb37358d" />
-
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/63f94432-e1be-4ef8-b56b-8934bb37358d" alt="Larvling capabilities diagram" width="100%" />
+</p>
 The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessions. Each session has a "..." menu with:
 
 - **Download summary** - save the LLM-generated summary as a markdown file (only shown if a summary exists)
@@ -127,33 +127,31 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 
 ## Files
 
-| File | What it does |
-|------|-------------|
-| `larvling/.claude-plugin/plugin.json` | Plugin manifest - name and description |
-| `larvling/hooks/hooks.json` | Hook definitions - tells Claude Code when to call Larvling |
-| `larvling/scripts/preflight.py` | Wakes up on session start, creates the DB or recalls context |
-| `larvling/scripts/hooks.py` | Handles prompt logging, response capture, and session end |
-| `larvling/scripts/dashboard.py` | Builds the HTML dashboard from the imprints |
-| `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard |
-| `larvling/scripts/summarize.py` | DB helpers for the `/summarize` command |
-| `larvling/scripts/export.py` | Exports a session conversation to markdown |
-| `larvling/scripts/delete.py` | Deletes a session's imprints from the database |
-| `larvling/scripts/search.py` | Searches across all session content |
-| `larvling/scripts/db.py` | Shared database helpers |
-| `larvling/commands/summarize.md` | Slash command definition for `/summarize` |
-| `larvling/commands/export.md` | Slash command definition for `/export` |
-| `larvling/commands/delete.md` | Slash command definition for `/delete` |
-| `larvling/commands/search.md` | Slash command definition for `/search` |
-| `larvling/CLAUDE.md` | Instructions for the agent |
+| File                                       | What it does                                                                             |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `larvling/.claude-plugin/plugin.json`      | Plugin manifest - name and description                                                   |
+| `larvling/hooks/hooks.json`                | Hook definitions - tells Claude Code when to call Larvling                               |
+| `larvling/scripts/db.py`                   | Shared database helpers and schema management                                            |
+| `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context                             |
+| `larvling/scripts/hooks.py`                | Handles prompt logging, response capture, and session end                                |
+| `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                                              |
+| `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard                                                   |
+| `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries                                  |
+| `larvling/scripts/export.py`               | Exports a session conversation to markdown                                               |
+| `larvling/scripts/delete.py`               | Deletes a session and its data from the database                                         |
+| `larvling/scripts/search.py`               | Searches across all session content                                                      |
+| `larvling/scripts/memorize.py`             | CRUD operations for persistent memories                                                  |
+| `larvling/commands/*.md`                   | Slash command definitions for `/summarize`, `/export`, `/delete`, `/search`, `/memorize` |
+| `larvling/CLAUDE.md`                       | Instructions for the agent                                                               |
 
 ## Uninstall
 
 ```bash
 # From the terminal (use the same scope you installed with)
-claude plugin uninstall larvling@larvling --scope local
+claude plugin uninstall larvling@athrael-soju --scope local
 
 # Or from within Claude Code
-/plugin uninstall larvling@larvling --scope local
+/plugin uninstall larvling@athrael-soju --scope local
 
 # Optionally remove the marketplace source
 claude plugin marketplace remove athrael-soju
@@ -169,5 +167,5 @@ rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/d
 
 All data stays local in the project's `.claude/` directory:
 
-- `larvling.db` - SQLite database (WAL mode) with all imprints
+- `larvling.db` - SQLite database (WAL mode) with encounters, imprints, reflections, and memories
 - `dashboard.html` - static HTML dashboard, refreshed automatically

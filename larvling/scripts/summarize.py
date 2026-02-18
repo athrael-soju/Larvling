@@ -8,8 +8,8 @@ Usage:
     python summarize.py <session_id> --store "text"  # store/replace session summary
 
 Terminology:
-    - Session title:   first user prompt, auto-captured at SessionEnd (meta["summary"])
-    - Session summary:  LLM-generated summary via /summarize (meta["llm_summary"])
+    - Session title:   first user prompt, auto-captured at SessionEnd (reflections.title)
+    - Session summary:  Agent-generated summary via /summarize (reflections.agent_summary)
 """
 
 import json
@@ -17,14 +17,12 @@ import sys
 
 from db import (
     get_db,
-    get_session_end_meta,
-    imprint,
-    parse_meta,
+    get_reflection,
+    record_reflection,
+    require_db,
     resolve_session,
     print_sessions,
     reconfigure_stdout,
-    get_session_duration,
-    get_session_title,
 )
 
 
@@ -41,9 +39,9 @@ def get_pairs(session_id):
 
     rows = conn.execute(
         """
-        SELECT event_type, content, timestamp
+        SELECT role, content, timestamp
         FROM imprints
-        WHERE session_id = ? AND event_type IN ('user_message', 'agent_message')
+        WHERE encounter_id = ? AND role IN ('user', 'assistant')
         ORDER BY id
         """,
         (session_id,),
@@ -58,15 +56,15 @@ def get_pairs(session_id):
         agent_msg = None
         ts = None
 
-        if rows[i]["event_type"] == "user_message":
+        if rows[i]["role"] == "user":
             user_msg = rows[i]["content"]
             ts = rows[i]["timestamp"]
             i += 1
-            if i < len(rows) and rows[i]["event_type"] == "agent_message":
+            if i < len(rows) and rows[i]["role"] == "assistant":
                 agent_msg = rows[i]["content"]
                 i += 1
         else:
-            # Orphan agent message
+            # Orphan assistant message
             agent_msg = rows[i]["content"]
             ts = rows[i]["timestamp"]
             i += 1
@@ -91,17 +89,13 @@ def get_summary(session_id):
         conn.close()
         return None
 
-    meta = get_session_end_meta(conn, session_id)
+    ref = get_reflection(conn, session_id)
     conn.close()
-    return meta.get("llm_summary")
+    return ref["agent_summary"] if ref else None
 
 
 def store_summary(session_id, summary_text):
-    """Store a session summary in the session_end metadata.
-
-    Updates the most recent session_end row's metadata to include llm_summary.
-    If no session_end row exists, creates one.
-    """
+    """Store a session summary in the reflections table."""
     conn = get_db()
     original = session_id
     session_id = resolve_session(conn, original)
@@ -110,41 +104,14 @@ def store_summary(session_id, summary_text):
         print(f"No session found matching '{original}'", file=sys.stderr)
         sys.exit(1)
 
-    # Find the best session_end row (prefer one with existing metadata)
-    rows = conn.execute(
-        """
-        SELECT id, metadata FROM imprints
-        WHERE session_id = ? AND event_type = 'session_end'
-        ORDER BY id DESC
-        """,
-        (session_id,),
-    ).fetchall()
-
-    if rows:
-        # Update existing session_end
-        row = rows[0]
-        meta = parse_meta(row["metadata"])
-        meta["llm_summary"] = summary_text
-        conn.execute(
-            "UPDATE imprints SET metadata = ? WHERE id = ?",
-            (json.dumps(meta), row["id"]),
-        )
-        conn.commit()
-    else:
-        # No session_end row - build full metadata before creating one
-        meta = {"llm_summary": summary_text}
-        meta.update(get_session_duration(conn, session_id))
-        title = get_session_title(conn, session_id)
-        if title:
-            meta["summary"] = title
-        imprint(conn, session_id, "session_end", "Session ended", meta)
-
+    record_reflection(conn, session_id, agent_summary=summary_text)
     conn.close()
     print(f"Session summary stored for session {session_id[:8]}")
 
 
 def main():
     reconfigure_stdout()
+    require_db()
 
     if len(sys.argv) < 2:
         print(__doc__.strip(), file=sys.stderr)
