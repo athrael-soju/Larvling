@@ -15,6 +15,7 @@ TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
 LOGO_URL = "https://raw.githubusercontent.com/athrael-soju/Larvling/main/larvling.png"
 
 HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
+REVISION_PATH = os.path.join(os.path.dirname(DB_PATH), "larvling-revision")
 
 
 def get_revision(conn):
@@ -207,6 +208,8 @@ def main():
             and not script_modified
         ):
             conn.close()
+            with open(REVISION_PATH, "w") as f:
+                f.write(str(revision))
             print(f"Dashboard up to date: {HTML_PATH}")
             return
 
@@ -221,6 +224,8 @@ def main():
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(html)
+    with open(REVISION_PATH, "w") as f:
+        f.write(str(revision))
 
     print(f"Dashboard generated: {HTML_PATH}")
 

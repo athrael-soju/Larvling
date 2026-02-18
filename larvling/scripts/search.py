@@ -11,7 +11,7 @@ Usage:
 import json
 import sys
 
-from db import get_db, get_reflection, require_db, reconfigure_stdout
+from db import get_db, get_reflection, require_db, reconfigure_stdout, escape_like
 
 
 def extract_snippet(content, query, context_chars=80):
@@ -35,7 +35,7 @@ def extract_snippet(content, query, context_chars=80):
 
 def search_sessions(conn, query, limit=20, context_chars=80):
     """Search imprint content for query. Returns grouped results by session."""
-    safe_query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    safe_query = escape_like(query)
 
     rows = conn.execute(
         "SELECT encounter_id, content, role, timestamp FROM imprints "

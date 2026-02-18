@@ -12,7 +12,7 @@ Usage:
 
 import sys
 
-from db import get_db, require_db, reconfigure_stdout
+from db import get_db, require_db, reconfigure_stdout, escape_like
 
 
 def next_memory_id(conn):
@@ -56,19 +56,19 @@ def update_memory(conn, mid, **fields):
     if not updates:
         return False
     values.append(mid)
-    conn.execute(
+    cursor = conn.execute(
         f"UPDATE memories SET {', '.join(updates)} WHERE id = ?",
         values,
     )
     conn.commit()
-    return conn.total_changes > 0
+    return cursor.rowcount > 0
 
 
 def delete_memory(conn, mid):
     """Delete a memory by ID."""
-    conn.execute("DELETE FROM memories WHERE id = ?", (mid,))
+    cursor = conn.execute("DELETE FROM memories WHERE id = ?", (mid,))
     conn.commit()
-    return conn.total_changes > 0
+    return cursor.rowcount > 0
 
 
 def list_memories(conn, include_expired=False):
@@ -85,13 +85,17 @@ def list_memories(conn, include_expired=False):
 
 
 def search_memories(conn, query):
-    """Search memories by claim content."""
-    safe = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    """Search memories by claim, notes, domain, and tags."""
+    safe = escape_like(query)
+    pattern = f"%{safe}%"
     return conn.execute(
         "SELECT * FROM memories "
-        "WHERE claim LIKE ? ESCAPE '\\' "
+        "WHERE (claim LIKE ? ESCAPE '\\' "
+        "OR notes LIKE ? ESCAPE '\\' "
+        "OR domain LIKE ? ESCAPE '\\' "
+        "OR tags LIKE ? ESCAPE '\\') "
         "ORDER BY established DESC",
-        (f"%{safe}%",),
+        (pattern, pattern, pattern, pattern),
     ).fetchall()
 
 

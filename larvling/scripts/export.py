@@ -37,7 +37,7 @@ def export_session(session_id, conn=None):
         SELECT timestamp, role, content, metadata
         FROM imprints
         WHERE encounter_id = ?
-        ORDER BY id DESC
+        ORDER BY id ASC
         """,
         (session_id,),
     ).fetchall()

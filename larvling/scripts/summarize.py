@@ -8,7 +8,7 @@ Usage:
     python summarize.py <session_id> --store "text"  # store/replace session summary
 
 Terminology:
-    - Session title:   first user prompt, auto-captured at SessionEnd (reflections.title)
+    - Session title:   first user prompt, auto-captured at UserPromptSubmit (reflections.title)
     - Session summary:  Agent-generated summary via /summarize (reflections.agent_summary)
 """
 
@@ -105,6 +105,7 @@ def store_summary(session_id, summary_text):
         sys.exit(1)
 
     record_reflection(conn, session_id, agent_summary=summary_text)
+    conn.commit()
     conn.close()
     print(f"Session summary stored for session {session_id[:8]}")
 

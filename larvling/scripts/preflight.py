@@ -9,6 +9,7 @@ import sys
 
 from db import (
     DB_PATH,
+    escape_like,
     get_db,
     get_reflection,
     reconfigure_stdout,
@@ -84,8 +85,10 @@ def get_git_context():
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
             if result.returncode == 0:
                 files.extend(result.stdout.strip().splitlines())
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            return []
+        except (FileNotFoundError, OSError):
+            return []  # git not available
+        except subprocess.TimeoutExpired:
+            continue
 
     try:
         result = subprocess.run(
@@ -122,9 +125,7 @@ def find_relevant_sessions(conn, file_names, exclude_eids, limit=2):
         basename = os.path.basename(fname)
         if not basename or len(basename) < 3:
             continue
-        safe_name = (
-            basename.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        )
+        safe_name = escape_like(basename)
         rows = conn.execute(
             "SELECT DISTINCT encounter_id FROM imprints "
             "WHERE content LIKE ? ESCAPE '\\' "

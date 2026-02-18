@@ -8,6 +8,7 @@ import json
 import os
 import sqlite3
 import sys
+from contextlib import contextmanager
 
 PROJECT_ROOT = os.getcwd()
 DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
@@ -22,6 +23,16 @@ def get_db():
     return conn
 
 
+@contextmanager
+def open_db():
+    """Context manager for database connections."""
+    conn = get_db()
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
 def parse_meta(metadata_str):
     """Parse a metadata JSON string. Returns dict (empty on failure)."""
     if not metadata_str:
@@ -30,6 +41,11 @@ def parse_meta(metadata_str):
         return json.loads(metadata_str)
     except (json.JSONDecodeError, TypeError):
         return {}
+
+
+def escape_like(query):
+    """Escape special characters for SQL LIKE queries."""
+    return query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def reconfigure_stdout():
@@ -295,7 +311,6 @@ def ensure_encounter(conn, encounter_id):
         "VALUES (?, datetime('now'))",
         (encounter_id,),
     )
-    conn.commit()
 
 
 def record_imprint(conn, encounter_id, role, content, metadata=None):
@@ -305,7 +320,6 @@ def record_imprint(conn, encounter_id, role, content, metadata=None):
         "VALUES (?, ?, ?, ?)",
         (encounter_id, role, content, json.dumps(metadata) if metadata else None),
     )
-    conn.commit()
 
 
 def record_reflection(
@@ -326,7 +340,6 @@ def record_reflection(
         """,
         (encounter_id, title, agent_summary, exchange_count),
     )
-    conn.commit()
 
 
 def finalize_encounter(conn, encounter_id):
@@ -342,7 +355,6 @@ def finalize_encounter(conn, encounter_id):
         """,
         (encounter_id,),
     )
-    conn.commit()
 
 
 # ---------------------------------------------------------------------------
