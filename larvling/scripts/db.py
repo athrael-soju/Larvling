@@ -62,8 +62,38 @@ def require_db():
 
 
 # ---------------------------------------------------------------------------
-# Schema creation
+# Schema creation and versioning
 # ---------------------------------------------------------------------------
+
+SCHEMA_VERSION = 1
+
+
+def get_schema_version(conn):
+    """Read the current schema version from the database."""
+    return conn.execute("PRAGMA user_version").fetchone()[0]
+
+
+def set_schema_version(conn, version=SCHEMA_VERSION):
+    """Set the schema version in the database."""
+    conn.execute(f"PRAGMA user_version = {int(version)}")
+
+
+def get_current_schema(conn):
+    """Read the live schema from sqlite_master."""
+    rows = conn.execute(
+        "SELECT sql FROM sqlite_master "
+        "WHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()
+    return "\n".join(row[0] + ";" for row in rows if row[0])
+
+
+def get_desired_schema():
+    """Get the desired schema by creating it in an in-memory database."""
+    mem = sqlite3.connect(":memory:")
+    create_schema(mem)
+    schema = get_current_schema(mem)
+    mem.close()
+    return schema
 
 
 def create_schema(conn):
@@ -124,104 +154,8 @@ def create_schema(conn):
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_summaries_session ON summaries(session_id)"
     )
-
+    set_schema_version(conn)
     conn.commit()
-
-
-# ---------------------------------------------------------------------------
-# Schema detection and migration
-# ---------------------------------------------------------------------------
-
-
-def detect_schema_version(conn):
-    """Detect which schema version is present.
-
-    Returns:
-        'current' - sessions table exists (current schema)
-        'v2'      - encounters table exists (themed names)
-        'v1'      - flat imprints table only (legacy)
-        'fresh'   - no tables at all
-    """
-    tables = {
-        row[0]
-        for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
-    }
-    if "sessions" in tables:
-        return "current"
-    if "encounters" in tables:
-        return "v2"
-    if "imprints" in tables:
-        return "v1"
-    return "fresh"
-
-
-def migrate_legacy(conn):
-    """Migrate from v1 or v2 schema to current.
-
-    v1 (flat imprints table): backup old table, create new schema, copy data.
-    v2 (encounters/imprints/reflections/memories): rename tables and columns.
-    """
-    version = detect_schema_version(conn)
-
-    if version == "current":
-        return
-
-    if version == "v1":
-        conn.execute("ALTER TABLE imprints RENAME TO imprints_v1_backup")
-        create_schema(conn)
-
-        rows = conn.execute(
-            "SELECT DISTINCT session_id FROM imprints_v1_backup"
-        ).fetchall()
-        for row in rows:
-            sid = row[0]
-            first_ts = conn.execute(
-                "SELECT MIN(timestamp) FROM imprints_v1_backup WHERE session_id = ?",
-                (sid,),
-            ).fetchone()[0]
-            conn.execute(
-                "INSERT OR IGNORE INTO sessions (id, started_at) VALUES (?, ?)",
-                (sid, first_ts or "unknown"),
-            )
-            conn.execute(
-                "INSERT INTO messages (session_id, timestamp, role, content, metadata) "
-                "SELECT session_id, timestamp, role, content, metadata "
-                "FROM imprints_v1_backup WHERE session_id = ?",
-                (sid,),
-            )
-            first_user = conn.execute(
-                "SELECT content FROM imprints_v1_backup "
-                "WHERE session_id = ? AND role = 'user' "
-                "ORDER BY id ASC LIMIT 1",
-                (sid,),
-            ).fetchone()
-            if first_user:
-                conn.execute(
-                    "INSERT OR IGNORE INTO summaries (session_id, title) VALUES (?, ?)",
-                    (sid, first_user[0]),
-                )
-        conn.commit()
-        return
-
-    if version == "v2":
-        conn.execute("ALTER TABLE encounters RENAME TO sessions")
-        conn.execute("ALTER TABLE imprints RENAME TO messages")
-        conn.execute("ALTER TABLE reflections RENAME TO summaries")
-        conn.execute("ALTER TABLE memories RENAME TO facts")
-        conn.execute("ALTER TABLE messages RENAME COLUMN encounter_id TO session_id")
-        conn.execute("ALTER TABLE summaries RENAME COLUMN encounter_id TO session_id")
-
-        conn.execute("DROP INDEX IF EXISTS idx_imprints_encounter")
-        conn.execute("DROP INDEX IF EXISTS idx_reflections_encounter")
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_summaries_session ON summaries(session_id)"
-        )
-        conn.commit()
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 """
 Larvling Preflight - SessionStart hook.
-Ensures current schema exists (migrating from v1/v2 if needed), then injects session context.
+Ensures current schema exists, then injects session context.
 """
 
 import os
@@ -9,41 +9,59 @@ import sys
 
 from db import (
     DB_PATH,
+    SCHEMA_VERSION,
     escape_like,
     get_db,
     get_summary,
     reconfigure_stdout,
-    detect_schema_version,
     create_schema,
-    migrate_legacy,
+    get_schema_version,
+    get_current_schema,
+    get_desired_schema,
 )
 
 
 def ensure_schema():
-    """Ensure current schema exists, migrating from v1/v2 if needed.
+    """Ensure current schema exists.
 
-    Returns True if this was a fresh install (no prior Larvling data).
+    Returns:
+        'fresh'    - first install, schema created
+        'current'  - schema up to date
+        'migrate'  - version mismatch, migration context printed for Claude
     """
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = get_db()
-    version = detect_schema_version(conn)
 
-    if version == "fresh":
+    has_tables = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'"
+    ).fetchone()
+
+    if not has_tables:
         create_schema(conn)
         conn.close()
-        return True
-    elif version == "current":
-        create_schema(conn)  # idempotent, ensures new tables exist
+        return "fresh"
+
+    db_version = get_schema_version(conn)
+    if db_version == SCHEMA_VERSION:
         conn.close()
-        return False
-    else:
-        # v1 or v2 — migrate to current schema
-        try:
-            migrate_legacy(conn)
-        except Exception:
-            pass  # Error already logged, continue with whatever schema exists
-        conn.close()
-        return False
+        return "current"
+
+    # Version mismatch — dump both schemas for Claude to handle
+    old_schema = get_current_schema(conn)
+    new_schema = get_desired_schema()
+    conn.close()
+
+    print("# Larvling - Schema Migration Required\n")
+    print(f"Database schema is version **{db_version}**, expected **{SCHEMA_VERSION}**.\n")
+    print("## Current Schema (in database)")
+    print(f"```sql\n{old_schema}\n```\n")
+    print("## Desired Schema")
+    print(f"```sql\n{new_schema}\n```\n")
+    print("Please migrate the database at `" + DB_PATH + "` from the current schema to the desired schema.")
+    print("Preserve all existing data. After migrating, run:")
+    print(f"```python\npython -c \"import sqlite3; c=sqlite3.connect('{DB_PATH}'); c.execute('PRAGMA user_version={SCHEMA_VERSION}'); c.close()\"\n```")
+
+    return "migrate"
 
 
 def get_recent_summaries(conn, limit=3):
@@ -219,12 +237,14 @@ def get_session_context():
 def main():
     reconfigure_stdout()
 
-    fresh = ensure_schema()
+    result = ensure_schema()
 
-    if fresh:
+    if result == "fresh":
         print("# Larvling - First Run\n")
         print("Database created at `.claude/larvling.db`.")
         print("Dashboard at `.claude/dashboard.html`.")
+    elif result == "migrate":
+        pass  # Migration context already printed by ensure_schema
     else:
         print(get_session_context())
 
