@@ -4,11 +4,11 @@
 
 # Larvling
 
-Your friendly memory companion for Claude Code. Larvling quietly imprints every conversation - prompts, responses, tool usage - and keeps it all in a searchable dashboard. No config needed, just install and go.
+Your friendly memory companion for Claude Code. Larvling quietly records every conversation - prompts, responses, tool usage - and keeps it all in a searchable dashboard. No config needed, just install and go.
 
 ## The 6 Principles of Larvling
 
-- **Tiny** - under 100 KB total
+- **Tiny** - under 100 KB
 - **Zero dependencies** - no pip install, no node_modules, no build step
 - **Portable** - works on any device that supports Claude Code plugins: macOS, Linux, Windows
 - **Private** - all data stays local in a single SQLite file
@@ -131,7 +131,7 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `larvling/.claude-plugin/plugin.json`      | Plugin manifest - name and description                                                   |
 | `larvling/hooks/hooks.json`                | Hook definitions - tells Claude Code when to call Larvling                               |
-| `larvling/scripts/db.py`                   | Shared database helpers and schema management                                            |
+| `larvling/scripts/db.py`                   | Shared database helpers, schema creation, and version management                         |
 | `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context                             |
 | `larvling/scripts/hooks.py`                | Handles prompt logging, response capture, and session end                                |
 | `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                                              |
@@ -167,5 +167,7 @@ rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/d
 
 All data stays local in the project's `.claude/` directory:
 
-- `larvling.db` - SQLite database (WAL mode) with encounters, imprints, reflections, and memories
+- `larvling.db` - SQLite database (WAL mode) with sessions, messages, summaries, and facts
 - `dashboard.html` - static HTML dashboard, refreshed automatically
+
+When the plugin updates with schema changes, Larvling automatically backs up your database and guides the agent through the migration — your data is preserved.

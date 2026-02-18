@@ -4,7 +4,7 @@ Larvling Hooks - unified handler for conversation lifecycle events.
 Handles three hook events:
   - UserPromptSubmit: logs the user's prompt
   - Stop: reads transcript_path JSONL to extract the agent's last response
-  - SessionEnd: finalizes encounter timing and records reflection
+  - SessionEnd: finalizes session timing and exchange count
 """
 
 import json
@@ -14,11 +14,11 @@ import sys
 import time
 
 from db import (
-    get_db,
-    ensure_encounter,
-    record_imprint,
-    finalize_encounter,
-    record_reflection,
+    open_db,
+    ensure_session,
+    record_message,
+    finalize_session,
+    record_summary,
 )
 
 
@@ -133,53 +133,58 @@ def wait_for_transcript_stable(transcript_path, interval=0.1, max_wait=2):
 def handle_user_prompt(data):
     """Log the user's prompt from a UserPromptSubmit event."""
     session_id = data.get("session_id")
-    prompt = strip_ide_tags(data.get("prompt", ""))
+    if not session_id:
+        return
 
+    prompt = strip_ide_tags(data.get("prompt", ""))
     if not prompt:
         return
 
     meta = {"cwd": data.get("cwd"), "permission_mode": data.get("permission_mode")}
 
-    conn = get_db()
-    ensure_encounter(conn, session_id)
-    record_imprint(conn, session_id, "user", prompt, meta)
+    with open_db() as conn:
+        ensure_session(conn, session_id)
+        record_message(conn, session_id, "user", prompt, meta)
 
-    # Set title on first user message
-    count = conn.execute(
-        "SELECT COUNT(*) FROM imprints WHERE encounter_id = ? AND role = 'user'",
-        (session_id,),
-    ).fetchone()[0]
-    if count == 1:
-        record_reflection(conn, session_id, title=prompt)
+        # Set title on first user message
+        count = conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
+            (session_id,),
+        ).fetchone()[0]
+        if count == 1:
+            record_summary(conn, session_id, title=prompt)
 
-    conn.close()
+        conn.commit()
 
 
 def handle_session_end(data):
-    """Finalize encounter timing and record a reflection."""
+    """Finalize session timing and record exchange count."""
     session_id = data.get("session_id")
     if not session_id:
         return
 
-    conn = get_db()
-    ensure_encounter(conn, session_id)
-    finalize_encounter(conn, session_id)
+    with open_db() as conn:
+        ensure_session(conn, session_id)
+        finalize_session(conn, session_id)
 
-    exchange_count = conn.execute(
-        "SELECT COUNT(*) FROM imprints WHERE encounter_id = ? AND role = 'user'",
-        (session_id,),
-    ).fetchone()[0]
+        exchange_count = conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
+            (session_id,),
+        ).fetchone()[0]
 
-    record_reflection(
-        conn, session_id,
-        exchange_count=exchange_count or None,
-    )
-    conn.close()
+        record_summary(
+            conn, session_id,
+            exchange_count=exchange_count or None,
+        )
+        conn.commit()
 
 
 def handle_stop(data):
     """Log the agent's last response from a Stop event."""
     session_id = data.get("session_id")
+    if not session_id:
+        return
+
     transcript_path = data.get("transcript_path")
 
     wait_for_transcript_stable(transcript_path)
@@ -188,23 +193,22 @@ def handle_stop(data):
     if not response:
         return
 
-    conn = get_db()
-    ensure_encounter(conn, session_id)
+    with open_db() as conn:
+        ensure_session(conn, session_id)
 
-    # Dedup: skip if we already logged this exact content for this encounter
-    row = conn.execute(
-        "SELECT content FROM imprints "
-        "WHERE encounter_id = ? AND role = 'assistant' "
-        "ORDER BY id DESC LIMIT 1",
-        (session_id,),
-    ).fetchone()
-    if row and row[0] == response:
-        conn.close()
-        return
+        # Dedup: skip if we already logged this exact content for this session
+        row = conn.execute(
+            "SELECT content FROM messages "
+            "WHERE session_id = ? AND role = 'assistant' "
+            "ORDER BY id DESC LIMIT 1",
+            (session_id,),
+        ).fetchone()
+        if row and row[0] == response:
+            return
 
-    meta = {"tool_calls": tools} if tools else None
-    record_imprint(conn, session_id, "assistant", response, meta)
-    conn.close()
+        meta = {"tool_calls": tools} if tools else None
+        record_message(conn, session_id, "assistant", response, meta)
+        conn.commit()
 
 
 def _log_error(msg):

@@ -447,11 +447,11 @@ setInterval(function() {
     var currentRev = document.body.dataset.revision;
     setInterval(function() {
         var xhr = new XMLHttpRequest();
-        xhr.open('GET', location.href, true);
+        xhr.open('GET', 'larvling-revision', true);
         xhr.onload = function() {
             if (xhr.status === 200 || xhr.status === 0) {
-                var match = xhr.responseText.match(/data-revision="(\d+)"/);
-                if (match && match[1] !== currentRev) {
+                var rev = xhr.responseText.trim();
+                if (rev && rev !== currentRev) {
                     location.reload();
                 }
             }

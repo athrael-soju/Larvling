@@ -2,9 +2,9 @@
 Larvling Delete - remove a session from the database.
 
 Usage:
-    python delete.py <session_id>    # delete a session (encounter + imprints + reflection)
+    python delete.py <session_id>    # delete a session (session + messages + summary)
     python delete.py --list          # list available sessions
-    python delete.py --all           # delete all sessions (preserves memories)
+    python delete.py --all           # delete all sessions (preserves facts)
 """
 
 import sys
@@ -13,7 +13,7 @@ from db import get_db, resolve_session, print_sessions, reconfigure_stdout, requ
 
 
 def delete_session(session_id):
-    """Delete all data for a session (encounter, imprints, reflection)."""
+    """Delete all data for a session (session, messages, summary)."""
     conn = get_db()
     original = session_id
     session_id = resolve_session(conn, original)
@@ -22,38 +22,38 @@ def delete_session(session_id):
         print(f"No session found matching '{original}'", file=sys.stderr)
         sys.exit(1)
 
-    imp_count = conn.execute(
-        "SELECT COUNT(*) FROM imprints WHERE encounter_id = ?",
+    msg_count = conn.execute(
+        "SELECT COUNT(*) FROM messages WHERE session_id = ?",
         (session_id,),
     ).fetchone()[0]
 
     # Delete in FK-safe order
-    conn.execute("DELETE FROM reflections WHERE encounter_id = ?", (session_id,))
-    conn.execute("DELETE FROM imprints WHERE encounter_id = ?", (session_id,))
-    conn.execute("DELETE FROM encounters WHERE id = ?", (session_id,))
+    conn.execute("DELETE FROM summaries WHERE session_id = ?", (session_id,))
+    conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+    conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
     conn.commit()
     conn.close()
-    print(f"Deleted session {session_id[:8]} ({imp_count} imprints)")
+    print(f"Deleted session {session_id[:8]} ({msg_count} messages)")
 
 
 def delete_all():
-    """Delete all sessions from the database. Preserves memories."""
+    """Delete all sessions from the database. Preserves facts."""
     conn = get_db()
-    enc_count = conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0]
-    imp_count = conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
+    sess_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+    msg_count = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
 
-    if enc_count == 0:
+    if sess_count == 0:
         conn.close()
         print("No sessions to delete.")
         return
 
-    # Delete in FK-safe order (NOT memories)
-    conn.execute("DELETE FROM reflections")
-    conn.execute("DELETE FROM imprints")
-    conn.execute("DELETE FROM encounters")
+    # Delete in FK-safe order (NOT facts)
+    conn.execute("DELETE FROM summaries")
+    conn.execute("DELETE FROM messages")
+    conn.execute("DELETE FROM sessions")
     conn.commit()
     conn.close()
-    print(f"Deleted {enc_count} sessions ({imp_count} imprints)")
+    print(f"Deleted {sess_count} sessions ({msg_count} messages)")
 
 
 def main():
