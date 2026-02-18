@@ -2,9 +2,9 @@
 Larvling Hooks - unified handler for conversation lifecycle events.
 
 Handles three hook events:
-  - UserPromptSubmit: logs the user's prompt directly from stdin JSON
+  - UserPromptSubmit: logs the user's prompt
   - Stop: reads transcript_path JSONL to extract the agent's last response
-  - SessionEnd: logs session duration metadata
+  - SessionEnd: finalizes encounter timing and records reflection
 """
 
 import json
@@ -13,7 +13,13 @@ import re
 import sys
 import time
 
-from db import get_db, imprint, get_session_duration, get_session_title
+from db import (
+    get_db,
+    ensure_encounter,
+    record_imprint,
+    finalize_encounter,
+    record_reflection,
+)
 
 
 def _is_real_user_message(entry):
@@ -135,23 +141,39 @@ def handle_user_prompt(data):
     meta = {"cwd": data.get("cwd"), "permission_mode": data.get("permission_mode")}
 
     conn = get_db()
-    imprint(conn, session_id, "user_message", prompt, meta)
+    ensure_encounter(conn, session_id)
+    record_imprint(conn, session_id, "user", prompt, meta)
+
+    # Set title on first user message
+    count = conn.execute(
+        "SELECT COUNT(*) FROM imprints WHERE encounter_id = ? AND role = 'user'",
+        (session_id,),
+    ).fetchone()[0]
+    if count == 1:
+        record_reflection(conn, session_id, title=prompt)
+
     conn.close()
 
 
 def handle_session_end(data):
-    """Log session duration and title from a SessionEnd event."""
+    """Finalize encounter timing and record a reflection."""
     session_id = data.get("session_id")
     if not session_id:
         return
 
     conn = get_db()
-    meta = {}
-    meta.update(get_session_duration(conn, session_id))
-    summary = get_session_title(conn, session_id)
-    if summary:
-        meta["summary"] = summary
-    imprint(conn, session_id, "session_end", "Session ended", meta)
+    ensure_encounter(conn, session_id)
+    finalize_encounter(conn, session_id)
+
+    exchange_count = conn.execute(
+        "SELECT COUNT(*) FROM imprints WHERE encounter_id = ? AND role = 'user'",
+        (session_id,),
+    ).fetchone()[0]
+
+    record_reflection(
+        conn, session_id,
+        exchange_count=exchange_count or None,
+    )
     conn.close()
 
 
@@ -167,9 +189,11 @@ def handle_stop(data):
         return
 
     conn = get_db()
-    # Dedup: skip if we already logged this exact content for this session
+    # Dedup: skip if we already logged this exact content for this encounter
     row = conn.execute(
-        "SELECT content FROM imprints WHERE session_id = ? AND event_type = 'agent_message' ORDER BY id DESC LIMIT 1",
+        "SELECT content FROM imprints "
+        "WHERE encounter_id = ? AND role = 'assistant' "
+        "ORDER BY id DESC LIMIT 1",
         (session_id,),
     ).fetchone()
     if row and row[0] == response:
@@ -177,7 +201,7 @@ def handle_stop(data):
         return
 
     meta = {"tool_calls": tools} if tools else None
-    imprint(conn, session_id, "agent_message", response, meta)
+    record_imprint(conn, session_id, "assistant", response, meta)
     conn.close()
 
 

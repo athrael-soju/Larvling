@@ -11,7 +11,7 @@ Usage:
 import json
 import sys
 
-from db import get_db, get_session_end_meta, require_db, reconfigure_stdout
+from db import get_db, get_reflection, require_db, reconfigure_stdout
 
 
 def extract_snippet(content, query, context_chars=80):
@@ -38,41 +38,42 @@ def search_sessions(conn, query, limit=20, context_chars=80):
     safe_query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
     rows = conn.execute(
-        "SELECT session_id, content, event_type, timestamp FROM imprints "
+        "SELECT encounter_id, content, role, timestamp FROM imprints "
         "WHERE content LIKE ? ESCAPE '\\' "
-        "AND event_type IN ('user_message', 'agent_message') "
-        "AND session_id IS NOT NULL ORDER BY id DESC",
+        "AND role IN ('user', 'assistant') "
+        "ORDER BY id DESC",
         (f"%{safe_query}%",),
     ).fetchall()
 
     sessions = {}
     for row in rows:
-        sid = row[0]
-        if sid not in sessions:
-            sessions[sid] = {
-                "session_id": sid,
+        eid = row["encounter_id"]
+        if eid not in sessions:
+            sessions[eid] = {
+                "session_id": eid,
                 "title": "",
                 "match_count": 0,
                 "snippets": [],
             }
-        sessions[sid]["match_count"] += 1
+        sessions[eid]["match_count"] += 1
 
-        content = row[1] or ""
-        if len(sessions[sid]["snippets"]) < 3:
+        content = row["content"] or ""
+        if len(sessions[eid]["snippets"]) < 3:
             snippet = extract_snippet(content, query, context_chars)
             if snippet:
-                sessions[sid]["snippets"].append(
+                sessions[eid]["snippets"].append(
                     {
-                        "event_type": row[2],
-                        "timestamp": row[3] or "",
+                        "role": row["role"],
+                        "timestamp": row["timestamp"] or "",
                         "snippet": snippet,
                     }
                 )
 
-    # Fetch session titles
-    for sid, data in sessions.items():
-        meta = get_session_end_meta(conn, sid)
-        data["title"] = meta.get("summary", "")
+    # Fetch session titles from reflections
+    for eid, data in sessions.items():
+        ref = get_reflection(conn, eid)
+        if ref:
+            data["title"] = ref["title"] or ""
 
     return list(sessions.values())[:limit]
 
@@ -93,8 +94,8 @@ def format_results(results, query):
         title = (r["title"] or "(untitled)").split("\n")[0][:80]
         lines.append(f"## {r['session_id'][:8]} - {title} ({r['match_count']} matches)")
         for s in r["snippets"]:
-            role = "You" if s["event_type"] == "user_message" else "Agent"
-            lines.append(f"  [{role}] {s['snippet']}")
+            role_name = "You" if s["role"] == "user" else "Agent"
+            lines.append(f"  [{role_name}] {s['snippet']}")
         lines.append("")
 
     return "\n".join(lines)

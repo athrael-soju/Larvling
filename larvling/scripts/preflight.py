@@ -1,49 +1,60 @@
 """
 Larvling Preflight - SessionStart hook.
-Creates imprints table on first run, then injects session context.
+Ensures v2 schema exists (migrating from v1 if needed), then injects session context.
 """
 
-import json
 import os
 import subprocess
 import sys
 
-from db import DB_PATH, get_db, get_session_end_meta, parse_meta, reconfigure_stdout
+from db import (
+    DB_PATH,
+    get_db,
+    get_reflection,
+    reconfigure_stdout,
+    detect_schema_version,
+    create_v2_schema,
+    migrate_v1_to_v2,
+)
 
 
-def ensure_audit_table():
-    """Create the imprints table if the DB doesn't exist yet. Returns True if this was a fresh creation."""
-    fresh = not os.path.exists(DB_PATH)
+def ensure_schema():
+    """Ensure v2 schema exists, migrating from v1 if needed.
+
+    Returns True if this was a fresh install (no prior Larvling data).
+    """
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = get_db()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS imprints (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp   TEXT NOT NULL DEFAULT (datetime('now')),
-            session_id  TEXT,
-            event_type  TEXT NOT NULL,
-            content     TEXT,
-            metadata    TEXT
-        )
-    """
-    )
-    conn.commit()
-    conn.close()
-    return fresh
+    version = detect_schema_version(conn)
+
+    if version == "fresh":
+        create_v2_schema(conn)
+        conn.close()
+        return True
+    elif version == "v1":
+        try:
+            migrate_v1_to_v2(conn)
+        except Exception:
+            pass  # Error already logged, continue with whatever schema exists
+        conn.close()
+        return False
+    else:
+        # v2 — run create to ensure new tables (e.g. memories) exist
+        create_v2_schema(conn)
+        conn.close()
+        return False
 
 
 def get_recent_summaries(conn, limit=3):
     """Get summaries from the most recent sessions."""
     rows = conn.execute(
         """
-        SELECT
-            session_id,
-            metadata,
-            timestamp
-        FROM imprints
-        WHERE event_type = 'session_end' AND metadata IS NOT NULL
-        ORDER BY id DESC
+        SELECT e.id, e.started_at, e.duration_min,
+               r.agent_summary, r.title
+        FROM encounters e
+        JOIN reflections r ON r.encounter_id = e.id
+        WHERE r.agent_summary IS NOT NULL OR r.title IS NOT NULL
+        ORDER BY e.started_at DESC
         LIMIT ?
         """,
         (limit,),
@@ -51,13 +62,11 @@ def get_recent_summaries(conn, limit=3):
 
     summaries = []
     for row in rows:
-        meta = parse_meta(row["metadata"])
-        # Prefer session summary (LLM-generated) over session title (first prompt)
-        summary = meta.get("llm_summary") or meta.get("summary")
+        summary = row["agent_summary"] or row["title"]
         if not summary:
             continue
-        date = row["timestamp"][:10] if row["timestamp"] else "?"
-        duration = meta.get("duration_min")
+        date = (row["started_at"] or "?")[:10]
+        duration = row["duration_min"]
         duration_str = f" ({duration}m)" if duration else ""
         summaries.append(f"- **{date}**{duration_str}: {summary}")
     return summaries
@@ -67,7 +76,6 @@ def get_git_context():
     """Get file paths from recent git activity. Returns list of file names."""
     files = []
 
-    # Uncommitted changes (unstaged + staged)
     for cmd in [
         ["git", "diff", "--name-only"],
         ["git", "diff", "--name-only", "--cached"],
@@ -79,7 +87,6 @@ def get_git_context():
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             return []
 
-    # Recent commits
     try:
         result = subprocess.run(
             ["git", "log", "--pretty=format:", "-5", "--name-only"],
@@ -95,7 +102,6 @@ def get_git_context():
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
 
-    # Deduplicate, cap at 20 (diff files prioritized over log files)
     seen = set()
     unique = []
     for f in files:
@@ -106,7 +112,7 @@ def get_git_context():
     return unique[:20]
 
 
-def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
+def find_relevant_sessions(conn, file_names, exclude_eids, limit=2):
     """Find sessions that reference any of the given file names."""
     if not file_names:
         return []
@@ -120,31 +126,37 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
             basename.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         )
         rows = conn.execute(
-            "SELECT DISTINCT session_id FROM imprints "
-            "WHERE content LIKE ? ESCAPE '\\' AND session_id IS NOT NULL "
-            "AND event_type IN ('user_message', 'agent_message')",
+            "SELECT DISTINCT encounter_id FROM imprints "
+            "WHERE content LIKE ? ESCAPE '\\' "
+            "AND role IN ('user', 'assistant')",
             (f"%{safe_name}%",),
         ).fetchall()
         for row in rows:
-            sid = row["session_id"]
-            if sid not in exclude_sids:
-                session_hits[sid] = session_hits.get(sid, 0) + 1
+            eid = row["encounter_id"]
+            if eid not in exclude_eids:
+                session_hits[eid] = session_hits.get(eid, 0) + 1
 
     if not session_hits:
         return []
 
-    top_sids = sorted(session_hits, key=lambda sid: session_hits[sid], reverse=True)[
-        :limit
-    ]
+    top_eids = sorted(
+        session_hits, key=lambda eid: session_hits[eid], reverse=True
+    )[:limit]
 
     results = []
-    for sid in top_sids:
-        meta = get_session_end_meta(conn, sid)
-        summary = meta.get("llm_summary") or meta.get("summary")
+    for eid in top_eids:
+        ref = get_reflection(conn, eid)
+        if not ref:
+            continue
+        summary = ref["agent_summary"] or ref["title"]
         if not summary:
             continue
-        date = (meta.get("started_at") or "?")[:10]
-        duration = meta.get("duration_min")
+        enc = conn.execute(
+            "SELECT started_at, duration_min FROM encounters WHERE id = ?",
+            (eid,),
+        ).fetchone()
+        date = (enc["started_at"] or "?")[:10] if enc else "?"
+        duration = enc["duration_min"] if enc else None
         duration_str = f" ({duration}m)" if duration else ""
         results.append(f"- **{date}**{duration_str}: {summary}")
 
@@ -152,49 +164,74 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
 
 
 def get_session_context():
-    """Build curated session context from summaries, relevant sessions, and unfinished work."""
+    """Build curated session context from summaries, relevant sessions, and memories."""
     conn = get_db()
 
     lines = ["# Larvling Session Context", ""]
 
     # Recent session summaries
     summaries = get_recent_summaries(conn)
-    recent_sids = set()
+    recent_eids = set()
     if summaries:
         lines.append("## Recent Sessions")
         lines.extend(summaries)
         lines.append("")
         rows = conn.execute(
-            "SELECT session_id FROM imprints "
-            "WHERE event_type = 'session_end' AND metadata IS NOT NULL "
-            "ORDER BY id DESC LIMIT 3"
+            """
+            SELECT e.id FROM encounters e
+            JOIN reflections r ON r.encounter_id = e.id
+            WHERE r.agent_summary IS NOT NULL OR r.title IS NOT NULL
+            ORDER BY e.started_at DESC LIMIT 3
+            """
         ).fetchall()
-        recent_sids = {row["session_id"] for row in rows}
+        recent_eids = {row["id"] for row in rows}
 
     # Git-aware relevant sessions
     git_files = get_git_context()
     if git_files:
-        relevant = find_relevant_sessions(conn, git_files, recent_sids)
+        relevant = find_relevant_sessions(conn, git_files, recent_eids)
         if relevant:
             lines.append("## Relevant Sessions")
             lines.extend(relevant)
             lines.append("")
 
-    # Fallback: if no summaries yet, show recent imprints so context isn't empty
-    if not summaries:
-        rows = conn.execute(
-            "SELECT event_type, content FROM imprints ORDER BY id DESC LIMIT 5"
+    # Memories section
+    try:
+        memories = conn.execute(
+            "SELECT id, claim FROM memories "
+            "WHERE expires IS NULL OR expires > date('now') "
+            "ORDER BY "
+            "  CASE confidence "
+            "    WHEN 'verified' THEN 1 "
+            "    WHEN 'observed' THEN 2 "
+            "    WHEN 'inferred' THEN 3 "
+            "    ELSE 4 END, "
+            "  established DESC "
+            "LIMIT 10"
         ).fetchall()
-        if rows:
-            lines.append(
-                "## imprints ({})".format(
-                    conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
-                )
-            )
-            for row in rows:
-                content = (row["content"] or "")[:80]
-                lines.append(f"- **{row['event_type']}:** {content}")
+        if memories:
+            lines.append("## Memories")
+            for mem in memories:
+                lines.append(f"- **{mem['id']}**: {mem['claim']}")
             lines.append("")
+    except Exception:
+        pass  # memories table might not exist in edge cases
+
+    # Fallback: if no summaries and no memories, show recent data
+    if not summaries:
+        try:
+            rows = conn.execute(
+                "SELECT role, content FROM imprints ORDER BY id DESC LIMIT 5"
+            ).fetchall()
+            if rows:
+                total = conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
+                lines.append(f"## imprints ({total})")
+                for row in rows:
+                    content = (row["content"] or "")[:80]
+                    lines.append(f"- **{row['role']}:** {content}")
+                lines.append("")
+        except Exception:
+            pass
 
     conn.close()
     return "\n".join(lines)
@@ -203,7 +240,7 @@ def get_session_context():
 def main():
     reconfigure_stdout()
 
-    fresh = ensure_audit_table()
+    fresh = ensure_schema()
 
     if fresh:
         print("# Larvling - First Run\n")

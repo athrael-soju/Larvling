@@ -4,7 +4,6 @@ Two-panel layout: session list on left, conversation on right.
 Zero dependencies: just sqlite3 + Python string templating.
 """
 
-import json
 import os
 import sys
 from html import escape
@@ -18,67 +17,75 @@ LOGO_URL = "https://raw.githubusercontent.com/athrael-soju/Larvling/main/larvlin
 HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
 
 
+def get_revision(conn):
+    """Compute a revision number from table states."""
+    imp = conn.execute("SELECT MAX(id) FROM imprints").fetchone()[0] or 0
+    ref = conn.execute("SELECT MAX(id) FROM reflections").fetchone()[0] or 0
+    enc = conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] or 0
+    return imp + ref + enc
+
+
 def get_sessions(conn):
-    """Get imprints grouped by session, newest first.
+    """Get sessions with their messages and reflection data, newest first.
 
     Messages within each session are in reverse chronological order (DESC)
     so the conversation panel shows the most recent exchange at the top.
     """
-    rows = conn.execute(
-        "SELECT * FROM imprints WHERE session_id IS NOT NULL ORDER BY id DESC"
+    encounters = conn.execute(
+        """
+        SELECT e.id, e.started_at, e.ended_at, e.duration_min,
+               r.title, r.agent_summary, r.exchange_count
+        FROM encounters e
+        LEFT JOIN reflections r ON r.encounter_id = e.id
+        ORDER BY e.started_at DESC
+        """
     ).fetchall()
 
-    by_session = {}
-    for row in rows:
-        by_session.setdefault(row["session_id"], []).append(row)
-
     sessions = []
-    for sid, messages in by_session.items():
-        end_meta = {}
-        for m in messages:
-            if m["event_type"] == "session_end" and m["metadata"]:
-                candidate = parse_meta(m["metadata"])
-                if not candidate:
-                    continue
-                if candidate.get("summary") or not end_meta:
-                    end_meta = candidate
-                if end_meta.get("summary"):
-                    break
-        user_count = sum(1 for m in messages if m["event_type"] == "user_message")
-        agent_count = sum(1 for m in messages if m["event_type"] == "agent_message")
+    for enc in encounters:
+        messages = conn.execute(
+            "SELECT * FROM imprints WHERE encounter_id = ? ORDER BY id DESC",
+            (enc["id"],),
+        ).fetchall()
+
+        user_count = sum(1 for m in messages if m["role"] == "user")
+        agent_count = sum(1 for m in messages if m["role"] == "assistant")
         if user_count + agent_count == 0:
             continue
-        timestamps = [m["timestamp"] for m in messages if m["timestamp"]]
+
         sessions.append(
             {
-                "session_id": sid,
-                "started": min(timestamps) if timestamps else None,
-                "ended": max(timestamps) if timestamps else None,
+                "session_id": enc["id"],
+                "started": enc["started_at"],
+                "ended": enc["ended_at"],
                 "msg_count": user_count + agent_count,
                 "messages": messages,
-                "end_meta": end_meta,
+                "end_meta": {
+                    "duration_min": enc["duration_min"],
+                    "title": enc["title"],
+                    "agent_summary": enc["agent_summary"],
+                },
             }
         )
 
-    sessions.sort(key=lambda s: s["started"] or "", reverse=True)
     return sessions
 
 
 def render_message(msg):
     """Render a single message as a chat bubble."""
-    event = msg["event_type"]
+    role = msg["role"]
     content = escape(msg["content"] or "")
     timestamp = msg["timestamp"] or ""
     time_short = timestamp.split(" ")[-1][:5] if " " in timestamp else timestamp[:5]
 
     meta = parse_meta(msg["metadata"])
 
-    if event == "user_message":
+    if role == "user":
         return f"""<div class="msg msg-user">
             <div class="msg-header"><span class="msg-role">You</span><span class="msg-time">{escape(time_short)}</span></div>
             <div class="msg-body">{content}</div>
         </div>"""
-    elif event == "agent_message":
+    elif role == "assistant":
         tools_html = ""
         tool_calls = meta.get("tool_calls", {})
         if tool_calls:
@@ -92,11 +99,9 @@ def render_message(msg):
             <div class="msg-body">{content}</div>
             {tools_html}
         </div>"""
-    elif event == "session_end":
-        return ""
     else:
         return f"""<div class="msg msg-system">
-            <span class="msg-time">{escape(time_short)}</span> {escape(event)}: {content}
+            <span class="msg-time">{escape(time_short)}</span> {escape(role)}: {content}
         </div>"""
 
 
@@ -109,15 +114,15 @@ def render_sidebar_item(session, index):
 
     duration = meta.get("duration_min") or 0
     duration_str = f"{duration}m" if duration else ""
-    summary = escape(meta.get("summary") or f"{session['msg_count']} messages")
+    summary = escape(meta.get("title") or f"{session['msg_count']} messages")
     active = "active" if index == 0 else ""
     sid = escape(session["session_id"] or "")
 
     ended = session["ended"] or started
-    llm_summary = meta.get("llm_summary") or ""
+    agent_summary = meta.get("agent_summary") or ""
     summary_item = (
-        f'<div class="menu-item si-summary-dl" data-summary="{escape(llm_summary)}">&#x1F4CB; Download summary</div>'
-        if llm_summary
+        f'<div class="menu-item si-summary-dl" data-summary="{escape(agent_summary)}">&#x1F4CB; Download summary</div>'
+        if agent_summary
         else ""
     )
     return f"""<div class="sidebar-item {active}" data-sid="{sid}" data-started="{escape(started)}" data-ended="{escape(ended)}" data-msgs="{session['msg_count']}" data-duration="{duration}">
@@ -186,7 +191,7 @@ def main():
     reconfigure_stdout()
 
     conn = get_db()
-    revision = conn.execute("SELECT MAX(id) FROM imprints").fetchone()[0] or 0
+    revision = get_revision(conn)
 
     # Skip regeneration if dashboard is already current AND the template hasn't changed
     if os.path.exists(HTML_PATH):

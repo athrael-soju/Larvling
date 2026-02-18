@@ -1,4 +1,8 @@
-"""Shared database helpers for Larvling hook scripts."""
+"""Shared database helpers for Larvling hook scripts.
+
+v2 schema: encounters, imprints, reflections, memories
+Migration from v1 (single imprints table) is handled transparently.
+"""
 
 import json
 import os
@@ -13,6 +17,7 @@ def get_db():
     """Open a connection to larvling.db with WAL mode and Row factory."""
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -34,15 +39,6 @@ def reconfigure_stdout():
         fn(encoding="utf-8")
 
 
-def imprint(conn, session_id, event_type, content, metadata=None):
-    """Record an imprint and commit."""
-    conn.execute(
-        "INSERT INTO imprints (session_id, event_type, content, metadata) VALUES (?, ?, ?, ?)",
-        (session_id, event_type, content, json.dumps(metadata) if metadata else None),
-    )
-    conn.commit()
-
-
 def require_db():
     """Exit with an error if the database doesn't exist."""
     if not os.path.exists(DB_PATH):
@@ -50,99 +46,385 @@ def require_db():
         sys.exit(1)
 
 
-def get_session_end_meta(conn, session_id):
-    """Get parsed metadata from the most recent session_end imprint."""
-    row = conn.execute(
-        "SELECT metadata FROM imprints "
-        "WHERE session_id = ? AND event_type = 'session_end' AND metadata IS NOT NULL "
-        "ORDER BY id DESC LIMIT 1",
-        (session_id,),
+# ---------------------------------------------------------------------------
+# Schema detection & creation
+# ---------------------------------------------------------------------------
+
+
+def detect_schema_version(conn):
+    """Detect which schema version is present.
+
+    Returns: 'v2' if encounters table exists,
+             'v1' if imprints exists without encounters,
+             'fresh' if neither exists.
+    """
+    tables = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    if "encounters" in tables:
+        return "v2"
+    if "imprints" in tables:
+        return "v1"
+    return "fresh"
+
+
+def create_v2_schema(conn):
+    """Create all v2 tables and indexes (idempotent)."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS encounters (
+            id TEXT PRIMARY KEY,
+            started_at TEXT NOT NULL,
+            ended_at TEXT,
+            duration_min REAL
+        )
+    """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS imprints (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            encounter_id TEXT NOT NULL REFERENCES encounters(id),
+            timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+            role TEXT NOT NULL,
+            content TEXT,
+            metadata TEXT
+        )
+    """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reflections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            encounter_id TEXT NOT NULL UNIQUE REFERENCES encounters(id),
+            timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+            title TEXT,
+            agent_summary TEXT,
+            exchange_count INTEGER
+        )
+    """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS memories (
+            id TEXT PRIMARY KEY,
+            claim TEXT NOT NULL,
+            domain TEXT,
+            tags TEXT,
+            confidence TEXT DEFAULT 'observed',
+            source TEXT,
+            established TEXT NOT NULL DEFAULT (date('now')),
+            confirmed TEXT,
+            expires TEXT,
+            notes TEXT
+        )
+    """
+    )
+    # Indexes may fail if a v1 imprints table already exists (no encounter_id column).
+    # This is safe — indexes only matter for v2 tables.
+    for idx_sql in (
+        "CREATE INDEX IF NOT EXISTS idx_imprints_encounter ON imprints(encounter_id)",
+        "CREATE INDEX IF NOT EXISTS idx_reflections_encounter ON reflections(encounter_id)",
+    ):
+        try:
+            conn.execute(idx_sql)
+        except sqlite3.OperationalError:
+            pass
+
+    conn.commit()
+
+
+def migrate_v1_to_v2(conn):
+    """Migrate from v1 (single imprints table) to v2 (normalized schema).
+
+    1. Rename imprints -> imprints_v1_backup
+    2. Create v2 tables
+    3. Migrate data
+    4. Verify counts
+
+    On failure, restores the original imprints table.
+    """
+    tables = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    if "imprints_v1_backup" in tables and "encounters" in tables:
+        return  # Already migrated
+
+    print("Larvling: migrating database from v1 to v2...", file=sys.stderr)
+
+    try:
+        # 1. Rename
+        conn.execute("ALTER TABLE imprints RENAME TO imprints_v1_backup")
+
+        # 2. Create v2 tables
+        create_v2_schema(conn)
+
+        # 3. Migrate data
+        sessions = conn.execute(
+            "SELECT DISTINCT session_id FROM imprints_v1_backup "
+            "WHERE session_id IS NOT NULL"
+        ).fetchall()
+
+        for row in sessions:
+            sid = row[0]
+
+            # Timestamps for encounter
+            ts = conn.execute(
+                "SELECT MIN(timestamp) AS first_ts, MAX(timestamp) AS last_ts "
+                "FROM imprints_v1_backup WHERE session_id = ?",
+                (sid,),
+            ).fetchone()
+
+            # session_end metadata for better timestamps
+            end_row = conn.execute(
+                "SELECT metadata FROM imprints_v1_backup "
+                "WHERE session_id = ? AND event_type = 'session_end' "
+                "AND metadata IS NOT NULL ORDER BY id DESC LIMIT 1",
+                (sid,),
+            ).fetchone()
+
+            started_at = ts["first_ts"]
+            ended_at = ts["last_ts"]
+            duration_min = None
+
+            end_meta = {}
+            if end_row:
+                end_meta = parse_meta(end_row["metadata"])
+                if end_meta.get("started_at"):
+                    started_at = end_meta["started_at"]
+                if end_meta.get("ended_at"):
+                    ended_at = end_meta["ended_at"]
+                if end_meta.get("duration_min") is not None:
+                    duration_min = end_meta["duration_min"]
+
+            # Insert encounter
+            conn.execute(
+                "INSERT INTO encounters (id, started_at, ended_at, duration_min) "
+                "VALUES (?, ?, ?, ?)",
+                (sid, started_at, ended_at, duration_min),
+            )
+
+            # Migrate messages
+            messages = conn.execute(
+                "SELECT timestamp, event_type, content, metadata "
+                "FROM imprints_v1_backup "
+                "WHERE session_id = ? AND event_type IN ('user_message', 'agent_message') "
+                "ORDER BY id",
+                (sid,),
+            ).fetchall()
+
+            for msg in messages:
+                role = "user" if msg["event_type"] == "user_message" else "assistant"
+                conn.execute(
+                    "INSERT INTO imprints (encounter_id, timestamp, role, content, metadata) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (sid, msg["timestamp"], role, msg["content"], msg["metadata"]),
+                )
+
+            # Migrate session_end -> reflection
+            if end_meta:
+                title = end_meta.get("summary")
+                agent_summary = end_meta.get("llm_summary")
+                user_count = sum(
+                    1 for m in messages if m["event_type"] == "user_message"
+                )
+                conn.execute(
+                    "INSERT INTO reflections "
+                    "(encounter_id, title, agent_summary, exchange_count) "
+                    "VALUES (?, ?, ?, ?)",
+                    (sid, title, agent_summary, user_count or None),
+                )
+
+        conn.commit()
+
+        # 4. Verify
+        v1_msg_count = conn.execute(
+            "SELECT COUNT(*) FROM imprints_v1_backup "
+            "WHERE event_type IN ('user_message', 'agent_message') "
+            "AND session_id IS NOT NULL"
+        ).fetchone()[0]
+        v2_msg_count = conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
+        enc_count = conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0]
+        ref_count = conn.execute("SELECT COUNT(*) FROM reflections").fetchone()[0]
+
+        print(
+            f"Larvling: migration complete. "
+            f"{enc_count} encounters, {v2_msg_count} imprints, {ref_count} reflections. "
+            f"Backup preserved in imprints_v1_backup.",
+            file=sys.stderr,
+        )
+
+    except Exception as e:
+        conn.rollback()
+        try:
+            for table in ("reflections", "imprints", "encounters", "memories"):
+                conn.execute(f"DROP TABLE IF EXISTS {table}")
+            tables_now = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            if "imprints_v1_backup" in tables_now and "imprints" not in tables_now:
+                conn.execute("ALTER TABLE imprints_v1_backup RENAME TO imprints")
+            conn.commit()
+        except Exception:
+            pass
+        print(
+            f"Larvling: migration failed: {e}. Continuing with v1 schema.",
+            file=sys.stderr,
+        )
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Encounter / Imprint / Reflection CRUD
+# ---------------------------------------------------------------------------
+
+
+def ensure_encounter(conn, encounter_id):
+    """Create an encounter row if it doesn't exist yet."""
+    conn.execute(
+        "INSERT OR IGNORE INTO encounters (id, started_at) "
+        "VALUES (?, datetime('now'))",
+        (encounter_id,),
+    )
+    conn.commit()
+
+
+def record_imprint(conn, encounter_id, role, content, metadata=None):
+    """Record a conversation turn in the imprints table."""
+    conn.execute(
+        "INSERT INTO imprints (encounter_id, role, content, metadata) "
+        "VALUES (?, ?, ?, ?)",
+        (encounter_id, role, content, json.dumps(metadata) if metadata else None),
+    )
+    conn.commit()
+
+
+def record_reflection(
+    conn, encounter_id, title=None, agent_summary=None, exchange_count=None
+):
+    """Insert or update a reflection for an encounter.
+
+    Only non-None values overwrite existing data (uses COALESCE).
+    """
+    conn.execute(
+        """
+        INSERT INTO reflections (encounter_id, title, agent_summary, exchange_count)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(encounter_id) DO UPDATE SET
+            title = COALESCE(excluded.title, reflections.title),
+            agent_summary = COALESCE(excluded.agent_summary, reflections.agent_summary),
+            exchange_count = COALESCE(excluded.exchange_count, reflections.exchange_count)
+        """,
+        (encounter_id, title, agent_summary, exchange_count),
+    )
+    conn.commit()
+
+
+def finalize_encounter(conn, encounter_id):
+    """Set ended_at and duration_min on an encounter."""
+    conn.execute(
+        """
+        UPDATE encounters SET
+            ended_at = datetime('now'),
+            duration_min = ROUND(
+                (julianday(datetime('now')) - julianday(started_at)) * 1440, 1
+            )
+        WHERE id = ?
+        """,
+        (encounter_id,),
+    )
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Query helpers
+# ---------------------------------------------------------------------------
+
+
+def get_reflection(conn, encounter_id):
+    """Get the reflection for an encounter. Returns Row or None."""
+    return conn.execute(
+        "SELECT * FROM reflections WHERE encounter_id = ?",
+        (encounter_id,),
     ).fetchone()
-    return parse_meta(row["metadata"]) if row else {}
 
 
 def resolve_session(conn, short_id):
-    """Resolve a short session ID to a full one."""
+    """Resolve a short session/encounter ID to a full one."""
     if len(short_id) >= 36:
         return short_id
     row = conn.execute(
-        "SELECT DISTINCT session_id FROM imprints WHERE session_id LIKE ?",
+        "SELECT id FROM encounters WHERE id LIKE ?",
         (short_id + "%",),
     ).fetchone()
     return row[0] if row else None
 
 
-def get_session_duration(conn, session_id):
-    """Calculate session duration from first to last imprint."""
-    cur = conn.execute(
-        """
-        SELECT
-            MIN(timestamp) as first_msg,
-            MAX(timestamp) as last_msg,
-            ROUND((julianday(MAX(timestamp)) - julianday(MIN(timestamp))) * 1440, 1) as duration_min
-        FROM imprints
-        WHERE session_id = ?
-        """,
-        (session_id,),
-    )
-    row = cur.fetchone()
-    if row and row[2] is not None:
-        return {"started_at": row[0], "ended_at": row[1], "duration_min": row[2]}
+def get_session_duration(conn, encounter_id):
+    """Get duration info directly from the encounters table."""
+    row = conn.execute(
+        "SELECT started_at, ended_at, duration_min FROM encounters WHERE id = ?",
+        (encounter_id,),
+    ).fetchone()
+    if row:
+        result = {"started_at": row["started_at"]}
+        if row["ended_at"]:
+            result["ended_at"] = row["ended_at"]
+        if row["duration_min"] is not None:
+            result["duration_min"] = row["duration_min"]
+        return result
     return {}
 
 
-def get_session_title(conn, session_id):
+def get_session_title(conn, encounter_id):
     """Get the first user prompt as the session title."""
     row = conn.execute(
-        "SELECT content FROM imprints WHERE session_id = ? AND event_type = 'user_message' ORDER BY id LIMIT 1",
-        (session_id,),
+        "SELECT content FROM imprints "
+        "WHERE encounter_id = ? AND role = 'user' ORDER BY id LIMIT 1",
+        (encounter_id,),
     ).fetchone()
     return row[0] if row else None
 
 
 def list_sessions(conn, show_summary_status=False):
-    """List sessions with metadata. Returns formatted lines.
-
-    If show_summary_status is True, includes [summarized]/[not summarized] tags.
-    """
+    """List sessions with metadata. Prints formatted lines."""
     rows = conn.execute(
         """
-        SELECT session_id, timestamp, metadata
-        FROM imprints
-        WHERE event_type = 'session_end' AND metadata IS NOT NULL
-        ORDER BY id DESC
+        SELECT e.id, e.started_at, e.duration_min,
+               r.title, r.agent_summary
+        FROM encounters e
+        LEFT JOIN reflections r ON r.encounter_id = e.id
+        ORDER BY e.started_at DESC
         """
     ).fetchall()
 
     if not rows:
-        rows = conn.execute(
-            """
-            SELECT DISTINCT session_id, MIN(timestamp) as timestamp
-            FROM imprints
-            WHERE session_id IS NOT NULL
-            GROUP BY session_id
-            ORDER BY timestamp DESC
-            """
-        ).fetchall()
-        for row in rows:
-            tag = "  [no summary]" if show_summary_status else ""
-            print(f"{row['session_id'][:8]}  {row['timestamp'] or '?'}{tag}")
+        print("No sessions found.")
         return
 
     for row in rows:
-        meta = parse_meta(row["metadata"])
-        date = row["timestamp"][:16] if row["timestamp"] else "?"
-        duration = meta.get("duration_min")
+        short_id = row["id"][:8]
+        date = (row["started_at"] or "?")[:16]
+        duration = row["duration_min"]
         dur = f" ({duration}m)" if duration else ""
-        first_prompt = meta.get("summary", "")
-        if first_prompt:
-            first_prompt = first_prompt.split("\n")[0][:100]
+        title = row["title"] or ""
+        if title:
+            title = title.split("\n")[0][:100]
 
         if show_summary_status:
-            tag = "  [summarized]" if meta.get("llm_summary") else "  [not summarized]"
-            print(f"{row['session_id'][:8]}  {date}{dur}{tag}  {first_prompt}")
+            tag = "  [summarized]" if row["agent_summary"] else "  [not summarized]"
+            print(f"{short_id}  {date}{dur}{tag}  {title}")
         else:
-            print(f"{row['session_id'][:8]}  {date}{dur}  {first_prompt}")
+            print(f"{short_id}  {date}{dur}  {title}")
 
 
 def print_sessions(**kwargs):

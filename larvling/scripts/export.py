@@ -11,7 +11,7 @@ Usage:
 import os
 import sys
 
-from db import get_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout
+from db import get_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout, get_reflection
 
 
 def export_session(session_id, conn=None):
@@ -20,18 +20,23 @@ def export_session(session_id, conn=None):
     if own_conn:
         conn = get_db()
 
-    # Resolve short IDs
     session_id = resolve_session(conn, session_id)
     if not session_id:
         if own_conn:
             conn.close()
         return None
 
+    # Get encounter + reflection info
+    enc = conn.execute(
+        "SELECT * FROM encounters WHERE id = ?", (session_id,)
+    ).fetchone()
+    ref = get_reflection(conn, session_id)
+
     messages = conn.execute(
         """
-        SELECT timestamp, event_type, content, metadata
+        SELECT timestamp, role, content, metadata
         FROM imprints
-        WHERE session_id = ?
+        WHERE encounter_id = ?
         ORDER BY id
         """,
         (session_id,),
@@ -44,36 +49,33 @@ def export_session(session_id, conn=None):
 
     lines = [f"# Session {session_id[:8]}", ""]
 
-    # Session metadata from session_end
-    for msg in messages:
-        if msg["event_type"] == "session_end" and msg["metadata"]:
-            meta = parse_meta(msg["metadata"])
-            if not meta:
-                continue
-            if meta.get("started_at"):
-                lines.append(f"**Started:** {meta['started_at']}")
-            if meta.get("ended_at"):
-                lines.append(f"**Ended:** {meta['ended_at']}")
-            if meta.get("duration_min"):
-                lines.append(f"**Duration:** {meta['duration_min']} minutes")
-            if meta.get("summary"):
-                lines.append(f"**Title:** {meta['summary']}")
-            if meta.get("llm_summary"):
-                lines.append(f"**Summary:** {meta['llm_summary']}")
-            lines.append("")
-            break
+    # Session metadata from encounter + reflection
+    if enc:
+        if enc["started_at"]:
+            lines.append(f"**Started:** {enc['started_at']}")
+        if enc["ended_at"]:
+            lines.append(f"**Ended:** {enc['ended_at']}")
+        if enc["duration_min"]:
+            lines.append(f"**Duration:** {enc['duration_min']} minutes")
+    if ref:
+        if ref["title"]:
+            lines.append(f"**Title:** {ref['title']}")
+        if ref["agent_summary"]:
+            lines.append(f"**Summary:** {ref['agent_summary']}")
+    if enc or ref:
+        lines.append("")
 
     lines.append("---")
     lines.append("")
 
     for msg in messages:
         ts = msg["timestamp"] or ""
-        if msg["event_type"] == "user_message":
+        if msg["role"] == "user":
             lines.append(f"### You  `{ts}`")
             lines.append("")
             lines.append(msg["content"] or "")
             lines.append("")
-        elif msg["event_type"] == "agent_message":
+        elif msg["role"] == "assistant":
             tools_str = ""
             meta = parse_meta(msg["metadata"])
             tools = meta.get("tool_calls", {})
@@ -95,24 +97,22 @@ def export_session(session_id, conn=None):
 def export_all(outdir):
     """Export all sessions to individual markdown files in outdir."""
     conn = get_db()
-    session_ids = [
+    encounter_ids = [
         row[0]
-        for row in conn.execute(
-            "SELECT DISTINCT session_id FROM imprints WHERE session_id IS NOT NULL"
-        ).fetchall()
+        for row in conn.execute("SELECT id FROM encounters").fetchall()
     ]
 
-    if not session_ids:
+    if not encounter_ids:
         conn.close()
         print("No sessions to export.", file=sys.stderr)
         sys.exit(1)
 
     os.makedirs(outdir, exist_ok=True)
     exported = 0
-    for sid in session_ids:
-        md = export_session(sid, conn)
+    for eid in encounter_ids:
+        md = export_session(eid, conn)
         if md:
-            outfile = os.path.join(outdir, f"{sid[:8]}.md")
+            outfile = os.path.join(outdir, f"{eid[:8]}.md")
             with open(outfile, "w", encoding="utf-8") as f:
                 f.write(md)
             exported += 1

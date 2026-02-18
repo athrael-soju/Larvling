@@ -1,10 +1,10 @@
 """
-Larvling Delete - remove a session's imprints from the database.
+Larvling Delete - remove a session from the database.
 
 Usage:
-    python delete.py <session_id>    # delete all imprints for a session
+    python delete.py <session_id>    # delete a session (encounter + imprints + reflection)
     python delete.py --list          # list available sessions
-    python delete.py --all           # delete all sessions
+    python delete.py --all           # delete all sessions (preserves memories)
 """
 
 import sys
@@ -13,7 +13,7 @@ from db import get_db, resolve_session, print_sessions, reconfigure_stdout
 
 
 def delete_session(session_id):
-    """Delete all imprints for a session."""
+    """Delete all data for a session (encounter, imprints, reflection)."""
     conn = get_db()
     original = session_id
     session_id = resolve_session(conn, original)
@@ -22,34 +22,38 @@ def delete_session(session_id):
         print(f"No session found matching '{original}'", file=sys.stderr)
         sys.exit(1)
 
-    count = conn.execute(
-        "SELECT COUNT(*) FROM imprints WHERE session_id = ?",
+    imp_count = conn.execute(
+        "SELECT COUNT(*) FROM imprints WHERE encounter_id = ?",
         (session_id,),
     ).fetchone()[0]
 
-    conn.execute("DELETE FROM imprints WHERE session_id = ?", (session_id,))
+    # Delete in FK-safe order
+    conn.execute("DELETE FROM reflections WHERE encounter_id = ?", (session_id,))
+    conn.execute("DELETE FROM imprints WHERE encounter_id = ?", (session_id,))
+    conn.execute("DELETE FROM encounters WHERE id = ?", (session_id,))
     conn.commit()
     conn.close()
-    print(f"Deleted {count} imprints for session {session_id[:8]}")
+    print(f"Deleted session {session_id[:8]} ({imp_count} imprints)")
 
 
 def delete_all():
-    """Delete all imprints from the database."""
+    """Delete all sessions from the database. Preserves memories."""
     conn = get_db()
-    count = conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
-    sessions = conn.execute(
-        "SELECT COUNT(DISTINCT session_id) FROM imprints"
-    ).fetchone()[0]
+    enc_count = conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0]
+    imp_count = conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
 
-    if count == 0:
+    if enc_count == 0:
         conn.close()
         print("No sessions to delete.")
         return
 
+    # Delete in FK-safe order (NOT memories)
+    conn.execute("DELETE FROM reflections")
     conn.execute("DELETE FROM imprints")
+    conn.execute("DELETE FROM encounters")
     conn.commit()
     conn.close()
-    print(f"Deleted {sessions} sessions ({count} imprints)")
+    print(f"Deleted {enc_count} sessions ({imp_count} imprints)")
 
 
 def main():

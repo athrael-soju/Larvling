@@ -13,3 +13,4 @@ Everything lives in `.claude/larvling.db` (SQLite, WAL mode). The dashboard at `
   - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 - On session start, review the context Larvling injects - it's your memory of what came before
 - Imprinting is automatic - just focus on the work
+- **Memories**: Larvling can store persistent facts via `/memories`. These are injected into every session's context. Use them for important knowledge that should persist across sessions.
