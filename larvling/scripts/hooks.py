@@ -4,7 +4,7 @@ Larvling Hooks - unified handler for conversation lifecycle events.
 Handles three hook events:
   - UserPromptSubmit: logs the user's prompt
   - Stop: reads transcript_path JSONL to extract the agent's last response
-  - SessionEnd: finalizes session timing and records summary
+  - SessionEnd: finalizes session timing and exchange count
 """
 
 import json
@@ -158,7 +158,7 @@ def handle_user_prompt(data):
 
 
 def handle_session_end(data):
-    """Finalize session timing and record a summary."""
+    """Finalize session timing and record exchange count."""
     session_id = data.get("session_id")
     if not session_id:
         return

@@ -41,7 +41,6 @@ def ensure_schema():
     if not has_tables:
         create_schema(conn)
         set_schema_version(conn)
-        conn.commit()
         conn.close()
         return "fresh"
 
@@ -65,9 +64,10 @@ def ensure_schema():
     print(f"```sql\n{old_schema}\n```\n")
     print("## Desired Schema")
     print(f"```sql\n{new_schema}\n```\n")
-    print("Please migrate the database at `" + DB_PATH + "` from the current schema to the desired schema.")
+    safe_path = DB_PATH.replace("\\", "/")
+    print("Please migrate the database at `" + safe_path + "` from the current schema to the desired schema.")
     print("Preserve all existing data. After migrating, run:")
-    print(f"```python\npython -c \"import sqlite3; c=sqlite3.connect('{DB_PATH}'); c.execute('PRAGMA user_version={SCHEMA_VERSION}'); c.close()\"\n```")
+    print(f"```python\npython -c \"import sqlite3; c=sqlite3.connect('{safe_path}'); c.execute('PRAGMA user_version={SCHEMA_VERSION}'); c.close()\"\n```")
 
     return "migrate"
 
