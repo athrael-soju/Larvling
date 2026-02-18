@@ -1,5 +1,5 @@
 ---
-name: memories
+name: memorize
 description: Manage Larvling memories (persistent facts and knowledge)
 arguments:
   - name: action
@@ -14,12 +14,12 @@ arguments:
 
 ### List memories
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/memories.py" --list
+python "${CLAUDE_PLUGIN_ROOT}/scripts/memorize.py" --list
 ```
 
 ### Add a memory
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/memories.py" --add "CLAIM" --domain DOMAIN --tags "TAGS" --confidence CONFIDENCE --source SOURCE --notes "NOTES"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/memorize.py" --add "CLAIM" --domain DOMAIN --tags "TAGS" --confidence CONFIDENCE --source SOURCE --notes "NOTES"
 ```
 
 Fields:
@@ -32,17 +32,17 @@ Fields:
 
 ### Update a memory
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/memories.py" --update M-NNN field=value [field=value...]
+python "${CLAUDE_PLUGIN_ROOT}/scripts/memorize.py" --update M-NNN field=value [field=value...]
 ```
 
 ### Delete a memory
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/memories.py" --delete M-NNN
+python "${CLAUDE_PLUGIN_ROOT}/scripts/memorize.py" --delete M-NNN
 ```
 
 ### Search memories
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/memories.py" --search "QUERY"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/memorize.py" --search "QUERY"
 ```
 
 After making changes, regenerate the dashboard:
