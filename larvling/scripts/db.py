@@ -65,7 +65,7 @@ def require_db():
 # Schema creation and versioning
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 
 
 def get_schema_version(conn):
