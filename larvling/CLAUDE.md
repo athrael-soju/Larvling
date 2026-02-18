@@ -25,6 +25,10 @@ When the SessionStart context contains "Schema Migration Required", the database
 
 Larvling stores persistent facts via `/memorize`. Facts are not auto-injected — query them on demand. Whenever the conversation touches a topic that might have stored facts, proactively use `/memorize` to search. When the user shares facts, preferences, or decisions worth persisting, store them without being asked. Consider whether existing facts need updating based on what the user is saying now.
 
+### Session Summaries
+
+As the conversation grows, periodically offer to generate a summary using `/summarize`. A good time to offer is when the session has had substantial back-and-forth (roughly 10+ exchanges) or when a major topic or task wraps up. Keep the offer brief and non-intrusive — a single sentence is enough. Don't ask repeatedly if the user declines.
+
 ## Run End
 
 - Session timing and exchange count are recorded automatically
