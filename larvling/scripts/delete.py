@@ -9,7 +9,7 @@ Usage:
 
 import sys
 
-from db import get_db, resolve_session, print_sessions, reconfigure_stdout
+from db import get_db, resolve_session, print_sessions, reconfigure_stdout, require_db
 
 
 def delete_session(session_id):
@@ -58,6 +58,7 @@ def delete_all():
 
 def main():
     reconfigure_stdout()
+    require_db()
 
     if len(sys.argv) < 2:
         print(__doc__.strip(), file=sys.stderr)

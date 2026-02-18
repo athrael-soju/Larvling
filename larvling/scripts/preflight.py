@@ -225,7 +225,7 @@ def get_session_context():
             ).fetchall()
             if rows:
                 total = conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
-                lines.append(f"## imprints ({total})")
+                lines.append(f"## Recent Activity ({total} messages)")
                 for row in rows:
                     content = (row["content"] or "")[:80]
                     lines.append(f"- **{row['role']}:** {content}")

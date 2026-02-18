@@ -11,7 +11,7 @@ Usage:
 import os
 import sys
 
-from db import get_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout, get_reflection
+from db import get_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout, get_reflection, require_db
 
 
 def export_session(session_id, conn=None):
@@ -37,7 +37,7 @@ def export_session(session_id, conn=None):
         SELECT timestamp, role, content, metadata
         FROM imprints
         WHERE encounter_id = ?
-        ORDER BY id
+        ORDER BY id DESC
         """,
         (session_id,),
     ).fetchall()
@@ -123,6 +123,7 @@ def export_all(outdir):
 
 def main():
     reconfigure_stdout()
+    require_db()
 
     if len(sys.argv) < 2:
         print(__doc__.strip(), file=sys.stderr)

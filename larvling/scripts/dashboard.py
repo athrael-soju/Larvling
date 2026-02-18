@@ -60,7 +60,7 @@ def get_sessions(conn):
                 "ended": enc["ended_at"],
                 "msg_count": user_count + agent_count,
                 "messages": messages,
-                "end_meta": {
+                "meta": {
                     "duration_min": enc["duration_min"],
                     "title": enc["title"],
                     "agent_summary": enc["agent_summary"],
@@ -107,7 +107,7 @@ def render_message(msg):
 
 def render_sidebar_item(session, index):
     """Render a compact sidebar entry for a session."""
-    meta = session["end_meta"]
+    meta = session["meta"]
     started = session["started"] or "?"
     date_part = started.split(" ")[0] if " " in started else started
     time_part = started.split(" ")[-1][:5] if " " in started else ""
@@ -147,7 +147,7 @@ def render_sidebar_item(session, index):
 
 def render_detail_panel(session):
     """Render the full conversation panel for a session."""
-    meta = session["end_meta"]
+    meta = session["meta"]
     started = session["started"] or "?"
     date_part = started.split(" ")[0] if " " in started else started
 

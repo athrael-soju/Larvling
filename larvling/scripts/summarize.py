@@ -19,6 +19,7 @@ from db import (
     get_db,
     get_reflection,
     record_reflection,
+    require_db,
     resolve_session,
     print_sessions,
     reconfigure_stdout,
@@ -110,6 +111,7 @@ def store_summary(session_id, summary_text):
 
 def main():
     reconfigure_stdout()
+    require_db()
 
     if len(sys.argv) < 2:
         print(__doc__.strip(), file=sys.stderr)

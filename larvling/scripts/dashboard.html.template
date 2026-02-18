@@ -137,7 +137,7 @@
             <div class="info-tooltip">
                 <h4>The 6 Principles of Larvling</h4>
                 <ul>
-                    <li><strong>Tiny</strong> - under 50 KB of logic, under 100 KB total</li>
+                    <li><strong>Tiny</strong> - under 100 KB total</li>
                     <li><strong>Zero dependencies</strong> - no pip install, no node_modules, no build step</li>
                     <li><strong>Portable</strong> - works on any device that supports Claude Code plugins: macOS, Linux, Windows</li>
                     <li><strong>Private</strong> - all data stays local in a single SQLite file</li>

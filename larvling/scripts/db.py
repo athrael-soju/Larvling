@@ -369,32 +369,6 @@ def resolve_session(conn, short_id):
     return row[0] if row else None
 
 
-def get_session_duration(conn, encounter_id):
-    """Get duration info directly from the encounters table."""
-    row = conn.execute(
-        "SELECT started_at, ended_at, duration_min FROM encounters WHERE id = ?",
-        (encounter_id,),
-    ).fetchone()
-    if row:
-        result = {"started_at": row["started_at"]}
-        if row["ended_at"]:
-            result["ended_at"] = row["ended_at"]
-        if row["duration_min"] is not None:
-            result["duration_min"] = row["duration_min"]
-        return result
-    return {}
-
-
-def get_session_title(conn, encounter_id):
-    """Get the first user prompt as the session title."""
-    row = conn.execute(
-        "SELECT content FROM imprints "
-        "WHERE encounter_id = ? AND role = 'user' ORDER BY id LIMIT 1",
-        (encounter_id,),
-    ).fetchone()
-    return row[0] if row else None
-
-
 def list_sessions(conn, show_summary_status=False):
     """List sessions with metadata. Prints formatted lines."""
     rows = conn.execute(

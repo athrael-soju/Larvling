@@ -2,12 +2,12 @@
 Larvling Memories - persistent facts and knowledge management.
 
 Usage:
-    python memories.py --list                           # list active memories
-    python memories.py --list --all                     # include expired
-    python memories.py --add "claim" [options]          # add a memory
-    python memories.py --update M-NNN [field=value...]  # update a memory
-    python memories.py --delete M-NNN                   # delete a memory
-    python memories.py --search "query"                 # search memories
+    python memorize.py --list                           # list active memories
+    python memorize.py --list --all                     # include expired
+    python memorize.py --add "claim" [options]          # add a memory
+    python memorize.py --update M-NNN [field=value...]  # update a memory
+    python memorize.py --delete M-NNN                   # delete a memory
+    python memorize.py --search "query"                 # search memories
 """
 
 import sys

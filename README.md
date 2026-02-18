@@ -8,7 +8,7 @@ Your friendly memory companion for Claude Code. Larvling quietly imprints every 
 
 ## The 6 Principles of Larvling
 
-- **Tiny** - under 50 KB of logic, under 100 KB total
+- **Tiny** - under 100 KB total
 - **Zero dependencies** - no pip install, no node_modules, no build step
 - **Portable** - works on any device that supports Claude Code plugins: macOS, Linux, Windows
 - **Private** - all data stays local in a single SQLite file
@@ -148,10 +148,10 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 
 ```bash
 # From the terminal (use the same scope you installed with)
-claude plugin uninstall larvling@larvling --scope local
+claude plugin uninstall larvling@athrael-soju --scope local
 
 # Or from within Claude Code
-/plugin uninstall larvling@larvling --scope local
+/plugin uninstall larvling@athrael-soju --scope local
 
 # Optionally remove the marketplace source
 claude plugin marketplace remove athrael-soju
