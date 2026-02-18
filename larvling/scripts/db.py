@@ -90,6 +90,7 @@ def get_current_schema(conn):
 def get_desired_schema():
     """Get the desired schema by creating it in an in-memory database."""
     mem = sqlite3.connect(":memory:")
+    mem.row_factory = sqlite3.Row
     create_schema(mem)
     schema = get_current_schema(mem)
     mem.close()
@@ -154,7 +155,6 @@ def create_schema(conn):
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_summaries_session ON summaries(session_id)"
     )
-    set_schema_version(conn)
     conn.commit()
 
 
@@ -234,8 +234,8 @@ def resolve_session(conn, short_id):
     if len(short_id) >= 36:
         return short_id
     row = conn.execute(
-        "SELECT id FROM sessions WHERE id LIKE ?",
-        (short_id + "%",),
+        "SELECT id FROM sessions WHERE id LIKE ? ESCAPE '\\'",
+        (escape_like(short_id) + "%",),
     ).fetchone()
     return row[0] if row else None
 

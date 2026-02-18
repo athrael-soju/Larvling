@@ -27,7 +27,7 @@ Fields:
 - **domain**: technical | people | financial | decision | benchmark | insight
 - **tags**: Comma-separated tags (e.g. "model:kimi,hw:mi325x")
 - **confidence**: verified | observed (default) | inferred
-- **source**: Where this fact came from (encounter ID, "paper", "email", etc.)
+- **source**: Where this fact came from (session ID, "paper", "email", etc.)
 - **notes**: Additional context
 
 ### Update a memory
@@ -43,9 +43,4 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/memorize.py" --delete M-NNN
 ### Search memories
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/memorize.py" --search "QUERY"
-```
-
-After making changes, regenerate the dashboard:
-```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py"
 ```

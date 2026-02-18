@@ -17,6 +17,7 @@ from db import (
     reconfigure_stdout,
     create_schema,
     get_schema_version,
+    set_schema_version,
     get_current_schema,
     get_desired_schema,
 )
@@ -39,6 +40,8 @@ def ensure_schema():
 
     if not has_tables:
         create_schema(conn)
+        set_schema_version(conn)
+        conn.commit()
         conn.close()
         return "fresh"
 
