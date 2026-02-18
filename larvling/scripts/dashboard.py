@@ -20,33 +20,33 @@ REVISION_PATH = os.path.join(os.path.dirname(DB_PATH), "larvling-revision")
 
 def get_revision(conn):
     """Compute a revision number from table states."""
-    imp = conn.execute("SELECT MAX(id) FROM imprints").fetchone()[0] or 0
-    ref = conn.execute("SELECT MAX(id) FROM reflections").fetchone()[0] or 0
-    enc = conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] or 0
-    return imp + ref + enc
+    msg = conn.execute("SELECT MAX(id) FROM messages").fetchone()[0] or 0
+    summ = conn.execute("SELECT MAX(id) FROM summaries").fetchone()[0] or 0
+    sess = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] or 0
+    return msg + summ + sess
 
 
 def get_sessions(conn):
-    """Get sessions with their messages and reflection data, newest first.
+    """Get sessions with their messages and summary data, newest first.
 
     Messages within each session are in reverse chronological order (DESC)
     so the conversation panel shows the most recent exchange at the top.
     """
-    encounters = conn.execute(
+    sessions_rows = conn.execute(
         """
-        SELECT e.id, e.started_at, e.ended_at, e.duration_min,
-               r.title, r.agent_summary, r.exchange_count
-        FROM encounters e
-        LEFT JOIN reflections r ON r.encounter_id = e.id
-        ORDER BY e.started_at DESC
+        SELECT s.id, s.started_at, s.ended_at, s.duration_min,
+               u.title, u.agent_summary, u.exchange_count
+        FROM sessions s
+        LEFT JOIN summaries u ON u.session_id = s.id
+        ORDER BY s.started_at DESC
         """
     ).fetchall()
 
     sessions = []
-    for enc in encounters:
+    for sess in sessions_rows:
         messages = conn.execute(
-            "SELECT * FROM imprints WHERE encounter_id = ? ORDER BY id DESC",
-            (enc["id"],),
+            "SELECT * FROM messages WHERE session_id = ? ORDER BY id DESC",
+            (sess["id"],),
         ).fetchall()
 
         user_count = sum(1 for m in messages if m["role"] == "user")
@@ -56,15 +56,15 @@ def get_sessions(conn):
 
         sessions.append(
             {
-                "session_id": enc["id"],
-                "started": enc["started_at"],
-                "ended": enc["ended_at"],
+                "session_id": sess["id"],
+                "started": sess["started_at"],
+                "ended": sess["ended_at"],
                 "msg_count": user_count + agent_count,
                 "messages": messages,
                 "meta": {
-                    "duration_min": enc["duration_min"],
-                    "title": enc["title"],
-                    "agent_summary": enc["agent_summary"],
+                    "duration_min": sess["duration_min"],
+                    "title": sess["title"],
+                    "agent_summary": sess["agent_summary"],
                 },
             }
         )

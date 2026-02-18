@@ -11,7 +11,7 @@ Usage:
 import os
 import sys
 
-from db import get_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout, get_reflection, require_db
+from db import get_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout, get_summary, require_db
 
 
 def export_session(session_id, conn=None):
@@ -26,17 +26,17 @@ def export_session(session_id, conn=None):
             conn.close()
         return None
 
-    # Get encounter + reflection info
-    enc = conn.execute(
-        "SELECT * FROM encounters WHERE id = ?", (session_id,)
+    # Get session + summary info
+    sess = conn.execute(
+        "SELECT * FROM sessions WHERE id = ?", (session_id,)
     ).fetchone()
-    ref = get_reflection(conn, session_id)
+    ref = get_summary(conn, session_id)
 
     messages = conn.execute(
         """
         SELECT timestamp, role, content, metadata
-        FROM imprints
-        WHERE encounter_id = ?
+        FROM messages
+        WHERE session_id = ?
         ORDER BY id ASC
         """,
         (session_id,),
@@ -49,20 +49,20 @@ def export_session(session_id, conn=None):
 
     lines = [f"# Session {session_id[:8]}", ""]
 
-    # Session metadata from encounter + reflection
-    if enc:
-        if enc["started_at"]:
-            lines.append(f"**Started:** {enc['started_at']}")
-        if enc["ended_at"]:
-            lines.append(f"**Ended:** {enc['ended_at']}")
-        if enc["duration_min"]:
-            lines.append(f"**Duration:** {enc['duration_min']} minutes")
+    # Session metadata
+    if sess:
+        if sess["started_at"]:
+            lines.append(f"**Started:** {sess['started_at']}")
+        if sess["ended_at"]:
+            lines.append(f"**Ended:** {sess['ended_at']}")
+        if sess["duration_min"]:
+            lines.append(f"**Duration:** {sess['duration_min']} minutes")
     if ref:
         if ref["title"]:
             lines.append(f"**Title:** {ref['title']}")
         if ref["agent_summary"]:
             lines.append(f"**Summary:** {ref['agent_summary']}")
-    if enc or ref:
+    if sess or ref:
         lines.append("")
 
     lines.append("---")
@@ -97,22 +97,22 @@ def export_session(session_id, conn=None):
 def export_all(outdir):
     """Export all sessions to individual markdown files in outdir."""
     conn = get_db()
-    encounter_ids = [
+    session_ids = [
         row[0]
-        for row in conn.execute("SELECT id FROM encounters").fetchall()
+        for row in conn.execute("SELECT id FROM sessions").fetchall()
     ]
 
-    if not encounter_ids:
+    if not session_ids:
         conn.close()
         print("No sessions to export.", file=sys.stderr)
         sys.exit(1)
 
     os.makedirs(outdir, exist_ok=True)
     exported = 0
-    for eid in encounter_ids:
-        md = export_session(eid, conn)
+    for sid in session_ids:
+        md = export_session(sid, conn)
         if md:
-            outfile = os.path.join(outdir, f"{eid[:8]}.md")
+            outfile = os.path.join(outdir, f"{sid[:8]}.md")
             with open(outfile, "w", encoding="utf-8") as f:
                 f.write(md)
             exported += 1

@@ -2,12 +2,12 @@
 Larvling Memories - persistent facts and knowledge management.
 
 Usage:
-    python memorize.py --list                           # list active memories
+    python memorize.py --list                           # list active facts
     python memorize.py --list --all                     # include expired
-    python memorize.py --add "claim" [options]          # add a memory
-    python memorize.py --update M-NNN [field=value...]  # update a memory
-    python memorize.py --delete M-NNN                   # delete a memory
-    python memorize.py --search "query"                 # search memories
+    python memorize.py --add "claim" [options]          # add a fact
+    python memorize.py --update M-NNN [field=value...]  # update a fact
+    python memorize.py --delete M-NNN                   # delete a fact
+    python memorize.py --search "query"                 # search facts
 """
 
 import sys
@@ -18,7 +18,7 @@ from db import get_db, require_db, reconfigure_stdout, escape_like
 def next_memory_id(conn):
     """Generate the next M-NNN id."""
     row = conn.execute(
-        "SELECT id FROM memories WHERE id LIKE 'M-%' "
+        "SELECT id FROM facts WHERE id LIKE 'M-%' "
         "ORDER BY CAST(SUBSTR(id, 3) AS INTEGER) DESC LIMIT 1"
     ).fetchone()
     if row:
@@ -30,10 +30,10 @@ def next_memory_id(conn):
 
 def add_memory(conn, claim, domain=None, tags=None, confidence="observed",
                source=None, notes=None):
-    """Add a new memory. Returns the generated ID."""
+    """Add a new fact. Returns the generated ID."""
     mid = next_memory_id(conn)
     conn.execute(
-        "INSERT INTO memories (id, claim, domain, tags, confidence, source, notes) "
+        "INSERT INTO facts (id, claim, domain, tags, confidence, source, notes) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (mid, claim, domain, tags, confidence, source, notes),
     )
@@ -42,7 +42,7 @@ def add_memory(conn, claim, domain=None, tags=None, confidence="observed",
 
 
 def update_memory(conn, mid, **fields):
-    """Update specified fields on a memory."""
+    """Update specified fields on a fact."""
     allowed = {
         "claim", "domain", "tags", "confidence", "source",
         "confirmed", "expires", "notes",
@@ -57,7 +57,7 @@ def update_memory(conn, mid, **fields):
         return False
     values.append(mid)
     cursor = conn.execute(
-        f"UPDATE memories SET {', '.join(updates)} WHERE id = ?",
+        f"UPDATE facts SET {', '.join(updates)} WHERE id = ?",
         values,
     )
     conn.commit()
@@ -65,31 +65,31 @@ def update_memory(conn, mid, **fields):
 
 
 def delete_memory(conn, mid):
-    """Delete a memory by ID."""
-    cursor = conn.execute("DELETE FROM memories WHERE id = ?", (mid,))
+    """Delete a fact by ID."""
+    cursor = conn.execute("DELETE FROM facts WHERE id = ?", (mid,))
     conn.commit()
     return cursor.rowcount > 0
 
 
 def list_memories(conn, include_expired=False):
-    """List memories. Returns list of Row objects."""
+    """List facts. Returns list of Row objects."""
     if include_expired:
         return conn.execute(
-            "SELECT * FROM memories ORDER BY established DESC"
+            "SELECT * FROM facts ORDER BY established DESC"
         ).fetchall()
     return conn.execute(
-        "SELECT * FROM memories "
+        "SELECT * FROM facts "
         "WHERE expires IS NULL OR expires > date('now') "
         "ORDER BY established DESC"
     ).fetchall()
 
 
 def search_memories(conn, query):
-    """Search memories by claim, notes, domain, and tags."""
+    """Search facts by claim, notes, domain, and tags."""
     safe = escape_like(query)
     pattern = f"%{safe}%"
     return conn.execute(
-        "SELECT * FROM memories "
+        "SELECT * FROM facts "
         "WHERE (claim LIKE ? ESCAPE '\\' "
         "OR notes LIKE ? ESCAPE '\\' "
         "OR domain LIKE ? ESCAPE '\\' "
@@ -100,7 +100,7 @@ def search_memories(conn, query):
 
 
 def format_memory(mem):
-    """Format a single memory for display."""
+    """Format a single fact for display."""
     parts = [f"{mem['id']}  {mem['claim']}"]
     tags = []
     if mem["domain"]:
@@ -132,7 +132,7 @@ def main():
         include_expired = "--all" in sys.argv
         memories = list_memories(conn, include_expired)
         if not memories:
-            print("No memories found.")
+            print("No facts found.")
         else:
             for mem in memories:
                 print(format_memory(mem))
@@ -156,7 +156,7 @@ def main():
                 if idx + 1 < len(args):
                     kwargs[flag[2:]] = args[idx + 1]
         mid = add_memory(conn, claim, **kwargs)
-        print(f"Memory {mid} added: {claim}")
+        print(f"Fact {mid} added: {claim}")
         conn.close()
         return
 
@@ -171,9 +171,9 @@ def main():
                 key, val = arg.split("=", 1)
                 fields[key] = val
         if update_memory(conn, mid, **fields):
-            print(f"Memory {mid} updated")
+            print(f"Fact {mid} updated")
         else:
-            print(f"Memory {mid} not found or no valid fields", file=sys.stderr)
+            print(f"Fact {mid} not found or no valid fields", file=sys.stderr)
             sys.exit(1)
         conn.close()
         return
@@ -184,9 +184,9 @@ def main():
             sys.exit(1)
         mid = sys.argv[2]
         if delete_memory(conn, mid):
-            print(f"Memory {mid} deleted")
+            print(f"Fact {mid} deleted")
         else:
-            print(f"Memory {mid} not found", file=sys.stderr)
+            print(f"Fact {mid} not found", file=sys.stderr)
             sys.exit(1)
         conn.close()
         return
@@ -197,7 +197,7 @@ def main():
             sys.exit(1)
         results = search_memories(conn, sys.argv[2])
         if not results:
-            print(f"No memories matching '{sys.argv[2]}'")
+            print(f"No facts matching '{sys.argv[2]}'")
         else:
             for mem in results:
                 print(format_memory(mem))

@@ -8,8 +8,8 @@ Usage:
     python summarize.py <session_id> --store "text"  # store/replace session summary
 
 Terminology:
-    - Session title:   first user prompt, auto-captured at UserPromptSubmit (reflections.title)
-    - Session summary:  Agent-generated summary via /summarize (reflections.agent_summary)
+    - Session title:   first user prompt, auto-captured at UserPromptSubmit (summaries.title)
+    - Session summary:  Agent-generated summary via /summarize (summaries.agent_summary)
 """
 
 import json
@@ -17,8 +17,8 @@ import sys
 
 from db import (
     get_db,
-    get_reflection,
-    record_reflection,
+    get_summary,
+    record_summary,
     require_db,
     resolve_session,
     print_sessions,
@@ -40,8 +40,8 @@ def get_pairs(session_id):
     rows = conn.execute(
         """
         SELECT role, content, timestamp
-        FROM imprints
-        WHERE encounter_id = ? AND role IN ('user', 'assistant')
+        FROM messages
+        WHERE session_id = ? AND role IN ('user', 'assistant')
         ORDER BY id
         """,
         (session_id,),
@@ -81,7 +81,7 @@ def get_pairs(session_id):
     return pairs
 
 
-def get_summary(session_id):
+def get_existing_summary(session_id):
     """Get the existing session summary for a session, if any."""
     conn = get_db()
     session_id = resolve_session(conn, session_id)
@@ -89,13 +89,13 @@ def get_summary(session_id):
         conn.close()
         return None
 
-    ref = get_reflection(conn, session_id)
+    ref = get_summary(conn, session_id)
     conn.close()
     return ref["agent_summary"] if ref else None
 
 
 def store_summary(session_id, summary_text):
-    """Store a session summary in the reflections table."""
+    """Store a session summary in the summaries table."""
     conn = get_db()
     original = session_id
     session_id = resolve_session(conn, original)
@@ -104,7 +104,7 @@ def store_summary(session_id, summary_text):
         print(f"No session found matching '{original}'", file=sys.stderr)
         sys.exit(1)
 
-    record_reflection(conn, session_id, agent_summary=summary_text)
+    record_summary(conn, session_id, agent_summary=summary_text)
     conn.commit()
     conn.close()
     print(f"Session summary stored for session {session_id[:8]}")
@@ -132,7 +132,7 @@ def main():
         print(json.dumps(pairs, indent=2))
 
     elif "--get" in sys.argv:
-        summary = get_summary(session_id)
+        summary = get_existing_summary(session_id)
         if summary:
             print(summary)
         else:

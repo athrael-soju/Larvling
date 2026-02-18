@@ -1,6 +1,6 @@
 """
 Larvling Preflight - SessionStart hook.
-Ensures v2 schema exists (migrating from v1 if needed), then injects session context.
+Ensures current schema exists (migrating from v1/v2 if needed), then injects session context.
 """
 
 import os
@@ -11,16 +11,16 @@ from db import (
     DB_PATH,
     escape_like,
     get_db,
-    get_reflection,
+    get_summary,
     reconfigure_stdout,
     detect_schema_version,
-    create_v2_schema,
-    migrate_v1_to_v2,
+    create_schema,
+    migrate_legacy,
 )
 
 
 def ensure_schema():
-    """Ensure v2 schema exists, migrating from v1 if needed.
+    """Ensure current schema exists, migrating from v1/v2 if needed.
 
     Returns True if this was a fresh install (no prior Larvling data).
     """
@@ -29,19 +29,19 @@ def ensure_schema():
     version = detect_schema_version(conn)
 
     if version == "fresh":
-        create_v2_schema(conn)
+        create_schema(conn)
         conn.close()
         return True
-    elif version == "v1":
-        try:
-            migrate_v1_to_v2(conn)
-        except Exception:
-            pass  # Error already logged, continue with whatever schema exists
+    elif version == "current":
+        create_schema(conn)  # idempotent, ensures new tables exist
         conn.close()
         return False
     else:
-        # v2 — run create to ensure new tables (e.g. memories) exist
-        create_v2_schema(conn)
+        # v1 or v2 — migrate to current schema
+        try:
+            migrate_legacy(conn)
+        except Exception:
+            pass  # Error already logged, continue with whatever schema exists
         conn.close()
         return False
 
@@ -50,12 +50,12 @@ def get_recent_summaries(conn, limit=3):
     """Get summaries from the most recent sessions."""
     rows = conn.execute(
         """
-        SELECT e.id, e.started_at, e.duration_min,
-               r.agent_summary, r.title
-        FROM encounters e
-        JOIN reflections r ON r.encounter_id = e.id
-        WHERE r.agent_summary IS NOT NULL OR r.title IS NOT NULL
-        ORDER BY e.started_at DESC
+        SELECT s.id, s.started_at, s.duration_min,
+               u.agent_summary, u.title
+        FROM sessions s
+        JOIN summaries u ON u.session_id = s.id
+        WHERE u.agent_summary IS NOT NULL OR u.title IS NOT NULL
+        ORDER BY s.started_at DESC
         LIMIT ?
         """,
         (limit,),
@@ -115,7 +115,7 @@ def get_git_context():
     return unique[:20]
 
 
-def find_relevant_sessions(conn, file_names, exclude_eids, limit=2):
+def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
     """Find sessions that reference any of the given file names."""
     if not file_names:
         return []
@@ -127,37 +127,37 @@ def find_relevant_sessions(conn, file_names, exclude_eids, limit=2):
             continue
         safe_name = escape_like(basename)
         rows = conn.execute(
-            "SELECT DISTINCT encounter_id FROM imprints "
+            "SELECT DISTINCT session_id FROM messages "
             "WHERE content LIKE ? ESCAPE '\\' "
             "AND role IN ('user', 'assistant')",
             (f"%{safe_name}%",),
         ).fetchall()
         for row in rows:
-            eid = row["encounter_id"]
-            if eid not in exclude_eids:
-                session_hits[eid] = session_hits.get(eid, 0) + 1
+            sid = row["session_id"]
+            if sid not in exclude_sids:
+                session_hits[sid] = session_hits.get(sid, 0) + 1
 
     if not session_hits:
         return []
 
-    top_eids = sorted(
-        session_hits, key=lambda eid: session_hits[eid], reverse=True
+    top_sids = sorted(
+        session_hits, key=lambda sid: session_hits[sid], reverse=True
     )[:limit]
 
     results = []
-    for eid in top_eids:
-        ref = get_reflection(conn, eid)
+    for sid in top_sids:
+        ref = get_summary(conn, sid)
         if not ref:
             continue
         summary = ref["agent_summary"] or ref["title"]
         if not summary:
             continue
-        enc = conn.execute(
-            "SELECT started_at, duration_min FROM encounters WHERE id = ?",
-            (eid,),
+        sess = conn.execute(
+            "SELECT started_at, duration_min FROM sessions WHERE id = ?",
+            (sid,),
         ).fetchone()
-        date = (enc["started_at"] or "?")[:10] if enc else "?"
-        duration = enc["duration_min"] if enc else None
+        date = (sess["started_at"] or "?")[:10] if sess else "?"
+        duration = sess["duration_min"] if sess else None
         duration_str = f" ({duration}m)" if duration else ""
         results.append(f"- **{date}**{duration_str}: {summary}")
 
@@ -172,25 +172,25 @@ def get_session_context():
 
     # Recent session summaries
     summaries = get_recent_summaries(conn)
-    recent_eids = set()
+    recent_sids = set()
     if summaries:
         lines.append("## Recent Sessions")
         lines.extend(summaries)
         lines.append("")
         rows = conn.execute(
             """
-            SELECT e.id FROM encounters e
-            JOIN reflections r ON r.encounter_id = e.id
-            WHERE r.agent_summary IS NOT NULL OR r.title IS NOT NULL
-            ORDER BY e.started_at DESC LIMIT 3
+            SELECT s.id FROM sessions s
+            JOIN summaries u ON u.session_id = s.id
+            WHERE u.agent_summary IS NOT NULL OR u.title IS NOT NULL
+            ORDER BY s.started_at DESC LIMIT 3
             """
         ).fetchall()
-        recent_eids = {row["id"] for row in rows}
+        recent_sids = {row["id"] for row in rows}
 
     # Git-aware relevant sessions
     git_files = get_git_context()
     if git_files:
-        relevant = find_relevant_sessions(conn, git_files, recent_eids)
+        relevant = find_relevant_sessions(conn, git_files, recent_sids)
         if relevant:
             lines.append("## Relevant Sessions")
             lines.extend(relevant)
@@ -200,10 +200,10 @@ def get_session_context():
     if not summaries:
         try:
             rows = conn.execute(
-                "SELECT role, content FROM imprints ORDER BY id DESC LIMIT 5"
+                "SELECT role, content FROM messages ORDER BY id DESC LIMIT 5"
             ).fetchall()
             if rows:
-                total = conn.execute("SELECT COUNT(*) FROM imprints").fetchone()[0]
+                total = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
                 lines.append(f"## Recent Activity ({total} messages)")
                 for row in rows:
                     content = (row["content"] or "")[:80]

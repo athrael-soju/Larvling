@@ -11,7 +11,7 @@ Usage:
 import json
 import sys
 
-from db import get_db, get_reflection, require_db, reconfigure_stdout, escape_like
+from db import get_db, get_summary, require_db, reconfigure_stdout, escape_like
 
 
 def extract_snippet(content, query, context_chars=80):
@@ -34,11 +34,11 @@ def extract_snippet(content, query, context_chars=80):
 
 
 def search_sessions(conn, query, limit=20, context_chars=80):
-    """Search imprint content for query. Returns grouped results by session."""
+    """Search message content for query. Returns grouped results by session."""
     safe_query = escape_like(query)
 
     rows = conn.execute(
-        "SELECT encounter_id, content, role, timestamp FROM imprints "
+        "SELECT session_id, content, role, timestamp FROM messages "
         "WHERE content LIKE ? ESCAPE '\\' "
         "AND role IN ('user', 'assistant') "
         "ORDER BY id DESC",
@@ -47,21 +47,21 @@ def search_sessions(conn, query, limit=20, context_chars=80):
 
     sessions = {}
     for row in rows:
-        eid = row["encounter_id"]
-        if eid not in sessions:
-            sessions[eid] = {
-                "session_id": eid,
+        sid = row["session_id"]
+        if sid not in sessions:
+            sessions[sid] = {
+                "session_id": sid,
                 "title": "",
                 "match_count": 0,
                 "snippets": [],
             }
-        sessions[eid]["match_count"] += 1
+        sessions[sid]["match_count"] += 1
 
         content = row["content"] or ""
-        if len(sessions[eid]["snippets"]) < 3:
+        if len(sessions[sid]["snippets"]) < 3:
             snippet = extract_snippet(content, query, context_chars)
             if snippet:
-                sessions[eid]["snippets"].append(
+                sessions[sid]["snippets"].append(
                     {
                         "role": row["role"],
                         "timestamp": row["timestamp"] or "",
@@ -69,9 +69,9 @@ def search_sessions(conn, query, limit=20, context_chars=80):
                     }
                 )
 
-    # Fetch session titles from reflections
-    for eid, data in sessions.items():
-        ref = get_reflection(conn, eid)
+    # Fetch session titles from summaries
+    for sid, data in sessions.items():
+        ref = get_summary(conn, sid)
         if ref:
             data["title"] = ref["title"] or ""
 

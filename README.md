@@ -4,7 +4,7 @@
 
 # Larvling
 
-Your friendly memory companion for Claude Code. Larvling quietly imprints every conversation - prompts, responses, tool usage - and keeps it all in a searchable dashboard. No config needed, just install and go.
+Your friendly memory companion for Claude Code. Larvling quietly records every conversation - prompts, responses, tool usage - and keeps it all in a searchable dashboard. No config needed, just install and go.
 
 ## The 6 Principles of Larvling
 
@@ -167,5 +167,5 @@ rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/d
 
 All data stays local in the project's `.claude/` directory:
 
-- `larvling.db` - SQLite database (WAL mode) with encounters, imprints, reflections, and memories
+- `larvling.db` - SQLite database (WAL mode) with sessions, messages, summaries, and facts
 - `dashboard.html` - static HTML dashboard, refreshed automatically
