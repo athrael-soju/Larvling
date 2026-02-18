@@ -189,6 +189,8 @@ def handle_stop(data):
         return
 
     conn = get_db()
+    ensure_encounter(conn, session_id)
+
     # Dedup: skip if we already logged this exact content for this encounter
     row = conn.execute(
         "SELECT content FROM imprints "

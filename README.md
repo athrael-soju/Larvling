@@ -111,7 +111,7 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 | `/export`    | Export a session's full conversation to a markdown file                                                                  |
 | `/delete`    | Permanently delete a session and all its data from the database                                                          |
 | `/search`    | Search across all session content with grouped results and context snippets                                              |
-| `/memorize`  | Manage persistent facts and knowledge that get injected into every session                                               |
+| `/memorize`  | Manage persistent facts and knowledge that the agent recalls on demand                                                   |
 
 ## Dashboard
 

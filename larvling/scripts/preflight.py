@@ -164,7 +164,7 @@ def find_relevant_sessions(conn, file_names, exclude_eids, limit=2):
 
 
 def get_session_context():
-    """Build curated session context from summaries, relevant sessions, and memories."""
+    """Build curated session context from summaries and relevant sessions."""
     conn = get_db()
 
     lines = ["# Larvling Session Context", ""]
@@ -195,29 +195,7 @@ def get_session_context():
             lines.extend(relevant)
             lines.append("")
 
-    # Memories section
-    try:
-        memories = conn.execute(
-            "SELECT id, claim FROM memories "
-            "WHERE expires IS NULL OR expires > date('now') "
-            "ORDER BY "
-            "  CASE confidence "
-            "    WHEN 'verified' THEN 1 "
-            "    WHEN 'observed' THEN 2 "
-            "    WHEN 'inferred' THEN 3 "
-            "    ELSE 4 END, "
-            "  established DESC "
-            "LIMIT 10"
-        ).fetchall()
-        if memories:
-            lines.append("## Memories")
-            for mem in memories:
-                lines.append(f"- **{mem['id']}**: {mem['claim']}")
-            lines.append("")
-    except Exception:
-        pass  # memories table might not exist in edge cases
-
-    # Fallback: if no summaries and no memories, show recent data
+    # Fallback: if no summaries, show recent data
     if not summaries:
         try:
             rows = conn.execute(
