@@ -11,22 +11,15 @@ Usage:
 import os
 import sys
 
-from db import get_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout, require_db
+from db import open_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout, require_db
 
 
-def export_session(session_id, conn=None):
-    """Export a session to markdown. Returns the markdown string."""
-    own_conn = conn is None
-    if own_conn:
-        conn = get_db()
-
+def _render_session(session_id, conn):
+    """Render a session to markdown using an existing connection."""
     session_id = resolve_session(conn, session_id)
     if not session_id:
-        if own_conn:
-            conn.close()
         return None
 
-    # Get session info (includes summary fields)
     sess = conn.execute(
         "SELECT * FROM sessions WHERE id = ?", (session_id,)
     ).fetchone()
@@ -42,13 +35,10 @@ def export_session(session_id, conn=None):
     ).fetchall()
 
     if not messages:
-        if own_conn:
-            conn.close()
         return None
 
     lines = [f"# Session {session_id[:8]}", ""]
 
-    # Session metadata
     if sess:
         if sess["started_at"]:
             lines.append(f"**Started:** {sess['started_at']}")
@@ -86,35 +76,39 @@ def export_session(session_id, conn=None):
             lines.append(msg["content"] or "")
             lines.append("")
 
-    if own_conn:
-        conn.close()
     return "\n".join(lines)
+
+
+def export_session(session_id, conn=None):
+    """Export a session to markdown. Returns the markdown string."""
+    if conn is not None:
+        return _render_session(session_id, conn)
+    with open_db() as conn:
+        return _render_session(session_id, conn)
 
 
 def export_all(outdir):
     """Export all sessions to individual markdown files in outdir."""
-    conn = get_db()
-    session_ids = [
-        row[0]
-        for row in conn.execute("SELECT id FROM sessions").fetchall()
-    ]
+    with open_db() as conn:
+        session_ids = [
+            row[0]
+            for row in conn.execute("SELECT id FROM sessions").fetchall()
+        ]
 
-    if not session_ids:
-        conn.close()
-        print("No sessions to export.", file=sys.stderr)
-        sys.exit(1)
+        if not session_ids:
+            print("No sessions to export.", file=sys.stderr)
+            sys.exit(1)
 
-    os.makedirs(outdir, exist_ok=True)
-    exported = 0
-    for sid in session_ids:
-        md = export_session(sid, conn)
-        if md:
-            outfile = os.path.join(outdir, f"{sid[:8]}.md")
-            with open(outfile, "w", encoding="utf-8") as f:
-                f.write(md)
-            exported += 1
+        os.makedirs(outdir, exist_ok=True)
+        exported = 0
+        for sid in session_ids:
+            md = export_session(sid, conn)
+            if md:
+                outfile = os.path.join(outdir, f"{sid[:8]}.md")
+                with open(outfile, "w", encoding="utf-8") as f:
+                    f.write(md)
+                exported += 1
 
-    conn.close()
     print(f"Exported {exported} sessions to {outdir}/")
 
 

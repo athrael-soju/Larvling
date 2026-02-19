@@ -17,8 +17,8 @@ import sys
 from datetime import datetime, timezone
 
 from db import (
-    get_db,
     get_summary,
+    open_db,
     record_summary,
     require_db,
     resolve_session,
@@ -32,22 +32,20 @@ def get_pairs(session_id):
 
     Each pair is: {"index": N, "user": "...", "agent": "...", "timestamp": "..."}
     """
-    conn = get_db()
-    session_id = resolve_session(conn, session_id)
-    if not session_id:
-        conn.close()
-        return None
+    with open_db() as conn:
+        session_id = resolve_session(conn, session_id)
+        if not session_id:
+            return None
 
-    rows = conn.execute(
-        """
-        SELECT role, content, timestamp
-        FROM messages
-        WHERE session_id = ? AND role IN ('user', 'assistant')
-        ORDER BY id
-        """,
-        (session_id,),
-    ).fetchall()
-    conn.close()
+        rows = conn.execute(
+            """
+            SELECT role, content, timestamp
+            FROM messages
+            WHERE session_id = ? AND role IN ('user', 'assistant')
+            ORDER BY id
+            """,
+            (session_id,),
+        ).fetchall()
 
     # Pair up user/agent messages
     pairs = []
@@ -84,41 +82,37 @@ def get_pairs(session_id):
 
 def get_existing_summary(session_id):
     """Get the existing session summary for a session, if any."""
-    conn = get_db()
-    session_id = resolve_session(conn, session_id)
-    if not session_id:
-        conn.close()
-        return None
+    with open_db() as conn:
+        session_id = resolve_session(conn, session_id)
+        if not session_id:
+            return None
 
-    ref = get_summary(conn, session_id)
-    conn.close()
-    return ref["agent_summary"] if ref else None
+        ref = get_summary(conn, session_id)
+        return ref["agent_summary"] if ref else None
 
 
 def store_summary(session_id, summary_text):
     """Store a session summary in the sessions table."""
-    conn = get_db()
-    original = session_id
-    session_id = resolve_session(conn, original)
-    if not session_id:
-        conn.close()
-        print(f"No session found matching '{original}'", file=sys.stderr)
-        sys.exit(1)
+    with open_db() as conn:
+        original = session_id
+        session_id = resolve_session(conn, original)
+        if not session_id:
+            print(f"No session found matching '{original}'", file=sys.stderr)
+            sys.exit(1)
 
-    msg_count = conn.execute(
-        "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role IN ('user', 'assistant')",
-        (session_id,),
-    ).fetchone()[0]
+        msg_count = conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role IN ('user', 'assistant')",
+            (session_id,),
+        ).fetchone()[0]
 
-    record_summary(
-        conn,
-        session_id,
-        agent_summary=summary_text,
-        summary_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-        summary_msg_count=msg_count,
-    )
-    conn.commit()
-    conn.close()
+        record_summary(
+            conn,
+            session_id,
+            agent_summary=summary_text,
+            summary_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            summary_msg_count=msg_count,
+        )
+        conn.commit()
     print(f"Session summary stored for session {session_id[:8]} ({msg_count} messages)")
 
 
