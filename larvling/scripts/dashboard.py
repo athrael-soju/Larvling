@@ -8,7 +8,7 @@ import os
 import sys
 from html import escape
 
-from db import DB_PATH, get_db, parse_meta, require_db, reconfigure_stdout
+from db import DB_PATH, open_db, parse_meta, require_db, reconfigure_stdout
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
@@ -189,34 +189,31 @@ def main():
     require_db()
     reconfigure_stdout()
 
-    conn = get_db()
-    revision = get_revision(conn)
+    with open_db() as conn:
+        revision = get_revision(conn)
 
-    # Skip regeneration if dashboard is already current AND the template hasn't changed
-    if os.path.exists(HTML_PATH):
-        with open(HTML_PATH, "r", encoding="utf-8") as f:
-            head = f.read(1024)
-        template_modified = os.path.getmtime(TEMPLATE_PATH) > os.path.getmtime(
-            HTML_PATH
-        )
-        script_modified = os.path.getmtime(__file__) > os.path.getmtime(HTML_PATH)
-        if (
-            f'content="{revision}"' in head
-            and not template_modified
-            and not script_modified
-        ):
-            conn.close()
-            with open(REVISION_PATH, "w", encoding="utf-8") as f:
-                f.write(str(revision))
-            print(f"Dashboard up to date: {HTML_PATH}")
-            return
+        # Skip regeneration if dashboard is already current AND the template hasn't changed
+        if os.path.exists(HTML_PATH):
+            with open(HTML_PATH, "r", encoding="utf-8") as f:
+                head = f.read(1024)
+            template_modified = os.path.getmtime(TEMPLATE_PATH) > os.path.getmtime(
+                HTML_PATH
+            )
+            script_modified = os.path.getmtime(__file__) > os.path.getmtime(HTML_PATH)
+            if (
+                f'content="{revision}"' in head
+                and not template_modified
+                and not script_modified
+            ):
+                with open(REVISION_PATH, "w", encoding="utf-8") as f:
+                    f.write(str(revision))
+                print(f"Dashboard up to date: {HTML_PATH}")
+                return
 
-    sessions = get_sessions(conn)
+        sessions = get_sessions(conn)
 
-    sidebar_html = "\n".join(render_sidebar_item(s, i) for i, s in enumerate(sessions))
-    details_html = "\n".join(render_detail_panel(s) for s in sessions)
-
-    conn.close()
+        sidebar_html = "\n".join(render_sidebar_item(s, i) for i, s in enumerate(sessions))
+        details_html = "\n".join(render_detail_panel(s) for s in sessions)
 
     html = render_page(sidebar_html, details_html, revision)
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)

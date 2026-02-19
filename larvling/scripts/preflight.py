@@ -13,8 +13,8 @@ from db import (
     DB_PATH,
     SCHEMA_VERSION,
     escape_like,
-    get_db,
     get_summary,
+    open_db,
     reconfigure_stdout,
     create_schema,
     get_schema_version,
@@ -33,27 +33,24 @@ def ensure_schema():
         'migrate'  - version mismatch, migration context printed for Claude
     """
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = get_db()
 
-    has_tables = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'"
-    ).fetchone()
+    with open_db() as conn:
+        has_tables = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'"
+        ).fetchone()
 
-    if not has_tables:
-        create_schema(conn)
-        set_schema_version(conn)
-        conn.close()
-        return "fresh"
+        if not has_tables:
+            create_schema(conn)
+            set_schema_version(conn)
+            return "fresh"
 
-    db_version = get_schema_version(conn)
-    if db_version == SCHEMA_VERSION:
-        conn.close()
-        return "current"
+        db_version = get_schema_version(conn)
+        if db_version == SCHEMA_VERSION:
+            return "current"
 
-    # Version mismatch - backup DB, then dump both schemas for Claude to handle
-    old_schema = get_current_schema(conn)
-    new_schema = get_desired_schema()
-    conn.close()
+        # Version mismatch - backup DB, then dump both schemas for Claude to handle
+        old_schema = get_current_schema(conn)
+        new_schema = get_desired_schema()
 
     backup_path = DB_PATH + f".v{db_version}.bak"
     shutil.copy2(DB_PATH, backup_path)
@@ -195,52 +192,50 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
 
 def get_session_context():
     """Build curated session context from summaries and relevant sessions."""
-    conn = get_db()
+    with open_db() as conn:
+        lines = ["# Larvling Session Context", ""]
 
-    lines = ["# Larvling Session Context", ""]
-
-    # Recent session summaries
-    summaries = get_recent_summaries(conn)
-    recent_sids = set()
-    if summaries:
-        lines.append("## Recent Sessions")
-        lines.extend(summaries)
-        lines.append("")
-        rows = conn.execute(
-            """
-            SELECT id FROM sessions
-            WHERE agent_summary IS NOT NULL OR title IS NOT NULL
-            ORDER BY started_at DESC LIMIT 3
-            """
-        ).fetchall()
-        recent_sids = {row["id"] for row in rows}
-
-    # Git-aware relevant sessions
-    git_files = get_git_context()
-    if git_files:
-        relevant = find_relevant_sessions(conn, git_files, recent_sids)
-        if relevant:
-            lines.append("## Relevant Sessions")
-            lines.extend(relevant)
+        # Recent session summaries
+        summaries = get_recent_summaries(conn)
+        recent_sids = set()
+        if summaries:
+            lines.append("## Recent Sessions")
+            lines.extend(summaries)
             lines.append("")
-
-    # Fallback: if no summaries, show recent data
-    if not summaries:
-        try:
             rows = conn.execute(
-                "SELECT role, content FROM messages ORDER BY id DESC LIMIT 5"
+                """
+                SELECT id FROM sessions
+                WHERE agent_summary IS NOT NULL OR title IS NOT NULL
+                ORDER BY started_at DESC LIMIT 3
+                """
             ).fetchall()
-            if rows:
-                total = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
-                lines.append(f"## Recent Activity ({total} messages)")
-                for row in rows:
-                    content = (row["content"] or "")[:80]
-                    lines.append(f"- **{row['role']}:** {content}")
-                lines.append("")
-        except Exception:
-            pass
+            recent_sids = {row["id"] for row in rows}
 
-    conn.close()
+        # Git-aware relevant sessions
+        git_files = get_git_context()
+        if git_files:
+            relevant = find_relevant_sessions(conn, git_files, recent_sids)
+            if relevant:
+                lines.append("## Relevant Sessions")
+                lines.extend(relevant)
+                lines.append("")
+
+        # Fallback: if no summaries, show recent data
+        if not summaries:
+            try:
+                rows = conn.execute(
+                    "SELECT role, content FROM messages ORDER BY id DESC LIMIT 5"
+                ).fetchall()
+                if rows:
+                    total = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+                    lines.append(f"## Recent Activity ({total} messages)")
+                    for row in rows:
+                        content = (row["content"] or "")[:80]
+                        lines.append(f"- **{row['role']}:** {content}")
+                    lines.append("")
+            except Exception:
+                pass
+
     return "\n".join(lines)
 
 
@@ -278,7 +273,13 @@ def check_update():
     if not latest or not local_version:
         return None
 
-    if latest != local_version:
+    try:
+        remote = tuple(int(x) for x in latest.split("."))
+        local = tuple(int(x) for x in local_version.split("."))
+    except (ValueError, AttributeError):
+        return None
+
+    if remote > local:
         return (
             f"**Larvling update available:** v{local_version} -> v{latest}  \n"
             f"Update via the plugin manager or reinstall from `{GITHUB_REPO}`."
