@@ -4,8 +4,8 @@ Two-panel layout: session list on left, conversation on right.
 Zero dependencies: just sqlite3 + Python string templating.
 """
 
+import json
 import os
-import sys
 from html import escape
 
 from db import DB_PATH, open_db, parse_meta, require_db, reconfigure_stdout
@@ -172,6 +172,17 @@ def render_detail_panel(session):
     </div>"""
 
 
+def get_plugin_version():
+    """Read the plugin version from plugin.json. Returns '?' on failure."""
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+    plugin_json = os.path.join(plugin_root, ".claude-plugin", "plugin.json")
+    try:
+        with open(plugin_json, "r", encoding="utf-8") as f:
+            return json.load(f).get("version", "?")
+    except Exception:
+        return "?"
+
+
 def render_page(sidebar_html, details_html, revision):
     """Load the HTML template and fill in placeholders."""
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
@@ -179,6 +190,7 @@ def render_page(sidebar_html, details_html, revision):
 
     return (
         template.replace("{{LOGO_URL}}", LOGO_URL)
+        .replace("{{VERSION}}", get_plugin_version())
         .replace("{{SIDEBAR}}", sidebar_html)
         .replace("{{DETAILS}}", details_html)
         .replace("{{REVISION}}", str(revision))
@@ -212,7 +224,9 @@ def main():
 
         sessions = get_sessions(conn)
 
-        sidebar_html = "\n".join(render_sidebar_item(s, i) for i, s in enumerate(sessions))
+        sidebar_html = "\n".join(
+            render_sidebar_item(s, i) for i, s in enumerate(sessions)
+        )
         details_html = "\n".join(render_detail_panel(s) for s in sessions)
 
     html = render_page(sidebar_html, details_html, revision)
