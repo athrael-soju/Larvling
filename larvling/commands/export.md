@@ -1,23 +1,17 @@
 ---
 name: export
-description: Export a Larvling session conversation to markdown
+description: Export a session conversation to markdown
 arguments:
   - name: session
-    description: "Session ID (short or full) to export. Use 'list' to see available sessions, or 'all' to export everything."
+    description: "Session ID (short or full), 'list' to see sessions, or 'all' to export everything"
     required: false
 ---
 
-List sessions:
+**Schema:** `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT)`
+
+Run via:
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" --list
+python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" <args>
 ```
 
-Export a single session:
-```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" <session_id> .claude/exports/<session_id>.md
-```
-
-Export all sessions:
-```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" --all .claude/exports
-```
+Exports to `.claude/exports/`. Use `--list` to browse sessions, `--all <outdir>` for batch export.
