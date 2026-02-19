@@ -2,6 +2,7 @@
   "packages": {
     ".": {
       "release-type": "simple",
+      "changelog-header": "<p align=\"center\">\n  <img src=\"https://raw.githubusercontent.com/athrael-soju/Larvling/main/larvling.png\" alt=\"Larvling logo\" width=\"350\" />\n</p>\n",
       "extra-files": [
         {
           "type": "json",
