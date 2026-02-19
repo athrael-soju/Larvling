@@ -185,12 +185,8 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
         summary = ref["agent_summary"] or ref["title"]
         if not summary:
             continue
-        sess = conn.execute(
-            "SELECT started_at, duration_min FROM sessions WHERE id = ?",
-            (sid,),
-        ).fetchone()
-        date = (sess["started_at"] or "?")[:10] if sess else "?"
-        duration = sess["duration_min"] if sess else None
+        date = (ref["started_at"] or "?")[:10]
+        duration = ref["duration_min"]
         duration_str = f" ({duration}m)" if duration else ""
         results.append(f"- **{date}**{duration_str}: {summary}")
 

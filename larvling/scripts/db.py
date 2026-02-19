@@ -286,6 +286,5 @@ def list_sessions(conn, show_summary_status=False):
 
 def print_sessions(**kwargs):
     """Open DB, print session list, close. Passes kwargs to list_sessions."""
-    conn = get_db()
-    list_sessions(conn, **kwargs)
-    conn.close()
+    with open_db() as conn:
+        list_sessions(conn, **kwargs)

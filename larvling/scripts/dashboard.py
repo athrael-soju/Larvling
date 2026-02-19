@@ -206,7 +206,7 @@ def main():
             and not script_modified
         ):
             conn.close()
-            with open(REVISION_PATH, "w") as f:
+            with open(REVISION_PATH, "w", encoding="utf-8") as f:
                 f.write(str(revision))
             print(f"Dashboard up to date: {HTML_PATH}")
             return
@@ -222,7 +222,7 @@ def main():
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(html)
-    with open(REVISION_PATH, "w") as f:
+    with open(REVISION_PATH, "w", encoding="utf-8") as f:
         f.write(str(revision))
 
     print(f"Dashboard generated: {HTML_PATH}")

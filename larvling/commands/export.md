@@ -3,7 +3,7 @@ name: export
 description: Export a session conversation to markdown
 arguments:
   - name: session
-    description: "Session ID (short or full), 'list' to see sessions, or 'all' to export everything"
+    description: "Session ID (short or full). Pass --list to see sessions, or --all to export everything."
     required: false
 ---
 

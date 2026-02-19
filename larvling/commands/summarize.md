@@ -3,7 +3,7 @@ name: summarize
 description: Generate or view a session summary
 arguments:
   - name: session
-    description: "Session ID (short or full), 'list' to see sessions, or 'all' for batch"
+    description: "Session ID (short or full). Pass --list to see sessions, or use 'all' for batch."
     required: false
 ---
 

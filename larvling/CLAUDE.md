@@ -31,13 +31,10 @@ Review the context Larvling injects at session start - it's your memory of what 
 
 Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on conversation context.
 
-**Schema reference:**
-
-```sql
-sessions (id, started_at, ended_at, duration_min, title, agent_summary, exchange_count, summary_at, summary_msg_count)
-messages (id, session_id, timestamp, role, content, metadata)
-facts    (id, claim, domain, tags, confidence, source, established, confirmed, expires, notes)
-```
+**Schema:**
+- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT)`
+- `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT, content TEXT, metadata TEXT)`
+- `facts (id TEXT PK, claim TEXT NOT NULL, domain TEXT, tags TEXT, confidence TEXT DEFAULT 'observed', source TEXT, established TEXT NOT NULL DEFAULT date('now'), confirmed TEXT, expires TEXT, notes TEXT)`
 
 **Examples:**
 
