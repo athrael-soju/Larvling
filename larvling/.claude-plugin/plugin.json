@@ -1,5 +1,5 @@
 {
   "name": "larvling",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Agentic memory - automatic conversation tracking, session context, and a searchable dashboard for Claude Code"
 }

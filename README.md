@@ -109,9 +109,7 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
 | `/summarize` | Generate an LLM-written summary of a session. Stored in the DB for context injection and downloadable from the dashboard |
 | `/export`    | Export a session's full conversation to a markdown file                                                                  |
-| `/delete`    | Permanently delete a session and all its data from the database                                                          |
-| `/search`    | Search across all session content with grouped results and context snippets                                              |
-| `/memorize`  | Manage persistent facts and knowledge that the agent recalls on demand                                                   |
+| `/query`     | Run arbitrary SQL against larvling.db (search, insert, update, delete)                                                   |
 
 ## Dashboard
 
@@ -138,10 +136,8 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 | `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard                                                   |
 | `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries                                  |
 | `larvling/scripts/export.py`               | Exports a session conversation to markdown                                               |
-| `larvling/scripts/delete.py`               | Deletes a session and its data from the database                                         |
-| `larvling/scripts/search.py`               | Searches across all session content                                                      |
-| `larvling/scripts/memorize.py`             | CRUD operations for persistent memories                                                  |
-| `larvling/commands/*.md`                   | Slash command definitions for `/summarize`, `/export`, `/delete`, `/search`, `/memorize` |
+| `larvling/scripts/query.py`               | Runs arbitrary SQL against larvling.db                                                    |
+| `larvling/commands/*.md`                   | Slash command definitions for `/summarize`, `/export`, `/query`                           |
 | `larvling/CLAUDE.md`                       | Instructions for the agent                                                               |
 
 ## Uninstall
