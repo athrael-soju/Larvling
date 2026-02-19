@@ -12,26 +12,55 @@ When the SessionStart context contains "Larvling - First Run", this is the very 
 - That everything is automatic - no setup or extra effort needed
 - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 
-## During Run
+## During a Session
 
-- Review the context Larvling injects at session start - it's your memory of what came before
-- Recording is automatic - just focus on the work
+Review the context Larvling injects at session start - it's your memory of what came before. Recording is automatic - just focus on the work.
 
 ### Schema Migration
 
-When the SessionStart context contains "Schema Migration Required", the database schema needs updating. Read the current and desired schemas provided, write and run the SQL to migrate (preserving all data), then bump the version with the provided command. A backup of the database has already been created.
+- When the SessionStart context contains "Schema Migration Required", the database schema needs updating.
+- Read the current and desired schemas provided, write and run the SQL to migrate (preserving all data), then bump the version in `larvling/db.py` with the provided command.
+- A backup of the database has already been created.
+
+### `/query` - Direct SQL Access
+
+Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on conversation context.
+
+**Schema reference:**
+
+```sql
+sessions (id, started_at, ended_at, duration_min, title, agent_summary, exchange_count, summary_at, summary_msg_count)
+messages (id, session_id, timestamp, role, content, metadata)
+facts    (id, claim, domain, tags, confidence, source, established, confirmed, expires, notes)
+```
+
+**Examples:**
+
+```
+/query "SELECT * FROM facts"
+/query "SELECT * FROM facts WHERE claim LIKE '%deploy%' OR tags LIKE '%ci%'"
+/query "SELECT id, title, agent_summary FROM sessions WHERE agent_summary IS NOT NULL ORDER BY started_at DESC LIMIT 5"
+/query "INSERT INTO facts (id, claim, domain) VALUES ('M-099', 'test fact', 'technical')"
+/query "DELETE FROM facts WHERE id = 'M-099'"
+/query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
+```
 
 ### Facts
 
-Larvling stores persistent facts via `/memorize`. Facts are not auto-injected — query them on demand. Whenever the conversation touches a topic that might have stored facts, proactively use `/memorize` to search. When the user shares facts, preferences, or decisions worth persisting, store them without being asked. Consider whether existing facts need updating based on what the user is saying now.
+Larvling stores persistent facts in the `facts` table. Facts are not auto-injected, so query them on demand:
+- Whenever the conversation touches a topic that might have stored facts, proactively use `/query` to search the facts table.
+- When the user shares facts, preferences, or decisions worth persisting, store them via `/query` INSERT without being asked.
+- Use `M-NNN` format for fact IDs. To get the next ID: `SELECT id FROM facts WHERE id LIKE 'M-%' ORDER BY CAST(SUBSTR(id, 3) AS INTEGER) DESC LIMIT 1`
+
+Consider whether existing facts need updating based on what the user is saying now.
 
 ### Session Summaries
 
-As the conversation grows, periodically offer to generate a summary using `/summarize`. Before offering, run `/summarize list` to check the summary status — it shows `[summarized X/Y msgs]` where X is how many messages the summary covers and Y is the current count. Only offer when:
-- The session has no summary and has had ~10+ exchanges, or
+  As the conversation grows, periodically offer to generate a summary using `/summarize`. Before offering, run `/summarize list` to check the summary status - it shows `[summarized X/Y msgs]` where X is how many messages the summary covers and Y is the current count. Only offer when:
+- The session has no summary and has had ~10+ exchanges
 - The summary is stale (current message count is significantly higher than the summarized count)
 
-Keep the offer brief and non-intrusive — a single sentence is enough. Don't ask repeatedly if the user declines.
+Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines.
 
 ## Run End
 
