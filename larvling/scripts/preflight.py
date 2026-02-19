@@ -50,7 +50,7 @@ def ensure_schema():
         conn.close()
         return "current"
 
-    # Version mismatch — backup DB, then dump both schemas for Claude to handle
+    # Version mismatch - backup DB, then dump both schemas for Claude to handle
     old_schema = get_current_schema(conn)
     new_schema = get_desired_schema()
     conn.close()

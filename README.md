@@ -45,7 +45,7 @@ claude plugin install larvling@athrael-soju --scope local
 /plugin install larvling@athrael-soju --scope local
 ```
 
-> **Which scope should I use?** `local` is recommended for most users — it keeps Larvling scoped to the project you're working in. Use `user` if you want Larvling active everywhere, or `project` to share the plugin config with your team via source control.
+> **Which scope should I use?** `local` is recommended for most users - it keeps Larvling scoped to the project you're working in. Use `user` if you want Larvling active everywhere, or `project` to share the plugin config with your team via source control.
 
 **For local development / testing:**
 
@@ -125,20 +125,20 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 
 ## Files
 
-| File                                       | What it does                                                                             |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `larvling/.claude-plugin/plugin.json`      | Plugin manifest - name and description                                                   |
-| `larvling/hooks/hooks.json`                | Hook definitions - tells Claude Code when to call Larvling                               |
-| `larvling/scripts/db.py`                   | Shared database helpers, schema creation, and version management                         |
-| `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context                             |
-| `larvling/scripts/hooks.py`                | Handles prompt logging, response capture, and session end                                |
-| `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                                              |
-| `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard                                                   |
-| `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries                                  |
-| `larvling/scripts/export.py`               | Exports a session conversation to markdown                                               |
-| `larvling/scripts/query.py`               | Runs arbitrary SQL against larvling.db                                                    |
-| `larvling/commands/*.md`                   | Slash command definitions for `/summarize`, `/export`, `/query`                           |
-| `larvling/CLAUDE.md`                       | Instructions for the agent                                                               |
+| File                                       | What it does                                                     |
+| ------------------------------------------ | ---------------------------------------------------------------- |
+| `larvling/.claude-plugin/plugin.json`      | Plugin manifest - name and description                           |
+| `larvling/hooks/hooks.json`                | Hook definitions - tells Claude Code when to call Larvling       |
+| `larvling/scripts/db.py`                   | Shared database helpers, schema creation, and version management |
+| `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context     |
+| `larvling/scripts/hooks.py`                | Handles prompt logging, response capture, and session end        |
+| `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                      |
+| `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard                           |
+| `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries          |
+| `larvling/scripts/export.py`               | Exports a session conversation to markdown                       |
+| `larvling/scripts/query.py`                | Runs arbitrary SQL against larvling.db                           |
+| `larvling/commands/*.md`                   | Slash command definitions for `/summarize`, `/export`, `/query`  |
+| `larvling/CLAUDE.md`                       | Instructions for the agent                                       |
 
 ## Uninstall
 
@@ -166,4 +166,4 @@ All data stays local in the project's `.claude/` directory:
 - `larvling.db` - SQLite database (WAL mode) with sessions, messages, and facts
 - `dashboard.html` - static HTML dashboard, refreshed automatically
 
-When the plugin updates with schema changes, Larvling automatically backs up your database and guides the agent through the migration — your data is preserved.
+When the plugin updates with schema changes, Larvling automatically backs up your database and guides the agent through the migration - your data is preserved.

@@ -12,6 +12,10 @@ When the SessionStart context contains "Larvling - First Run", this is the very 
 - That everything is automatic - no setup or extra effort needed
 - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 
+## Update Notice
+
+When the SessionStart context contains "Larvling update available", mention it once to the user at the start of the conversation. Keep it brief - one sentence is enough. Don't repeat it later in the session.
+
 ## During a Session
 
 Review the context Larvling injects at session start - it's your memory of what came before. Recording is automatic - just focus on the work.
@@ -61,6 +65,28 @@ Consider whether existing facts need updating based on what the user is saying n
 - The summary is stale (current message count is significantly higher than the summarized count)
 
 Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines.
+
+## Interaction Protocol
+
+Use **AskUserQuestion** tool for structured input gathering:
+
+| Type          | When to use                             |
+| ------------- | --------------------------------------- |
+| Clarification | Inputs missing or ambiguous             |
+| Decision      | Multiple valid approaches exist         |
+| Approval      | Stage work complete, need sign-off      |
+| Summary       | Session summary is stale, offer update  |
+| Fact mgmt     | About to save, update, or delete a fact |
+
+Menu format:
+- 2-4 options per question
+- Each option: short label (1-5 words) + description
+- Tool auto-includes "Other" option
+
+Use **plain text** for:
+- Presenting completed outputs
+- Explaining rationale
+- Summarizing captured information
 
 ## Run End
 
