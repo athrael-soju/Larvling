@@ -11,7 +11,7 @@ Usage:
 import os
 import sys
 
-from db import get_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout, get_summary, require_db
+from db import get_db, resolve_session, print_sessions, parse_meta, reconfigure_stdout, require_db
 
 
 def export_session(session_id, conn=None):
@@ -26,11 +26,10 @@ def export_session(session_id, conn=None):
             conn.close()
         return None
 
-    # Get session + summary info
+    # Get session info (includes summary fields)
     sess = conn.execute(
         "SELECT * FROM sessions WHERE id = ?", (session_id,)
     ).fetchone()
-    ref = get_summary(conn, session_id)
 
     messages = conn.execute(
         """
@@ -57,12 +56,10 @@ def export_session(session_id, conn=None):
             lines.append(f"**Ended:** {sess['ended_at']}")
         if sess["duration_min"]:
             lines.append(f"**Duration:** {sess['duration_min']} minutes")
-    if ref:
-        if ref["title"]:
-            lines.append(f"**Title:** {ref['title']}")
-        if ref["agent_summary"]:
-            lines.append(f"**Summary:** {ref['agent_summary']}")
-    if sess or ref:
+        if sess["title"]:
+            lines.append(f"**Title:** {sess['title']}")
+        if sess["agent_summary"]:
+            lines.append(f"**Summary:** {sess['agent_summary']}")
         lines.append("")
 
     lines.append("---")

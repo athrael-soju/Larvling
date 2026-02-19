@@ -27,7 +27,11 @@ Larvling stores persistent facts via `/memorize`. Facts are not auto-injected �
 
 ### Session Summaries
 
-As the conversation grows, periodically offer to generate a summary using `/summarize`. A good time to offer is when the session has had substantial back-and-forth (roughly 10+ exchanges) or when a major topic or task wraps up. Keep the offer brief and non-intrusive — a single sentence is enough. Don't ask repeatedly if the user declines.
+As the conversation grows, periodically offer to generate a summary using `/summarize`. Before offering, run `/summarize list` to check the summary status — it shows `[summarized X/Y msgs]` where X is how many messages the summary covers and Y is the current count. Only offer when:
+- The session has no summary and has had ~10+ exchanges, or
+- The summary is stale (current message count is significantly higher than the summarized count)
+
+Keep the offer brief and non-intrusive — a single sentence is enough. Don't ask repeatedly if the user declines.
 
 ## Run End
 

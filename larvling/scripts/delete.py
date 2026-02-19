@@ -2,7 +2,7 @@
 Larvling Delete - remove a session from the database.
 
 Usage:
-    python delete.py <session_id>    # delete a session (session + messages + summary)
+    python delete.py <session_id>    # delete a session (session + messages)
     python delete.py --list          # list available sessions
     python delete.py --all           # delete all sessions (preserves facts)
 """
@@ -13,7 +13,7 @@ from db import get_db, resolve_session, print_sessions, reconfigure_stdout, requ
 
 
 def delete_session(session_id):
-    """Delete all data for a session (session, messages, summary)."""
+    """Delete all data for a session (session + messages)."""
     conn = get_db()
     original = session_id
     session_id = resolve_session(conn, original)
@@ -28,7 +28,6 @@ def delete_session(session_id):
     ).fetchone()[0]
 
     # Delete in FK-safe order
-    conn.execute("DELETE FROM summaries WHERE session_id = ?", (session_id,))
     conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
     conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
     conn.commit()
@@ -48,7 +47,6 @@ def delete_all():
         return
 
     # Delete in FK-safe order (NOT facts)
-    conn.execute("DELETE FROM summaries")
     conn.execute("DELETE FROM messages")
     conn.execute("DELETE FROM sessions")
     conn.commit()
