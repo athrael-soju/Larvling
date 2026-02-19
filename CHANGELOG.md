@@ -1,5 +1,108 @@
 # Changelog
 
+## [0.2.0](https://github.com/athrael-soju/Larvling/compare/v0.1.0...v0.2.0) (2026-02-19)
+
+
+### Features
+
+* add .gitignore for __pycache__ and clean up stats computation by removing weekly activity tracking ([7946822](https://github.com/athrael-soju/Larvling/commit/7946822d888fbbafa2c903b29c47c67941d51898))
+* Add bootstrap command documentation and enhance audit logging in preflight script ([d06bba1](https://github.com/athrael-soju/Larvling/commit/d06bba1338f9b2119724390dc4b310b91d9d7c1e))
+* add changelog header with Larvling logo for improved presentation ([2270e5d](https://github.com/athrael-soju/Larvling/commit/2270e5d1bfe9a771dbf41cac7ca9e706bc599579))
+* add changelog header with Larvling logo for improved presentation ([3d41478](https://github.com/athrael-soju/Larvling/commit/3d41478f3ecc321e12fc7e142860fe5c8606ba44))
+* Add command descriptions and enhance dashboard functionality in documentation ([b878998](https://github.com/athrael-soju/Larvling/commit/b878998308717878d259ed0f7e43da0a13935919))
+* add commands for remembering, recalling, and forgetting facts in Larvling ([b866848](https://github.com/athrael-soju/Larvling/commit/b8668481351b96c32256370a6060e05234b2a53e))
+* Add database file and update .gitignore; refine session end and transcript logging ([0b7c151](https://github.com/athrael-soju/Larvling/commit/0b7c1512e7f64bbe8f65af0cf0be9c5a251fc453))
+* Add export functionality for session conversations to markdown format ([4c7ad5b](https://github.com/athrael-soju/Larvling/commit/4c7ad5b53a61f28434c746383985c0948f1e2fed))
+* Add first run welcome message and dashboard mention in CLAUDE.md and preflight.py ([5d87ce3](https://github.com/athrael-soju/Larvling/commit/5d87ce342ce659386c655bee9e6e649f6c3dc68d))
+* Add initialization instructions for first-time users in CLAUDE.md ([12c718d](https://github.com/athrael-soju/Larvling/commit/12c718dc5678b8988190e41578fb82d13b053795))
+* Add initialization message for first-time users in CLAUDE.md ([a2c835c](https://github.com/athrael-soju/Larvling/commit/a2c835cf7f7f4de3a32a6b317415728c60630f42))
+* Add logo data URI generation for dynamic dashboard rendering ([3ad4fb7](https://github.com/athrael-soju/Larvling/commit/3ad4fb7bc05cfc86f8e3e2893a5d21d82e8c6e01))
+* Add marketplace.json for plugin distribution ([e7fd6cf](https://github.com/athrael-soju/Larvling/commit/e7fd6cf588dc8a69f5b625b30aa64b8373912564))
+* Add plugin manifest and lifecycle hooks for conversation tracking and dashboard generation ([b8d3e5c](https://github.com/athrael-soju/Larvling/commit/b8d3e5c8008cc0fea564171b4506b6e55ef01766))
+* add release automation configuration and manifest files ([f5c3e78](https://github.com/athrael-soju/Larvling/commit/f5c3e78e189e15f3706a0d6fd94f2650b7d95052))
+* add search functionality for session content ([850dfdf](https://github.com/athrael-soju/Larvling/commit/850dfdffeda6b1c779e705f866e7b33044229af8))
+* Add session end handling and dashboard generation ([26ea1dc](https://github.com/athrael-soju/Larvling/commit/26ea1dc11deb16bc7bd0a7d3400931b96e649d3b))
+* add stats command for aggregate session statistics ([47dffba](https://github.com/athrael-soju/Larvling/commit/47dffba6eea328208a17b46922fdc34a13862e98))
+* add stats command for aggregate session statistics ([850dfdf](https://github.com/athrael-soju/Larvling/commit/850dfdffeda6b1c779e705f866e7b33044229af8))
+* add update check for local plugin version against latest GitHub release ([347b9c9](https://github.com/athrael-soju/Larvling/commit/347b9c903abd39121a89a3a2eae5f1df932a6c93))
+* add version display to dashboard and implement plugin version retrieval ([d8c3b7f](https://github.com/athrael-soju/Larvling/commit/d8c3b7ff06f7a094776881973c5b61c9fc024590))
+* enhance command documentation and add new commands for session management ([3dbab2b](https://github.com/athrael-soju/Larvling/commit/3dbab2b2d2c3255e9210aee96fd4b292c7ce47f6))
+* Enhance dashboard styling with new font and logo adjustments ([1431c7b](https://github.com/athrael-soju/Larvling/commit/1431c7b8032ac19431f5fdecf845025037d1d2d4))
+* Enhance documentation for local development and update session management commands ([3f078c7](https://github.com/athrael-soju/Larvling/commit/3f078c763c3aa364cf1a25d1b7c170398bb42273))
+* Enhance message body expansion with character count hint and improved styling ([18fead4](https://github.com/athrael-soju/Larvling/commit/18fead4ba7a4bde3ad2c1ea4ccedafe1085c1980))
+* Enhance message body rendering with markdown support and improved truncation hints ([679a1e1](https://github.com/athrael-soju/Larvling/commit/679a1e1e1d9845be9a1f9f2243e10fe4c998074f))
+* enhance topbar with info tooltip and link to GitHub repository ([825c979](https://github.com/athrael-soju/Larvling/commit/825c9794773372dbb90200a42843e5b09d61f0dc))
+* Fix header formatting in README for consistency ([d10ce81](https://github.com/athrael-soju/Larvling/commit/d10ce81349e3505e47122de4204635ac55e0389c))
+* implement memory management functionality with CRUD operations and update documentation ([a8ccd3f](https://github.com/athrael-soju/Larvling/commit/a8ccd3fd8203314fd452e3eabf1005d8af4a27e3))
+* Implement session management features including delete, summarize, and export functionalities ([0839a24](https://github.com/athrael-soju/Larvling/commit/0839a243915458fb3b564541c0f9207604f7fb23))
+* implement stats computation in stats.py ([850dfdf](https://github.com/athrael-soju/Larvling/commit/850dfdffeda6b1c779e705f866e7b33044229af8))
+* introduce require_db function to streamline database existence checks across scripts ([a4469b5](https://github.com/athrael-soju/Larvling/commit/a4469b589ad40da36dd6820d45847d917461ceaa))
+* Optimize session retrieval in dashboard and enhance session end logging ([9ca5534](https://github.com/athrael-soju/Larvling/commit/9ca553458b002d62a7dc321ece23af58804694a2))
+* Refactor auditing to use imprints, remove obsolete files, and update documentation ([6291b54](https://github.com/athrael-soju/Larvling/commit/6291b544279dac836ec1d6fab6ae0f6c2b1477e9))
+* Refactor database handling and improve session logging; update README and .gitignore ([f7f8576](https://github.com/athrael-soju/Larvling/commit/f7f857606a086bbb7f541da954dae8ee3a670993))
+* Refactor session end handling by consolidating hooks and removing redundant script ([53ff998](https://github.com/athrael-soju/Larvling/commit/53ff9982ca8c881a38b2b7b9c4c33650def2a9f1))
+* Simplify summarization process by removing scope selection and updating related instructions ([a219a13](https://github.com/athrael-soju/Larvling/commit/a219a13b83549a96adbd64498ed1a8606768595e))
+* update command documentation and improve schema descriptions for clarity ([6af2f9d](https://github.com/athrael-soju/Larvling/commit/6af2f9db1a92844296d25f8b6072a3223ae1653c))
+* Update first run messages to enhance user experience and provide clearer instructions ([e03d0a3](https://github.com/athrael-soju/Larvling/commit/e03d0a381c407e7cccf36e35bb5f48a412edfacc))
+* Update installation and uninstallation instructions for clarity and consistency ([b378d4e](https://github.com/athrael-soju/Larvling/commit/b378d4eab0ee6482cfc32e60c803bd18db6a3238))
+* Update logo handling to use remote URL instead of local file ([9052489](https://github.com/athrael-soju/Larvling/commit/905248931f7b3e0cc4b13e5142c81aefcb0ea82d))
+* Update plugin name and format keywords for improved readability ([01c20ff](https://github.com/athrael-soju/Larvling/commit/01c20ff0c7a1954015b50fc167b9694883b70920))
+* Update README to correct logo path and add uninstall instructions ([e60e760](https://github.com/athrael-soju/Larvling/commit/e60e7608fc2b05cbb681a032fe16e3d7b34d592e))
+* Update uninstallation instructions to reflect correct marketplace source ([5170f23](https://github.com/athrael-soju/Larvling/commit/5170f23f4ad8a68f539bd676f845280985ea76cb))
+
+
+### Bug Fixes
+
+* Center logo image in README for improved presentation ([f9df8e4](https://github.com/athrael-soju/Larvling/commit/f9df8e4edf2fc77f1c68f68afe5279073f0d923b))
+* correct version entry in plugin.json ([48c5590](https://github.com/athrael-soju/Larvling/commit/48c5590bc68c291d12c482a53ec175c1855ce590))
+* enhance summarize command to handle multiple sessions ([850dfdf](https://github.com/athrael-soju/Larvling/commit/850dfdffeda6b1c779e705f866e7b33044229af8))
+* Increase logo size in top bar for better visibility ([07edca1](https://github.com/athrael-soju/Larvling/commit/07edca11a0758deb73d1c13d74bfeb51b61bd7bf))
+* increase timeout for dashboard command and improve error logging in hooks ([41dfb70](https://github.com/athrael-soju/Larvling/commit/41dfb70c3a9e4b057aa073219405aee09068e74b))
+* remove stats functionality and related references from dashboard ([fb1fc0e](https://github.com/athrael-soju/Larvling/commit/fb1fc0ea1d05ee8514c4a7957cc73f2d8b35c637))
+* resolve_session error messages, LIKE escaping, and misleading function name ([965337c](https://github.com/athrael-soju/Larvling/commit/965337cfb2f4ca270ce54e4c44b4ee7060a3f517))
+* standardize descriptions of principles in README and dashboard template ([fe2a58b](https://github.com/athrael-soju/Larvling/commit/fe2a58b2d39cd8efcefcc18841dc54d2dbfc0baf))
+* standardize hyphen usage in descriptions and comments across multiple files ([113da3b](https://github.com/athrael-soju/Larvling/commit/113da3b283fc19e0c7bd946f701677b60d67c618))
+* Standardize punctuation in README for consistency ([c030247](https://github.com/athrael-soju/Larvling/commit/c030247a2d1338b949de1c0fe5b71a40870849ef))
+* update dashboard to poll for new data every 3 seconds and reload automatically ([1c957e4](https://github.com/athrael-soju/Larvling/commit/1c957e4631531374a490b03d754309c35cda7735))
+* update export button label from "Export conversation" to "Export session" ([8dd19aa](https://github.com/athrael-soju/Larvling/commit/8dd19aaa9905f0d8c7526b725210aaef85bc74b8))
+* update export button label from "Export conversation" to "Export session" ([9b4426b](https://github.com/athrael-soju/Larvling/commit/9b4426b3f496c7140982bcc2ea31397f7498dfc6))
+* update installation instructions in README for clarity and consistency ([f443499](https://github.com/athrael-soju/Larvling/commit/f443499adc64a3b30ed48d7d0a8eac31df1e3459))
+* Update local development path in README for clarity ([e273b12](https://github.com/athrael-soju/Larvling/commit/e273b129312354158da6cc6b9403e4835f4cfe51))
+* Update plugin source structure in marketplace.json for GitHub integration ([d8889e5](https://github.com/athrael-soju/Larvling/commit/d8889e5a2547a5139b550a18a993f5549d2bc475))
+* update punctuation for clarity in README and CLAUDE documentation ([5a36f1a](https://github.com/athrael-soju/Larvling/commit/5a36f1a4963c1a97ff80d6a39dafc733c0be82a9))
+* update README and dashboard to reflect accurate size limits; refactor session metadata handling in scripts ([0092c1d](https://github.com/athrael-soju/Larvling/commit/0092c1d6e547677b81625e0d12c97d571c94d699))
+* update section title for clarity in README ([b3ae7bd](https://github.com/athrael-soju/Larvling/commit/b3ae7bd1c240b4c8787ebbf89d4b89d8098246f9))
+* update size description in principles section of README ([3df61ff](https://github.com/athrael-soju/Larvling/commit/3df61ff896cbb9e7afed638bd76169ca138def6c))
+* update version numbers in manifest and plugin files to 0.0.1 ([26c48c2](https://github.com/athrael-soju/Larvling/commit/26c48c2194f3976cc06cd1c49bb158bfc9a375f4))
+
+
+### Refactoring
+
+* add backup functionality during schema migration; improve migration error messaging ([0a2873c](https://github.com/athrael-soju/Larvling/commit/0a2873cf38c7a42e9517d564535199a81f891d1e))
+* add guidance for generating session summaries; suggest timing for offers based on conversation flow ([8c8a5d6](https://github.com/athrael-soju/Larvling/commit/8c8a5d6ae57b2488ce9bbf10622e709585f55106))
+* enhance database connection management and improve revision handling; update query ordering and escape functions ([1cb1160](https://github.com/athrael-soju/Larvling/commit/1cb1160bb1b1109575ce1ac5a76457085360ec00))
+* enhance schema management functions and update preflight checks; streamline migration handling ([619e0d2](https://github.com/athrael-soju/Larvling/commit/619e0d2f2f23c4073d81e08d4fa0046d8f5b3edf))
+* enhance session management by updating ensure_session to create or touch session rows ([7b16ca0](https://github.com/athrael-soju/Larvling/commit/7b16ca03fd7f077e2adfdc38c50303b6bb43e154))
+* remove summaries from schema and update related functionali… ([94ccde2](https://github.com/athrael-soju/Larvling/commit/94ccde20b406c758b3b9ace7fcdd4476edbb2303))
+* remove summaries from schema and update related functionalities ([24b2ea1](https://github.com/athrael-soju/Larvling/commit/24b2ea1bfc0bc2d70a3466e977e4860721100009))
+* replace get_db() with open_db() for better resource management across scripts ([10e36bf](https://github.com/athrael-soju/Larvling/commit/10e36bff8b0362156761fcdbbc53ab573a110d17))
+* replace list_sessions with print_sessions for consistency across scripts ([5c03fe8](https://github.com/athrael-soju/Larvling/commit/5c03fe8078a4f96884c4968a2d4f9a273c44596d))
+* streamline command documentation for clarity and conciseness ([9d1c591](https://github.com/athrael-soju/Larvling/commit/9d1c591211dd78645ace9e370dba9ab36a9c52a6))
+* streamline database interactions in various scripts ([850dfdf](https://github.com/athrael-soju/Larvling/commit/850dfdffeda6b1c779e705f866e7b33044229af8))
+* update command documentation and remove obsolete scripts ([e934504](https://github.com/athrael-soju/Larvling/commit/e934504296dd748b97465a4ca930bdfabe143d45))
+* update command documentation and version in plugin.json ([7ae44ef](https://github.com/athrael-soju/Larvling/commit/7ae44ef600ebdd83cb96d4e7ca255b3ca651959b))
+* update documentation for first run and memory management; enhance schema migration handling and database interactions ([36f23d2](https://github.com/athrael-soju/Larvling/commit/36f23d275868ca8880b71beac7096c820c7d26c9))
+* update memory management in documentation and hooks; streamline session context handling ([679862d](https://github.com/athrael-soju/Larvling/commit/679862dbec040c012b4b732c2107716879e495de))
+* update README and scripts for clarity; enhance session end handling and schema migration instructions ([f808c15](https://github.com/athrael-soju/Larvling/commit/f808c15317b1cfdecb2b177e52a27c44e31df9d4))
+* update schema version from 1 to 3 ([05317f3](https://github.com/athrael-soju/Larvling/commit/05317f3198c6ab156ad06e8e68703052a30f35ce))
+
+
+### Documentation
+
+* Add "Why Larvling?" section with selling points to README ([c27deaa](https://github.com/athrael-soju/Larvling/commit/c27deaadf575d350c734f325dc6ffc8e5c258e21))
+* Update installation instructions and add usage examples in README ([56d454c](https://github.com/athrael-soju/Larvling/commit/56d454cc51d502252543ffa8e8e6e242ee60d9c6))
+* update README to clarify size specifications for the plugin ([e6dc392](https://github.com/athrael-soju/Larvling/commit/e6dc39253145d823a36ece699eb7c87a1127f581))
+
 ## [0.1.0](https://github.com/athrael-soju/Larvling/compare/v0.0.1...v0.1.0) (2026-02-19)
 
 
