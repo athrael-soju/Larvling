@@ -3,10 +3,11 @@ Larvling Preflight - SessionStart hook.
 Ensures current schema exists, then injects session context.
 """
 
+import json
 import os
 import shutil
 import subprocess
-import sys
+import urllib.request
 
 from db import (
     DB_PATH,
@@ -58,16 +59,24 @@ def ensure_schema():
     shutil.copy2(DB_PATH, backup_path)
 
     print("# Larvling - Schema Migration Required\n")
-    print(f"Database schema is version **{db_version}**, expected **{SCHEMA_VERSION}**.")
+    print(
+        f"Database schema is version **{db_version}**, expected **{SCHEMA_VERSION}**."
+    )
     print(f"A backup has been saved to `{backup_path}`.\n")
     print("## Current Schema (in database)")
     print(f"```sql\n{old_schema}\n```\n")
     print("## Desired Schema")
     print(f"```sql\n{new_schema}\n```\n")
     safe_path = DB_PATH.replace("\\", "/")
-    print("Please migrate the database at `" + safe_path + "` from the current schema to the desired schema.")
+    print(
+        "Please migrate the database at `"
+        + safe_path
+        + "` from the current schema to the desired schema."
+    )
     print("Preserve all existing data. After migrating, run:")
-    print(f"```python\npython -c \"import sqlite3; c=sqlite3.connect('{safe_path}'); c.execute('PRAGMA user_version={SCHEMA_VERSION}'); c.close()\"\n```")
+    print(
+        f"```python\npython -c \"import sqlite3; c=sqlite3.connect('{safe_path}'); c.execute('PRAGMA user_version={SCHEMA_VERSION}'); c.close()\"\n```"
+    )
 
     return "migrate"
 
@@ -164,9 +173,9 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
     if not session_hits:
         return []
 
-    top_sids = sorted(
-        session_hits, key=lambda sid: session_hits[sid], reverse=True
-    )[:limit]
+    top_sids = sorted(session_hits, key=lambda sid: session_hits[sid], reverse=True)[
+        :limit
+    ]
 
     results = []
     for sid in top_sids:
@@ -239,6 +248,48 @@ def get_session_context():
     return "\n".join(lines)
 
 
+GITHUB_REPO = "athrael-soju/Larvling"
+RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+
+
+def check_update():
+    """Compare local plugin version against latest GitHub release.
+
+    Returns an update notice string, or None if up to date / check fails.
+    """
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+    plugin_json = os.path.join(plugin_root, ".claude-plugin", "plugin.json")
+    if not os.path.exists(plugin_json):
+        return None
+
+    try:
+        with open(plugin_json, "r", encoding="utf-8") as f:
+            local_version = json.load(f).get("version", "")
+    except Exception:
+        return None
+
+    try:
+        req = urllib.request.Request(
+            RELEASES_URL,
+            headers={"Accept": "application/vnd.github+json", "User-Agent": "larvling"},
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        latest = data.get("tag_name", "").lstrip("v")
+    except Exception:
+        return None
+
+    if not latest or not local_version:
+        return None
+
+    if latest != local_version:
+        return (
+            f"**Larvling update available:** v{local_version} -> v{latest}  \n"
+            f"Update via the plugin manager or reinstall from `{GITHUB_REPO}`."
+        )
+    return None
+
+
 def main():
     reconfigure_stdout()
 
@@ -252,6 +303,10 @@ def main():
         pass  # Migration context already printed by ensure_schema
     else:
         print(get_session_context())
+
+    update_notice = check_update()
+    if update_notice:
+        print(f"\n{update_notice}")
 
 
 if __name__ == "__main__":
