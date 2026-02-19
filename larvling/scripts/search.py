@@ -69,7 +69,7 @@ def search_sessions(conn, query, limit=20, context_chars=80):
                     }
                 )
 
-    # Fetch session titles from summaries
+    # Fetch session titles
     for sid, data in sessions.items():
         ref = get_summary(conn, sid)
         if ref:

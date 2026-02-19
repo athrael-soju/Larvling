@@ -8,12 +8,13 @@ Usage:
     python summarize.py <session_id> --store "text"  # store/replace session summary
 
 Terminology:
-    - Session title:   first user prompt, auto-captured at UserPromptSubmit (summaries.title)
-    - Session summary:  Agent-generated summary via /summarize (summaries.agent_summary)
+    - Session title:   first user prompt, auto-captured at UserPromptSubmit (sessions.title)
+    - Session summary:  Agent-generated summary via /summarize (sessions.agent_summary)
 """
 
 import json
 import sys
+from datetime import datetime, timezone
 
 from db import (
     get_db,
@@ -95,7 +96,7 @@ def get_existing_summary(session_id):
 
 
 def store_summary(session_id, summary_text):
-    """Store a session summary in the summaries table."""
+    """Store a session summary in the sessions table."""
     conn = get_db()
     original = session_id
     session_id = resolve_session(conn, original)
@@ -104,10 +105,21 @@ def store_summary(session_id, summary_text):
         print(f"No session found matching '{original}'", file=sys.stderr)
         sys.exit(1)
 
-    record_summary(conn, session_id, agent_summary=summary_text)
+    msg_count = conn.execute(
+        "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role IN ('user', 'assistant')",
+        (session_id,),
+    ).fetchone()[0]
+
+    record_summary(
+        conn,
+        session_id,
+        agent_summary=summary_text,
+        summary_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        summary_msg_count=msg_count,
+    )
     conn.commit()
     conn.close()
-    print(f"Session summary stored for session {session_id[:8]}")
+    print(f"Session summary stored for session {session_id[:8]} ({msg_count} messages)")
 
 
 def main():

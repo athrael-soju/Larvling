@@ -76,12 +76,10 @@ def get_recent_summaries(conn, limit=3):
     """Get summaries from the most recent sessions."""
     rows = conn.execute(
         """
-        SELECT s.id, s.started_at, s.duration_min,
-               u.agent_summary, u.title
-        FROM sessions s
-        JOIN summaries u ON u.session_id = s.id
-        WHERE u.agent_summary IS NOT NULL OR u.title IS NOT NULL
-        ORDER BY s.started_at DESC
+        SELECT id, started_at, duration_min, agent_summary, title
+        FROM sessions
+        WHERE agent_summary IS NOT NULL OR title IS NOT NULL
+        ORDER BY started_at DESC
         LIMIT ?
         """,
         (limit,),
@@ -205,10 +203,9 @@ def get_session_context():
         lines.append("")
         rows = conn.execute(
             """
-            SELECT s.id FROM sessions s
-            JOIN summaries u ON u.session_id = s.id
-            WHERE u.agent_summary IS NOT NULL OR u.title IS NOT NULL
-            ORDER BY s.started_at DESC LIMIT 3
+            SELECT id FROM sessions
+            WHERE agent_summary IS NOT NULL OR title IS NOT NULL
+            ORDER BY started_at DESC LIMIT 3
             """
         ).fetchall()
         recent_sids = {row["id"] for row in rows}

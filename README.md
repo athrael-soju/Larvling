@@ -167,7 +167,7 @@ rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/d
 
 All data stays local in the project's `.claude/` directory:
 
-- `larvling.db` - SQLite database (WAL mode) with sessions, messages, summaries, and facts
+- `larvling.db` - SQLite database (WAL mode) with sessions, messages, and facts
 - `dashboard.html` - static HTML dashboard, refreshed automatically
 
 When the plugin updates with schema changes, Larvling automatically backs up your database and guides the agent through the migration — your data is preserved.

@@ -1,6 +1,6 @@
 """Shared database helpers for Larvling hook scripts.
 
-Schema: sessions, messages, summaries, facts
+Schema: sessions, messages, facts
 """
 
 import json
@@ -65,7 +65,7 @@ def require_db():
 # Schema creation and versioning
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def get_schema_version(conn):
@@ -105,7 +105,12 @@ def create_schema(conn):
             id TEXT PRIMARY KEY,
             started_at TEXT NOT NULL,
             ended_at TEXT,
-            duration_min REAL
+            duration_min REAL,
+            title TEXT,
+            agent_summary TEXT,
+            exchange_count INTEGER,
+            summary_at TEXT,
+            summary_msg_count INTEGER
         )
     """
     )
@@ -118,18 +123,6 @@ def create_schema(conn):
             role TEXT NOT NULL,
             content TEXT,
             metadata TEXT
-        )
-    """
-    )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS summaries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id TEXT NOT NULL UNIQUE REFERENCES sessions(id),
-            timestamp TEXT NOT NULL DEFAULT (datetime('now')),
-            title TEXT,
-            agent_summary TEXT,
-            exchange_count INTEGER
         )
     """
     )
@@ -151,9 +144,6 @@ def create_schema(conn):
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_summaries_session ON summaries(session_id)"
     )
     conn.commit()
 
@@ -187,22 +177,29 @@ def record_message(conn, session_id, role, content, metadata=None):
 
 
 def record_summary(
-    conn, session_id, title=None, agent_summary=None, exchange_count=None
+    conn,
+    session_id,
+    title=None,
+    agent_summary=None,
+    exchange_count=None,
+    summary_at=None,
+    summary_msg_count=None,
 ):
-    """Insert or update a summary for a session.
+    """Update summary fields on a session row.
 
     Only non-None values overwrite existing data (uses COALESCE).
     """
     conn.execute(
         """
-        INSERT INTO summaries (session_id, title, agent_summary, exchange_count)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(session_id) DO UPDATE SET
-            title = COALESCE(excluded.title, summaries.title),
-            agent_summary = COALESCE(excluded.agent_summary, summaries.agent_summary),
-            exchange_count = COALESCE(excluded.exchange_count, summaries.exchange_count)
+        UPDATE sessions SET
+            title = COALESCE(?, title),
+            agent_summary = COALESCE(?, agent_summary),
+            exchange_count = COALESCE(?, exchange_count),
+            summary_at = COALESCE(?, summary_at),
+            summary_msg_count = COALESCE(?, summary_msg_count)
+        WHERE id = ?
         """,
-        (session_id, title, agent_summary, exchange_count),
+        (title, agent_summary, exchange_count, summary_at, summary_msg_count, session_id),
     )
 
 
@@ -227,9 +224,9 @@ def finalize_session(conn, session_id):
 
 
 def get_summary(conn, session_id):
-    """Get the summary for a session. Returns Row or None."""
+    """Get the session row (which includes summary fields). Returns Row or None."""
     return conn.execute(
-        "SELECT * FROM summaries WHERE session_id = ?",
+        "SELECT * FROM sessions WHERE id = ?",
         (session_id,),
     ).fetchone()
 
@@ -247,15 +244,20 @@ def resolve_session(conn, short_id):
 
 def list_sessions(conn, show_summary_status=False):
     """List sessions with metadata. Prints formatted lines."""
-    rows = conn.execute(
-        """
-        SELECT s.id, s.started_at, s.duration_min,
-               u.title, u.agent_summary
+    query = """
+        SELECT s.id, s.started_at, s.duration_min, s.title,
+               s.agent_summary, s.summary_msg_count,
+               (SELECT COUNT(*) FROM messages m
+                WHERE m.session_id = s.id
+                AND m.role IN ('user', 'assistant')) AS current_msg_count
         FROM sessions s
-        LEFT JOIN summaries u ON u.session_id = s.id
         ORDER BY s.started_at DESC
-        """
-    ).fetchall()
+    """ if show_summary_status else """
+        SELECT id, started_at, duration_min, title, agent_summary
+        FROM sessions
+        ORDER BY started_at DESC
+    """
+    rows = conn.execute(query).fetchall()
 
     if not rows:
         print("No sessions found.")
@@ -271,7 +273,12 @@ def list_sessions(conn, show_summary_status=False):
             title = title.split("\n")[0][:100]
 
         if show_summary_status:
-            tag = "  [summarized]" if row["agent_summary"] else "  [not summarized]"
+            if row["agent_summary"]:
+                summarized = row["summary_msg_count"] or 0
+                current = row["current_msg_count"] or 0
+                tag = f"  [summarized {summarized}/{current} msgs]"
+            else:
+                tag = "  [not summarized]"
             print(f"{short_id}  {date}{dur}{tag}  {title}")
         else:
             print(f"{short_id}  {date}{dur}  {title}")

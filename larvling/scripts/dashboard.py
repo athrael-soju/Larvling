@@ -21,9 +21,8 @@ REVISION_PATH = os.path.join(os.path.dirname(DB_PATH), "larvling-revision")
 def get_revision(conn):
     """Compute a revision number from table states."""
     msg = conn.execute("SELECT MAX(id) FROM messages").fetchone()[0] or 0
-    summ = conn.execute("SELECT MAX(id) FROM summaries").fetchone()[0] or 0
     sess = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] or 0
-    return msg + summ + sess
+    return msg + sess
 
 
 def get_sessions(conn):
@@ -34,11 +33,10 @@ def get_sessions(conn):
     """
     sessions_rows = conn.execute(
         """
-        SELECT s.id, s.started_at, s.ended_at, s.duration_min,
-               u.title, u.agent_summary, u.exchange_count
-        FROM sessions s
-        LEFT JOIN summaries u ON u.session_id = s.id
-        ORDER BY s.started_at DESC
+        SELECT id, started_at, ended_at, duration_min,
+               title, agent_summary, exchange_count
+        FROM sessions
+        ORDER BY started_at DESC
         """
     ).fetchall()
 
