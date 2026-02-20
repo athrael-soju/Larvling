@@ -214,11 +214,11 @@ def _check_loop_completion(loop, response):
 def _build_loop_context(conn, loop, session_id):
     """Build a rich context string from Larvling's DB for loop iteration.
 
-    Queries three sources using the same simple LIKE patterns that
-    preflight.py and /query already use — no custom NLP needed:
-    1. Facts whose claim/domain/tags match words from the prompt
-    2. Assistant messages from this session since the loop started
-    3. Past session summaries that reference similar terms
+    Queries four sources:
+    1. Facts created by this loop (source='loop-{id}') — always included
+    2. Facts whose claim/domain/tags match words from the prompt
+    3. Assistant messages from this session since the loop started
+    4. Past session summaries that reference similar terms
     """
     sections = []
     # Use significant words from the prompt as search terms (5+ chars, deduped)
@@ -226,9 +226,20 @@ def _build_loop_context(conn, loop, session_id):
         w for w in re.findall(r"[a-zA-Z_]{5,}", loop["prompt"])
     ))[:8]
 
-    # 1. Relevant facts
+    # 1. Facts created by this loop (always surfaced regardless of keyword match)
+    loop_source = f"loop-{loop['id']}"
+    seen_fact_ids = set()
+    loop_facts = conn.execute(
+        "SELECT id, claim FROM facts WHERE source = ? ORDER BY id",
+        (loop_source,),
+    ).fetchall()
+    if loop_facts:
+        lines = [f"- [{f['id']}] {f['claim']}" for f in loop_facts]
+        seen_fact_ids = {f["id"] for f in loop_facts}
+        sections.append("Loop facts:\n" + "\n".join(lines))
+
+    # 2. Keyword-matched facts (excluding already-shown loop facts)
     if prompt_words:
-        # Build OR clauses: (claim LIKE '%word%' OR domain LIKE '%word%' OR tags LIKE '%word%')
         clauses = []
         params = []
         for w in prompt_words:
@@ -241,8 +252,9 @@ def _build_loop_context(conn, loop, session_id):
             params.extend([f"%{safe}%"] * 3)
         sql = f"SELECT id, claim FROM facts WHERE {' OR '.join(clauses)} LIMIT 8"
         facts = conn.execute(sql, params).fetchall()
-        if facts:
-            lines = [f"- [{f['id']}] {f['claim']}" for f in facts]
+        extra = [f for f in facts if f["id"] not in seen_fact_ids]
+        if extra:
+            lines = [f"- [{f['id']}] {f['claim']}" for f in extra]
             sections.append("Relevant facts:\n" + "\n".join(lines))
 
     # 2. Loop progress — assistant messages from this session since loop started

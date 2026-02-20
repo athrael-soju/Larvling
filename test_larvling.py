@@ -985,6 +985,49 @@ class TestLoopCompletion(unittest.TestCase):
         self.assertEqual(context, "")
         conn.close()
 
+    def test_build_loop_context_always_includes_loop_facts(self):
+        """Facts with source='loop-{id}' are always surfaced even if keywords don't match."""
+        from hooks import _build_loop_context
+        conn = make_db()
+        from db import ensure_session
+        ensure_session(conn, "test-sess")
+        conn.execute(
+            "INSERT INTO facts (id, claim, domain, tags, source) "
+            "VALUES ('L1-progress', 'DONE: step1 | REMAINING: step2', 'loop-progress', 'loop,progress', 'loop-1')"
+        )
+        conn.execute(
+            "INSERT INTO facts (id, claim, domain, tags, source) "
+            "VALUES ('L1-I1-a', 'Discovered widget API is unstable', 'loop-discovery', 'discovery', 'loop-1')"
+        )
+        conn.commit()
+        # Use a prompt with words that DON'T match any fact claims
+        loop = self._make_loop_dict(id=1, prompt="Completely unrelated zebra dancing moonlight")
+        context = _build_loop_context(conn, loop, "test-sess")
+        self.assertIn("Loop facts:", context)
+        self.assertIn("L1-progress", context)
+        self.assertIn("L1-I1-a", context)
+        self.assertIn("widget API is unstable", context)
+        conn.close()
+
+    def test_build_loop_context_deduplicates_facts(self):
+        """Facts found by both source and keyword should only appear once."""
+        from hooks import _build_loop_context
+        conn = make_db()
+        from db import ensure_session
+        ensure_session(conn, "test-sess")
+        conn.execute(
+            "INSERT INTO facts (id, claim, domain, tags, source) "
+            "VALUES ('L1-I1-a', 'Python indentation matters for blocks', 'loop-discovery', 'python', 'loop-1')"
+        )
+        conn.commit()
+        # This prompt has 'Python' which would match the fact by keyword too
+        loop = self._make_loop_dict(id=1, prompt="Fix Python indentation errors")
+        context = _build_loop_context(conn, loop, "test-sess")
+        # Should appear in loop facts section, not duplicated in relevant facts
+        self.assertIn("Loop facts:", context)
+        self.assertEqual(context.count("L1-I1-a"), 1)
+        conn.close()
+
 
 # ---------------------------------------------------------------------------
 # Export Tests
