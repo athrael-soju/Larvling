@@ -1,10 +1,6 @@
-"""
-Larvling Hooks - unified handler for conversation lifecycle events.
+"""Larvling Stop hook.
 
-Handles three hook events:
-  - UserPromptSubmit: logs the user's prompt
-  - Stop: reads transcript_path JSONL to extract the agent's last response
-  - SessionEnd: finalizes session timing and exchange count
+Logs the agent's last response, manages loop iteration/completion.
 """
 
 import json
@@ -18,170 +14,11 @@ from db import (
     escape_like,
     ensure_session,
     record_message,
-    finalize_session,
-    record_summary,
     get_active_loop,
     increment_loop,
     end_loop,
 )
-
-
-
-def _is_real_user_message(entry):
-    """Return True if this is a genuine user message, not a tool_result."""
-    if entry.get("type") != "user":
-        return False
-    msg = entry.get("message", {})
-    if not isinstance(msg, dict):
-        return False
-    content = msg.get("content", "")
-    if isinstance(content, str):
-        return True
-    if isinstance(content, list):
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "tool_result":
-                return False
-        return True
-    return False
-
-
-def parse_last_turn(transcript_path):
-    """Extract text and tool call counts from the last assistant turn.
-
-    Reads the transcript once, finds the boundary after the last real user
-    message, and collects both text blocks and tool_use counts from that
-    point forward.
-
-    Returns (text, tool_counts) where text is the concatenated assistant
-    response and tool_counts is a dict of {tool_name: count}.
-    """
-    if not transcript_path or not os.path.exists(transcript_path):
-        return None, {}
-
-    lines = []
-    with open(transcript_path, "r", encoding="utf-8") as f:
-        for raw_line in f:
-            raw_line = raw_line.strip()
-            if raw_line:
-                lines.append(raw_line)
-
-    # Find where the last turn starts (after the last real user message)
-    turn_start = 0
-    for i in range(len(lines) - 1, -1, -1):
-        try:
-            entry = json.loads(lines[i])
-        except json.JSONDecodeError:
-            continue
-        if _is_real_user_message(entry):
-            turn_start = i + 1
-            break
-
-    # Collect text and tool counts from the last turn only
-    all_text = []
-    tools = {}
-    for line in lines[turn_start:]:
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if entry.get("type") != "assistant":
-            continue
-        msg = entry.get("message", {})
-        content = msg.get("content", "") if isinstance(msg, dict) else ""
-        if isinstance(content, list):
-            parts = []
-            for block in content:
-                if isinstance(block, dict):
-                    if block.get("type") == "text":
-                        text = block.get("text", "").strip()
-                        if text:
-                            parts.append(text)
-                    elif block.get("type") == "tool_use":
-                        name = block.get("name", "unknown")
-                        tools[name] = tools.get(name, 0) + 1
-                elif isinstance(block, str) and block.strip():
-                    parts.append(block.strip())
-            if parts:
-                all_text.append("\n".join(parts))
-        elif content:
-            all_text.append(str(content))
-
-    text = "\n\n".join(all_text) if all_text else None
-    return text, tools
-
-
-def strip_ide_tags(text):
-    """Remove leading IDE context tags (opened files, selections) prepended by VSCode."""
-    return re.sub(
-        r"^(?:<ide_(?:opened_file|selection)>.*?</ide_(?:opened_file|selection)>\s*)+",
-        "",
-        text,
-        flags=re.DOTALL,
-    ).strip()
-
-
-def wait_for_transcript_stable(transcript_path, interval=0.1, max_wait=2):
-    """Wait until the transcript file stops being written to."""
-    if not transcript_path or not os.path.exists(transcript_path):
-        return
-    last_size = os.path.getsize(transcript_path)
-    waited = 0
-    while waited < max_wait:
-        time.sleep(interval)
-        waited += interval
-        size = os.path.getsize(transcript_path)
-        if size == last_size:
-            return
-        last_size = size
-
-
-def handle_user_prompt(data):
-    """Log the user's prompt from a UserPromptSubmit event."""
-    session_id = data.get("session_id")
-    if not session_id:
-        return
-
-    prompt = strip_ide_tags(data.get("prompt", ""))
-    if not prompt:
-        return
-
-    meta = {"cwd": data.get("cwd"), "permission_mode": data.get("permission_mode")}
-
-    with open_db() as conn:
-        ensure_session(conn, session_id)
-        record_message(conn, session_id, "user", prompt, meta)
-
-        # Set title on first user message
-        count = conn.execute(
-            "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
-            (session_id,),
-        ).fetchone()[0]
-        if count == 1:
-            record_summary(conn, session_id, title=prompt)
-
-        conn.commit()
-
-
-def handle_session_end(data):
-    """Finalize session timing and record exchange count."""
-    session_id = data.get("session_id")
-    if not session_id:
-        return
-
-    with open_db() as conn:
-        ensure_session(conn, session_id)
-        finalize_session(conn, session_id)
-
-        exchange_count = conn.execute(
-            "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
-            (session_id,),
-        ).fetchone()[0]
-
-        record_summary(
-            conn, session_id,
-            exchange_count=exchange_count or None,
-        )
-        conn.commit()
+from transcript import parse_last_turn, wait_for_transcript_stable
 
 
 def _check_loop_completion(loop, response):
@@ -193,7 +30,6 @@ def _check_loop_completion(loop, response):
     # promise on the last iteration should count as "completed", not "exhausted").
     # Uses regex to tolerate whitespace and case differences around the tag.
     if loop["completion_promise"] and response:
-        import re
         pattern = r"<promise>\s*" + re.escape(loop["completion_promise"]) + r"\s*</promise>"
         if re.search(pattern, response, re.IGNORECASE):
             return "completed", loop["completion_promise"]
@@ -257,7 +93,7 @@ def _build_loop_context(conn, loop, session_id):
             lines = [f"- [{f['id']}] {f['claim']}" for f in extra]
             sections.append("Relevant facts:\n" + "\n".join(lines))
 
-    # 2. Loop progress — assistant messages from this session since loop started
+    # 3. Loop progress — assistant messages from this session since loop started
     progress = conn.execute(
         "SELECT content FROM messages "
         "WHERE session_id = ? AND role = 'assistant' AND timestamp >= ? "
@@ -273,7 +109,7 @@ def _build_loop_context(conn, loop, session_id):
         if lines:
             sections.append("Recent progress (newest first):\n" + "\n".join(lines))
 
-    # 3. Related past session summaries (same pattern as preflight.py)
+    # 4. Related past session summaries (same pattern as preflight.py)
     if prompt_words:
         clauses = []
         params = [session_id]
@@ -404,8 +240,6 @@ def _log_error(msg):
 
 
 def main():
-    # Read stdin as bytes to avoid Windows text-mode encoding issues (cp1252)
-    # that can corrupt or hang on large payloads exceeding the 4KB pipe buffer.
     try:
         raw = sys.stdin.buffer.read().decode("utf-8")
     except Exception as e:
@@ -421,14 +255,7 @@ def main():
         _log_error(f"JSON parse failed ({len(raw)} bytes): {e}")
         return
 
-    event = data.get("hook_event_name", "")
-
-    if event == "UserPromptSubmit":
-        handle_user_prompt(data)
-    elif event == "Stop":
-        handle_stop(data)
-    elif event == "SessionEnd":
-        handle_session_end(data)
+    handle_stop(data)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="larvling.png" alt="Larvling logo" width="350" />
+  <img src="assets/larvling.png" alt="Larvling logo" width="350" />
 </p>
 
 # Larvling
@@ -100,7 +100,7 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 ## How It Works
 
 <p align="center">
-  <img src="diagram.png" alt="Larvling capabilities diagram" width="100%" />
+  <img src="assets/diagram.png" alt="Larvling capabilities diagram" width="100%" />
 </p>
 
 ## Commands
@@ -138,7 +138,12 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 | `larvling/hooks/hooks.json`                | Hook definitions - tells Claude Code when to call Larvling       |
 | `larvling/scripts/db.py`                   | Shared database helpers, schema creation, and version management |
 | `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context     |
-| `larvling/scripts/hooks.py`                | Handles prompt logging, response capture, and session end        |
+| `larvling/scripts/transcript.py`           | Transcript parsing utilities                                     |
+| `larvling/scripts/hook_prompt.py`          | Handles prompt logging and fact injection                        |
+| `larvling/scripts/hook_stop.py`            | Handles response capture and loop management                     |
+| `larvling/scripts/hook_end.py`             | Handles session end timing                                       |
+| `larvling/scripts/agent_facts.py`          | Background agent for auto-extracting facts                       |
+| `larvling/scripts/agent_summary.py`        | Background agent for auto-generating summaries                   |
 | `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                      |
 | `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard                           |
 | `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries          |

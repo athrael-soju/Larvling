@@ -239,6 +239,33 @@ def get_session_context():
             lines.append("Use `/cancel-loop` to clear orphaned loops.")
             lines.append("")
 
+        # Missed fact review detection
+        last_session = conn.execute(
+            "SELECT id, started_at, title FROM sessions ORDER BY started_at DESC LIMIT 1"
+        ).fetchone()
+        if last_session:
+            exchanges = conn.execute(
+                "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
+                (last_session["id"],)
+            ).fetchone()[0]
+            has_review = conn.execute(
+                "SELECT COUNT(*) FROM facts WHERE source = ?",
+                (f"session-{last_session['id'][:8]}",)
+            ).fetchone()[0]
+            if has_review == 0 and exchanges >= 6:
+                short_id = last_session["id"][:8]
+                title = (last_session["title"] or "untitled").split("\n")[0][:80]
+                lines.append("## Missed Fact Review")
+                lines.append(
+                    f"Previous session `{short_id}` ({title}) ended without a fact review. "
+                    f"Use `/query` to review and store anything worth remembering:"
+                )
+                lines.append(
+                    f"```\n/query \"SELECT role, substr(content,1,200) FROM messages "
+                    f"WHERE session_id LIKE '{short_id}%' ORDER BY id\"\n```"
+                )
+                lines.append("")
+
         # Fallback: if no summaries, show recent data
         if not summaries:
             try:
