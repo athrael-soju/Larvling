@@ -6,6 +6,7 @@ Zero dependencies: just sqlite3 + Python string templating.
 
 import json
 import os
+import sys
 from html import escape
 
 from db import DB_PATH, open_db, parse_meta, require_db, reconfigure_stdout
@@ -219,7 +220,7 @@ def main():
             ):
                 with open(REVISION_PATH, "w", encoding="utf-8") as f:
                     f.write(str(revision))
-                print(f"Dashboard up to date: {HTML_PATH}")
+                print(f"Dashboard up to date: {HTML_PATH}", file=sys.stderr)
                 return
 
         sessions = get_sessions(conn)
@@ -236,7 +237,7 @@ def main():
     with open(REVISION_PATH, "w", encoding="utf-8") as f:
         f.write(str(revision))
 
-    print(f"Dashboard generated: {HTML_PATH}")
+    print(f"Dashboard generated: {HTML_PATH}", file=sys.stderr)
 
 
 if __name__ == "__main__":
