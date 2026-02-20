@@ -71,6 +71,9 @@ Fact ID convention: M-NNN (get next: SELECT id FROM facts WHERE id LIKE 'M-%' OR
 
 
 def main():
+    if os.environ.get("LARVLING_AGENT"):
+        return
+
     raw = sys.stdin.buffer.read().decode("utf-8")
     data = json.loads(raw) if raw.strip() else {}
     _handle_facts(data)

@@ -8,10 +8,10 @@ import json
 import os
 import re
 import sys
-import time
 
 from db import (
     open_db,
+    log_error,
     escape_like,
     ensure_session,
     record_message,
@@ -84,22 +84,12 @@ def handle_user_prompt(data):
         inject_relevant_facts(conn, prompt)
 
 
-def _log_error(msg):
-    """Append an error to .claude/larvling-errors.log for debugging silent failures."""
-    try:
-        log_path = os.path.join(os.getcwd(), ".claude", "larvling-errors.log")
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
-    except Exception:
-        pass
-
-
 def main():
     reconfigure_stdout()
     try:
         raw = sys.stdin.buffer.read().decode("utf-8")
     except Exception as e:
-        _log_error(f"stdin read failed: {e}")
+        log_error(f"hook_prompt stdin read failed: {e}")
         return
 
     if not raw.strip():
@@ -108,7 +98,7 @@ def main():
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as e:
-        _log_error(f"JSON parse failed ({len(raw)} bytes): {e}")
+        log_error(f"hook_prompt JSON parse failed ({len(raw)} bytes): {e}")
         return
 
     handle_user_prompt(data)

@@ -61,6 +61,17 @@ def require_db():
         sys.exit(1)
 
 
+def log_error(msg):
+    """Append an error to .claude/larvling-errors.log for debugging silent failures."""
+    import time
+    try:
+        log_path = os.path.join(PROJECT_ROOT, ".claude", "larvling-errors.log")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Schema creation and versioning
 # ---------------------------------------------------------------------------

@@ -47,19 +47,20 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 /query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
 ```
 
-### Team Orchestration
+### Iteration Loops
 
-Use `/loop` to orchestrate complex tasks with a team of parallel workers using Claude Code's native team system.
+Use `/loop` to run autonomous iteration loops with optional team orchestration, inspired by [Ralph](https://github.com/snarktank/ralph).
 
-- `/loop "Build X"` — creates a team, decomposes the task into sub-tasks, and spawns parallel workers
-- `/loop cancel` — shuts down the active team and all workers
-- Workers execute in parallel, coordinated via `TaskList`/`TaskUpdate`/`SendMessage`
-- The orchestrator monitors progress and reassigns work as needed
+- `/loop "Build X"` — decomposes the task into stories, iterates through them serially or spawns parallel workers
+- `/loop cancel` — shuts down the active loop/team and cleans up loop facts
+- Progress persists across iterations via Larvling's fact store (domain: `loop`) and git commits
+- Each iteration reads facts before starting and writes learnings when done
+- Stories tracked as facts with status: `pending` / `in-progress` / `done` / `blocked`
+- Query loop state: `/query "SELECT id, claim FROM facts WHERE domain = 'loop' ORDER BY id"`
 
 ### Facts
 
-Larvling stores persistent facts in the `facts` table. Facts are not auto-injected, so query them on demand:
-- Whenever the conversation touches a topic that might have stored facts, proactively use `/query` to search the facts table.
+Larvling stores persistent facts in the `facts` table. Relevant facts are auto-injected on each prompt (matched by keyword from `claim`, `domain`, and `tags`). For broader searches, use `/query` directly.
 - When the user shares facts, preferences, or decisions worth persisting, store them via `/query` INSERT without being asked.
 - Use `M-NNN` format for fact IDs. To get the next ID: `SELECT id FROM facts WHERE id LIKE 'M-%' ORDER BY CAST(SUBSTR(id, 3) AS INTEGER) DESC LIMIT 1`
 

@@ -6,10 +6,10 @@ Logs the agent's last response.
 import json
 import os
 import sys
-import time
 
 from db import (
     open_db,
+    log_error,
     ensure_session,
     record_message,
     record_summary,
@@ -68,21 +68,11 @@ def handle_stop(data):
         conn.commit()
 
 
-def _log_error(msg):
-    """Append an error to .claude/larvling-errors.log for debugging silent failures."""
-    try:
-        log_path = os.path.join(os.getcwd(), ".claude", "larvling-errors.log")
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
-    except Exception:
-        pass
-
-
 def main():
     try:
         raw = sys.stdin.buffer.read().decode("utf-8")
     except Exception as e:
-        _log_error(f"stdin read failed: {e}")
+        log_error(f"hook_stop stdin read failed: {e}")
         return
 
     if not raw.strip():
@@ -91,7 +81,7 @@ def main():
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as e:
-        _log_error(f"JSON parse failed ({len(raw)} bytes): {e}")
+        log_error(f"hook_stop JSON parse failed ({len(raw)} bytes): {e}")
         return
 
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
