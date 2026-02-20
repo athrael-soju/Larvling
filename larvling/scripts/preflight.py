@@ -334,6 +334,9 @@ def check_update():
 
 
 def main():
+    if os.environ.get("LARVLING_AGENT"):
+        return
+
     reconfigure_stdout()
 
     result = ensure_schema()

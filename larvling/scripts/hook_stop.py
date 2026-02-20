@@ -141,6 +141,9 @@ def _build_loop_context(conn, loop, session_id):
 
 def handle_stop(data):
     """Log the agent's last response from a Stop event."""
+    if os.environ.get("LARVLING_AGENT"):
+        return
+
     session_id = data.get("session_id")
     if not session_id:
         return
@@ -154,19 +157,12 @@ def handle_stop(data):
     with open_db() as conn:
         ensure_session(conn, session_id)
 
-        # Log the response (if any and not a duplicate)
+        # Log the response (if any)
         logged = False
         if response:
-            row = conn.execute(
-                "SELECT content FROM messages "
-                "WHERE session_id = ? AND role = 'assistant' "
-                "ORDER BY id DESC LIMIT 1",
-                (session_id,),
-            ).fetchone()
-            if not (row and row[0] == response):
-                meta = {"tool_calls": tools} if tools else None
-                record_message(conn, session_id, "assistant", response, meta)
-                logged = True
+            meta = {"tool_calls": tools} if tools else None
+            record_message(conn, session_id, "assistant", response, meta)
+            logged = True
 
         # Loop check
         loop = get_active_loop(conn, session_id)

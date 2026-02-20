@@ -140,6 +140,23 @@ class TestHookPrompt(unittest.TestCase):
             self.assertEqual(sess["title"], "Build a feature")
             conn.close()
 
+    def test_handle_user_prompt_skipped_for_agent(self):
+        import db
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = setup_test_db(tmpdir)
+            with mock.patch.object(db, "DB_PATH", test_db), \
+                 mock.patch.dict(os.environ, {"LARVLING_AGENT": "1"}):
+                from hook_prompt import handle_user_prompt
+                handle_user_prompt({
+                    "session_id": "test-sess",
+                    "prompt": "Agent prompt",
+                    "cwd": "/tmp",
+                })
+            conn = sqlite3.connect(test_db)
+            count = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+            self.assertEqual(count, 0)
+            conn.close()
+
     def test_handle_user_prompt_main_dispatch(self):
         from hook_prompt import main as prompt_main
         import db as db_mod
@@ -180,6 +197,28 @@ class TestHookEnd(unittest.TestCase):
             sess = conn.execute("SELECT * FROM sessions WHERE id = 'test-sess'").fetchone()
             self.assertIsNotNone(sess["ended_at"])
             self.assertEqual(sess["exchange_count"], 1)
+            conn.close()
+
+    def test_handle_session_end_skipped_for_agent(self):
+        import db
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = setup_test_db(tmpdir)
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            from db import ensure_session
+            ensure_session(conn, "test-sess")
+            conn.commit()
+            conn.close()
+
+            with mock.patch.object(db, "DB_PATH", test_db), \
+                 mock.patch.dict(os.environ, {"LARVLING_AGENT": "1"}):
+                from hook_end import handle_session_end
+                handle_session_end({"session_id": "test-sess"})
+
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            sess = conn.execute("SELECT ended_at FROM sessions WHERE id = 'test-sess'").fetchone()
+            self.assertIsNone(sess["ended_at"])
             conn.close()
 
     def test_handle_session_end_main_dispatch(self):
@@ -506,31 +545,21 @@ class TestHandleStopIntegration(unittest.TestCase):
             self.assertIn("Delete", sys_msg)
             self.assertIn("loop-discovery", sys_msg)
 
-    def test_handle_stop_duplicate_response_not_logged(self):
+    def test_handle_stop_skipped_for_agent(self):
         import db as db_mod
         with tempfile.TemporaryDirectory() as tmpdir:
             test_db = self._setup_db(tmpdir)
-            conn = sqlite3.connect(test_db)
-            conn.row_factory = sqlite3.Row
-            conn.execute(
-                "INSERT INTO messages (session_id, role, content) VALUES ('test-sess', 'assistant', 'Same response')"
-            )
-            conn.commit()
-            conn.close()
-
             transcript = os.path.join(tmpdir, "transcript.jsonl")
             with open(transcript, "w", encoding="utf-8") as f:
-                f.write(json.dumps({"type": "user", "message": {"content": "do it"}}) + "\n")
-                f.write(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Same response"}]}}) + "\n")
-
-            with mock.patch.object(db_mod, "DB_PATH", test_db):
+                f.write(json.dumps({"type": "user", "message": {"content": "do work"}}) + "\n")
+                f.write(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Done"}]}}) + "\n")
+            with mock.patch.object(db_mod, "DB_PATH", test_db), \
+                 mock.patch.dict(os.environ, {"LARVLING_AGENT": "1"}):
                 from hook_stop import handle_stop
                 handle_stop({"session_id": "test-sess", "transcript_path": transcript})
-
             conn = sqlite3.connect(test_db)
-            conn.row_factory = sqlite3.Row
-            count = conn.execute("SELECT COUNT(*) FROM messages WHERE role = 'assistant'").fetchone()[0]
-            self.assertEqual(count, 1)
+            count = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+            self.assertEqual(count, 0)
             conn.close()
 
     def test_handle_stop_main_dispatch(self):

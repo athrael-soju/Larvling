@@ -18,6 +18,9 @@ from db import (
 
 def handle_session_end(data):
     """Finalize session timing and record exchange count."""
+    if os.environ.get("LARVLING_AGENT"):
+        return
+
     session_id = data.get("session_id")
     if not session_id:
         return

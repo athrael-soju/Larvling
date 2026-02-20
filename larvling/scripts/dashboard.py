@@ -13,7 +13,7 @@ from db import DB_PATH, open_db, parse_meta, require_db, reconfigure_stdout
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
-LOGO_URL = "https://raw.githubusercontent.com/athrael-soju/Larvling/main/larvling.png"
+LOGO_URL = "https://raw.githubusercontent.com/athrael-soju/Larvling/main/assets/larvling.png"
 
 HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
 REVISION_PATH = os.path.join(os.path.dirname(DB_PATH), "larvling-revision")
@@ -199,6 +199,9 @@ def render_page(sidebar_html, details_html, revision):
 
 
 def main():
+    if os.environ.get("LARVLING_AGENT"):
+        return
+
     require_db()
     reconfigure_stdout()
 

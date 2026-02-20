@@ -52,6 +52,9 @@ def inject_relevant_facts(conn, prompt):
 
 def handle_user_prompt(data):
     """Log the user's prompt from a UserPromptSubmit event."""
+    if os.environ.get("LARVLING_AGENT"):
+        return
+
     session_id = data.get("session_id")
     if not session_id:
         return

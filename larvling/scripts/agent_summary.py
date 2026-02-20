@@ -56,6 +56,9 @@ Where <status> is a SHORT summary like:
 
 Then output that same status as your final message."""
 
+    # Suppress Larvling hooks in the sub-agent's Claude Code process
+    os.environ["LARVLING_AGENT"] = "1"
+
     result_text = ""
     async for message in query(
         prompt=prompt,
