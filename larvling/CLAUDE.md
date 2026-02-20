@@ -56,9 +56,11 @@ Use `/loop` to run autonomous iteration loops inspired by [Ralph](https://github
 - `/loop cancel` — cleans up all loop facts
 - `/loop status` — shows current loop state
 - Each iteration can spawn teams for parallel sub-work within that cycle
-- Stories tracked as facts (domain: `loop`): `pending` / `done` / `blocked`
+- Each run gets a unique ID (stored in `.claude/larvling-loop-run`), so runs don't collide
+- Stories tracked as facts with status in the `notes` field: `pending` / `done` / `blocked`
+- Learnings, blockers, and decisions also stored as facts under the same run ID
 - Agents NEVER commit — the user commits when ready
-- Query loop state: `/query "SELECT id, claim FROM facts WHERE domain = 'loop' ORDER BY id"`
+- Query loop state: `/query "SELECT id, claim, notes AS status FROM facts WHERE source LIKE 'loop-%' ORDER BY id"`
 
 ### Facts
 
