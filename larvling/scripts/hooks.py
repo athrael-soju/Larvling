@@ -351,7 +351,17 @@ def handle_stop(data):
         system_parts = [f"Loop iteration {iter_str}"]
         if context:
             system_parts.append(context)
-        system_parts.append("Continue working on the task. Review your previous work in files and git, then proceed.")
+        lid = loop['id']
+        system_parts.append(
+            "Continue working on the task. Review your previous work in files and git, then proceed.\n\n"
+            "**Manage your iteration knowledge** using `/query` before continuing work:\n"
+            f"- **Insert** new discoveries, challenges, decisions, or blockers as facts\n"
+            f"- **Update** facts that are incomplete or need refinement\n"
+            f"- **Delete** facts that turned out to be wrong or irrelevant\n"
+            f"- ID convention: `L{lid}-I{iteration}-a`, `L{lid}-I{iteration}-b`, etc.\n"
+            f"- domain='loop-discovery', source='loop-{lid}'\n"
+            "- These facts are surfaced automatically in subsequent iterations"
+        )
 
         block = {
             "decision": "block",
