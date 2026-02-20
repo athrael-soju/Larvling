@@ -864,5 +864,504 @@ class TestEdgeCases(unittest.TestCase):
         self.assertEqual(parse_meta('{"a": 1}'), {"a": 1})
 
 
+# ---------------------------------------------------------------------------
+# Loop Completion & Context Tests (hooks.py)
+# ---------------------------------------------------------------------------
+
+
+class TestLoopCompletion(unittest.TestCase):
+    """Test _check_loop_completion and _build_loop_context from hooks.py."""
+
+    def _make_loop_dict(self, **overrides):
+        defaults = {
+            "id": 1,
+            "session_id": "test-sess",
+            "prompt": "build something",
+            "status": "active",
+            "iteration": 1,
+            "max_iterations": 5,
+            "completion_promise": "DONE",
+            "started_at": "2025-01-01 00:00:00",
+            "ended_at": None,
+            "outcome": None,
+        }
+        defaults.update(overrides)
+        return defaults
+
+    def test_check_completion_promise_found(self):
+        from hooks import _check_loop_completion
+        loop = self._make_loop_dict(completion_promise="TASK_DONE")
+        result = _check_loop_completion(loop, "I finished the work <promise>TASK_DONE</promise>")
+        self.assertEqual(result, ("completed", "TASK_DONE"))
+
+    def test_check_completion_promise_case_insensitive(self):
+        from hooks import _check_loop_completion
+        loop = self._make_loop_dict(completion_promise="TASK_DONE")
+        result = _check_loop_completion(loop, "<PROMISE>TASK_DONE</PROMISE> done")
+        self.assertEqual(result, ("completed", "TASK_DONE"))
+
+    def test_check_completion_promise_with_whitespace(self):
+        from hooks import _check_loop_completion
+        loop = self._make_loop_dict(completion_promise="TASK_DONE")
+        result = _check_loop_completion(loop, "<promise>  TASK_DONE  </promise>")
+        self.assertEqual(result, ("completed", "TASK_DONE"))
+
+    def test_check_completion_no_promise(self):
+        from hooks import _check_loop_completion
+        loop = self._make_loop_dict(completion_promise="TASK_DONE")
+        result = _check_loop_completion(loop, "Still working on it")
+        self.assertIsNone(result)
+
+    def test_check_completion_max_iterations_reached(self):
+        from hooks import _check_loop_completion
+        loop = self._make_loop_dict(iteration=5, max_iterations=5, completion_promise=None)
+        result = _check_loop_completion(loop, "Some response")
+        self.assertEqual(result[0], "exhausted")
+        self.assertIn("max iterations", result[1])
+
+    def test_check_completion_no_response_early(self):
+        """On iteration 1, missing response should not exhaust."""
+        from hooks import _check_loop_completion
+        loop = self._make_loop_dict(iteration=1, completion_promise=None)
+        result = _check_loop_completion(loop, None)
+        self.assertIsNone(result)
+
+    def test_check_completion_no_response_late(self):
+        """On iteration > 1, missing response should exhaust."""
+        from hooks import _check_loop_completion
+        loop = self._make_loop_dict(iteration=3, completion_promise=None)
+        result = _check_loop_completion(loop, None)
+        self.assertEqual(result[0], "exhausted")
+
+    def test_check_completion_promise_trumps_max_iter(self):
+        """Promise found on the last iteration should be 'completed', not 'exhausted'."""
+        from hooks import _check_loop_completion
+        loop = self._make_loop_dict(iteration=5, max_iterations=5, completion_promise="DONE")
+        result = _check_loop_completion(loop, "Finished <promise>DONE</promise>")
+        self.assertEqual(result[0], "completed")
+
+    def test_check_completion_unlimited(self):
+        """max_iterations=0 means unlimited — should not exhaust."""
+        from hooks import _check_loop_completion
+        loop = self._make_loop_dict(iteration=100, max_iterations=0, completion_promise=None)
+        result = _check_loop_completion(loop, "Still going")
+        self.assertIsNone(result)
+
+    def test_build_loop_context_finds_facts(self):
+        from hooks import _build_loop_context
+        conn = make_db()
+        from db import ensure_session
+        ensure_session(conn, "test-sess")
+        conn.execute(
+            "INSERT INTO facts (id, claim, domain, tags, source) "
+            "VALUES ('f1', 'Python uses indentation for blocks', 'technical', 'python,syntax', 'test')"
+        )
+        conn.commit()
+        loop = self._make_loop_dict(prompt="Fix the Python indentation error")
+        context = _build_loop_context(conn, loop, "test-sess")
+        self.assertIn("Python uses indentation", context)
+        conn.close()
+
+    def test_build_loop_context_finds_progress(self):
+        from hooks import _build_loop_context
+        conn = make_db()
+        from db import ensure_session, record_message
+        ensure_session(conn, "test-sess")
+        record_message(conn, "test-sess", "assistant", "Fixed the login bug and added tests")
+        conn.commit()
+        loop = self._make_loop_dict(prompt="Fix bugs in the login system", started_at="2000-01-01 00:00:00")
+        context = _build_loop_context(conn, loop, "test-sess")
+        self.assertIn("Fixed the login bug", context)
+        conn.close()
+
+    def test_build_loop_context_empty_when_no_data(self):
+        from hooks import _build_loop_context
+        conn = make_db()
+        from db import ensure_session
+        ensure_session(conn, "test-sess")
+        conn.commit()
+        loop = self._make_loop_dict(prompt="something obscure xyzzyx")
+        context = _build_loop_context(conn, loop, "test-sess")
+        self.assertEqual(context, "")
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Export Tests
+# ---------------------------------------------------------------------------
+
+
+class TestExport(unittest.TestCase):
+    """Test export.py rendering functions."""
+
+    def test_export_session_basic(self):
+        from export import export_session
+        conn = make_db()
+        from db import ensure_session, record_message, record_summary
+        ensure_session(conn, "exp-sess")
+        record_message(conn, "exp-sess", "user", "How do I fix this?")
+        record_message(conn, "exp-sess", "assistant", "Here's the fix...")
+        record_summary(conn, "exp-sess", title="Fixing a bug")
+        conn.commit()
+        md = export_session("exp-sess", conn)
+        self.assertIn("# Session exp-sess", md)
+        self.assertIn("How do I fix this?", md)
+        self.assertIn("Here's the fix...", md)
+        self.assertIn("**Title:** Fixing a bug", md)
+        conn.close()
+
+    def test_export_session_with_tools(self):
+        from export import export_session
+        conn = make_db()
+        from db import ensure_session, record_message
+        ensure_session(conn, "exp-sess")
+        record_message(conn, "exp-sess", "user", "Read the file")
+        meta = {"tool_calls": {"Read": 2}}
+        record_message(conn, "exp-sess", "assistant", "Contents here", meta)
+        conn.commit()
+        md = export_session("exp-sess", conn)
+        self.assertIn("Read (2x)", md)
+        conn.close()
+
+    def test_export_session_no_messages(self):
+        from export import export_session
+        conn = make_db()
+        from db import ensure_session
+        ensure_session(conn, "exp-empty")
+        conn.commit()
+        md = export_session("exp-empty", conn)
+        self.assertIsNone(md)
+        conn.close()
+
+    def test_export_session_not_found(self):
+        from export import export_session
+        conn = make_db()
+        md = export_session("nonexistent", conn)
+        self.assertIsNone(md)
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Summarize Tests
+# ---------------------------------------------------------------------------
+
+
+class TestSummarize(unittest.TestCase):
+    """Test summarize.py pair extraction and summary storage."""
+
+    def test_get_pairs_basic(self):
+        import db as db_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = os.path.join(tmpdir, ".claude", "larvling.db")
+            os.makedirs(os.path.dirname(test_db))
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            from db import create_schema, ensure_session, record_message
+            create_schema(conn)
+            ensure_session(conn, "pair-sess")
+            record_message(conn, "pair-sess", "user", "What is 2+2?")
+            record_message(conn, "pair-sess", "assistant", "4")
+            record_message(conn, "pair-sess", "user", "And 3+3?")
+            record_message(conn, "pair-sess", "assistant", "6")
+            conn.commit()
+            conn.close()
+
+            with mock.patch.object(db_mod, "DB_PATH", test_db):
+                from summarize import get_pairs
+                pairs = get_pairs("pair-sess")
+            self.assertEqual(len(pairs), 2)
+            self.assertEqual(pairs[0]["user"], "What is 2+2?")
+            self.assertEqual(pairs[0]["agent"], "4")
+            self.assertEqual(pairs[1]["user"], "And 3+3?")
+            self.assertEqual(pairs[1]["agent"], "6")
+
+    def test_get_pairs_not_found(self):
+        import db as db_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = os.path.join(tmpdir, ".claude", "larvling.db")
+            os.makedirs(os.path.dirname(test_db))
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            from db import create_schema
+            create_schema(conn)
+            conn.close()
+
+            with mock.patch.object(db_mod, "DB_PATH", test_db):
+                from summarize import get_pairs
+                pairs = get_pairs("nonexistent")
+            self.assertIsNone(pairs)
+
+    def test_store_and_get_summary(self):
+        import db as db_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = os.path.join(tmpdir, ".claude", "larvling.db")
+            os.makedirs(os.path.dirname(test_db))
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            from db import create_schema, ensure_session, record_message
+            create_schema(conn)
+            ensure_session(conn, "sum-sess")
+            record_message(conn, "sum-sess", "user", "hello")
+            conn.commit()
+            conn.close()
+
+            with mock.patch.object(db_mod, "DB_PATH", test_db):
+                from summarize import store_summary, get_existing_summary
+                store_summary("sum-sess", "This was a productive session")
+                result = get_existing_summary("sum-sess")
+            self.assertEqual(result, "This was a productive session")
+
+
+# ---------------------------------------------------------------------------
+# Dashboard Loop Rendering Tests
+# ---------------------------------------------------------------------------
+
+
+class TestDashboardLoops(unittest.TestCase):
+    """Test loop-specific dashboard rendering functions."""
+
+    def _make_loop_row(self, **overrides):
+        defaults = {
+            "id": 1,
+            "session_id": "test-sess",
+            "prompt": "Build a feature",
+            "status": "active",
+            "iteration": 3,
+            "max_iterations": 10,
+            "completion_promise": "DONE",
+            "started_at": "2025-06-15 14:30:00",
+            "ended_at": None,
+            "outcome": None,
+        }
+        defaults.update(overrides)
+        return defaults
+
+    def test_render_loop_sidebar_item(self):
+        from dashboard import render_loop_sidebar_item
+        loop = self._make_loop_row()
+        html = render_loop_sidebar_item(loop, 0)
+        self.assertIn("loop-entry", html)
+        self.assertIn("loop-status-active", html)
+        self.assertIn("Build a feature", html)
+        self.assertIn("iter 3/10", html)
+        self.assertIn("2025-06-15", html)
+
+    def test_render_loop_detail_active(self):
+        from dashboard import render_loop_detail
+        loop = self._make_loop_row()
+        html = render_loop_detail(loop)
+        self.assertIn("loop-detail", html)
+        self.assertIn("loop-progress-active", html)
+        self.assertIn("Build a feature", html)
+        self.assertIn("DONE", html)
+
+    def test_render_loop_detail_completed(self):
+        from dashboard import render_loop_detail
+        loop = self._make_loop_row(
+            status="completed",
+            ended_at="2025-06-15 15:00:00",
+            outcome="All done"
+        )
+        html = render_loop_detail(loop)
+        self.assertIn("loop-status-completed", html)
+        self.assertIn("All done", html)
+        self.assertNotIn("loop-progress-active", html)
+
+    def test_render_loop_banner_active(self):
+        from dashboard import render_loop_banner
+        loops = [self._make_loop_row()]
+        html = render_loop_banner(loops)
+        self.assertIn("loop-banner", html)
+        self.assertIn("iter 3/10", html)
+
+    def test_render_loop_banner_no_active(self):
+        from dashboard import render_loop_banner
+        loops = [self._make_loop_row(status="completed")]
+        html = render_loop_banner(loops)
+        self.assertEqual(html, "")
+
+    def test_render_loop_detail_unlimited(self):
+        from dashboard import render_loop_detail
+        loop = self._make_loop_row(max_iterations=0, iteration=7)
+        html = render_loop_detail(loop)
+        self.assertIn("iter 7", html)
+        self.assertNotIn("loop-progress-wrap", html)
+
+
+# ---------------------------------------------------------------------------
+# Preflight Update Check Tests
+# ---------------------------------------------------------------------------
+
+
+class TestPreflightUpdateCheck(unittest.TestCase):
+    """Test check_update with mocked network."""
+
+    def test_check_update_no_plugin_json(self):
+        from preflight import check_update
+        with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_ROOT": "/nonexistent"}):
+            result = check_update()
+        self.assertIsNone(result)
+
+    def test_check_update_up_to_date(self):
+        from preflight import check_update
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_dir = os.path.join(tmpdir, ".claude-plugin")
+            os.makedirs(plugin_dir)
+            with open(os.path.join(plugin_dir, "plugin.json"), "w") as f:
+                json.dump({"version": "1.0.0"}, f)
+            with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_ROOT": tmpdir}):
+                resp_data = json.dumps({"tag_name": "v1.0.0"}).encode()
+                mock_resp = mock.MagicMock()
+                mock_resp.read.return_value = resp_data
+                mock_resp.__enter__ = mock.MagicMock(return_value=mock_resp)
+                mock_resp.__exit__ = mock.MagicMock(return_value=False)
+                with mock.patch("urllib.request.urlopen", return_value=mock_resp):
+                    result = check_update()
+        self.assertIsNone(result)
+
+    def test_check_update_newer_available(self):
+        from preflight import check_update
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_dir = os.path.join(tmpdir, ".claude-plugin")
+            os.makedirs(plugin_dir)
+            with open(os.path.join(plugin_dir, "plugin.json"), "w") as f:
+                json.dump({"version": "0.1.0"}, f)
+            with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_ROOT": tmpdir}):
+                resp_data = json.dumps({"tag_name": "v1.0.0"}).encode()
+                mock_resp = mock.MagicMock()
+                mock_resp.read.return_value = resp_data
+                mock_resp.__enter__ = mock.MagicMock(return_value=mock_resp)
+                mock_resp.__exit__ = mock.MagicMock(return_value=False)
+                with mock.patch("urllib.request.urlopen", return_value=mock_resp):
+                    result = check_update()
+        self.assertIsNotNone(result)
+        self.assertIn("update available", result)
+
+    def test_check_update_network_failure(self):
+        from preflight import check_update
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_dir = os.path.join(tmpdir, ".claude-plugin")
+            os.makedirs(plugin_dir)
+            with open(os.path.join(plugin_dir, "plugin.json"), "w") as f:
+                json.dump({"version": "0.1.0"}, f)
+            with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_ROOT": tmpdir}):
+                with mock.patch("urllib.request.urlopen", side_effect=Exception("timeout")):
+                    result = check_update()
+        self.assertIsNone(result)
+
+
+# ---------------------------------------------------------------------------
+# Handle Stop Integration Tests
+# ---------------------------------------------------------------------------
+
+
+class TestHandleStopIntegration(unittest.TestCase):
+    """Test handle_stop with active loops and transcript parsing."""
+
+    def _setup_db(self, tmpdir):
+        test_db = os.path.join(tmpdir, ".claude", "larvling.db")
+        os.makedirs(os.path.dirname(test_db))
+        conn = sqlite3.connect(test_db)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.row_factory = sqlite3.Row
+        from db import create_schema, ensure_session
+        create_schema(conn)
+        ensure_session(conn, "test-sess")
+        conn.commit()
+        conn.close()
+        return test_db
+
+    def test_handle_stop_no_loop_logs_response(self):
+        import db as db_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = self._setup_db(tmpdir)
+            transcript = os.path.join(tmpdir, "transcript.jsonl")
+            with open(transcript, "w", encoding="utf-8") as f:
+                f.write(json.dumps({"type": "user", "message": {"content": "do work"}}) + "\n")
+                f.write(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "I did it"}]}}) + "\n")
+
+            with mock.patch.object(db_mod, "DB_PATH", test_db):
+                from hooks import handle_stop
+                handle_stop({"session_id": "test-sess", "transcript_path": transcript})
+
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            msg = conn.execute("SELECT content FROM messages WHERE role = 'assistant'").fetchone()
+            self.assertIsNotNone(msg)
+            self.assertEqual(msg["content"], "I did it")
+            conn.close()
+
+    def test_handle_stop_active_loop_blocks_exit(self):
+        import db as db_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = self._setup_db(tmpdir)
+            # Create active loop
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            from db import create_loop
+            create_loop(conn, "test-sess", "Build feature X", 5, "FEATURE_DONE")
+            conn.commit()
+            conn.close()
+
+            transcript = os.path.join(tmpdir, "transcript.jsonl")
+            with open(transcript, "w", encoding="utf-8") as f:
+                f.write(json.dumps({"type": "user", "message": {"content": "start"}}) + "\n")
+                f.write(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Working on it"}]}}) + "\n")
+
+            captured = io.StringIO()
+            with mock.patch.object(db_mod, "DB_PATH", test_db), \
+                 mock.patch("sys.stdout", captured):
+                from hooks import handle_stop
+                handle_stop({"session_id": "test-sess", "transcript_path": transcript})
+
+            output = captured.getvalue()
+            block = json.loads(output)
+            self.assertEqual(block["decision"], "block")
+            self.assertEqual(block["reason"], "Build feature X")
+            self.assertIn("Loop iteration", block["systemMessage"])
+
+            # Verify iteration was incremented
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            loop = conn.execute("SELECT iteration FROM loops WHERE status = 'active'").fetchone()
+            self.assertEqual(loop["iteration"], 2)
+            conn.close()
+
+    def test_handle_stop_loop_completes_on_promise(self):
+        import db as db_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = self._setup_db(tmpdir)
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            from db import create_loop
+            create_loop(conn, "test-sess", "Build it", 5, "ALL_DONE")
+            conn.commit()
+            conn.close()
+
+            transcript = os.path.join(tmpdir, "transcript.jsonl")
+            with open(transcript, "w", encoding="utf-8") as f:
+                f.write(json.dumps({"type": "user", "message": {"content": "go"}}) + "\n")
+                f.write(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Finished! <promise>ALL_DONE</promise>"}]}}) + "\n")
+
+            captured = io.StringIO()
+            with mock.patch.object(db_mod, "DB_PATH", test_db), \
+                 mock.patch("sys.stdout", captured):
+                from hooks import handle_stop
+                handle_stop({"session_id": "test-sess", "transcript_path": transcript})
+
+            # Should NOT block exit — no output expected
+            output = captured.getvalue().strip()
+            self.assertEqual(output, "")
+
+            # Verify loop is completed
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            loop = conn.execute("SELECT status, outcome FROM loops").fetchone()
+            self.assertEqual(loop["status"], "completed")
+            self.assertEqual(loop["outcome"], "ALL_DONE")
+            conn.close()
+
+
 if __name__ == "__main__":
     unittest.main()
