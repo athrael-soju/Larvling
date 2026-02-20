@@ -28,8 +28,10 @@ def cmd_start(args):
         if args[i] == "--max-iterations" and i + 1 < len(args):
             try:
                 max_iterations = int(args[i + 1])
+                if max_iterations < 0:
+                    raise ValueError
             except ValueError:
-                print("Error: --max-iterations must be a number", file=sys.stderr)
+                print("Error: --max-iterations must be a non-negative number", file=sys.stderr)
                 sys.exit(1)
             i += 2
         elif args[i] == "--completion-promise" and i + 1 < len(args):
@@ -91,7 +93,12 @@ def cmd_cancel(args):
             print("No active loop to cancel.")
             return
 
+        changes_before = conn.total_changes
         end_loop(conn, loop["id"], "cancelled")
+        if conn.total_changes == changes_before:
+            # Loop was already ended (race with Stop hook)
+            print(f"Loop {loop['id']} was already finished (possibly by the Stop hook).")
+            return
         conn.commit()
         print(f"Loop cancelled (id={loop['id']}, completed {loop['iteration']} iterations)")
 

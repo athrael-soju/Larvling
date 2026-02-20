@@ -312,7 +312,14 @@ def list_sessions(conn, show_summary_status=False):
 
 
 def create_loop(conn, session_id, prompt, max_iterations=0, completion_promise=None):
-    """Insert a new loop row. Returns the loop id."""
+    """Insert a new loop row. Returns the loop id.
+
+    Raises ValueError for invalid inputs.
+    """
+    if not prompt or not prompt.strip():
+        raise ValueError("Loop prompt cannot be empty")
+    if max_iterations < 0:
+        raise ValueError(f"max_iterations must be >= 0, got {max_iterations}")
     cur = conn.execute(
         "INSERT INTO loops (session_id, prompt, max_iterations, completion_promise) "
         "VALUES (?, ?, ?, ?)",
@@ -337,17 +344,22 @@ def get_any_active_loop(conn):
 
 
 def increment_loop(conn, loop_id):
-    """Bump iteration count by 1."""
+    """Bump iteration count by 1. Only affects active loops."""
     conn.execute(
-        "UPDATE loops SET iteration = iteration + 1 WHERE id = ?",
+        "UPDATE loops SET iteration = iteration + 1 "
+        "WHERE id = ? AND status = 'active'",
         (loop_id,),
     )
 
 
 def end_loop(conn, loop_id, status, outcome=None):
-    """Mark a loop as finished with a status and optional outcome."""
+    """Mark a loop as finished with a status and optional outcome.
+
+    Only affects active loops — ending an already-finished loop is a no-op.
+    """
     conn.execute(
-        "UPDATE loops SET status = ?, outcome = ?, ended_at = datetime('now') WHERE id = ?",
+        "UPDATE loops SET status = ?, outcome = ?, ended_at = datetime('now') "
+        "WHERE id = ? AND status = 'active'",
         (status, outcome, loop_id),
     )
 
