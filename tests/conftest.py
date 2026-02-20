@@ -32,8 +32,8 @@ PLATFORM_SPECIFIC_APIS = [
 # Network modules that should not appear in runtime hooks
 NETWORK_MODULES = ["requests", "httpx", "aiohttp", "websocket"]
 
-# Agent scripts are exempt from zero-dep check (they use claude-code-sdk)
-AGENT_SCRIPTS = {"agent_facts.py", "agent_summary.py"}
+# Agent scripts are exempt from zero-dep check (they spawn subagents)
+AGENT_SCRIPTS = {"hook_facts.py", "hook_summary.py"}
 
 
 def make_db():

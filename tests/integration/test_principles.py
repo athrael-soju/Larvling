@@ -40,7 +40,8 @@ class TestPrinciples(unittest.TestCase):
                     if module in ("db", "hooks", "preflight", "dashboard",
                                   "loop", "summarize", "export", "query",
                                   "transcript", "hook_prompt", "hook_stop",
-                                  "hook_end"):
+                                  "hook_end", "hook_facts", "hook_summary",
+                                  "subagent", "facts", "status"):
                         continue
                     if module not in STDLIB_MODULES:
                         violations.append(f"{basename}:{lineno} imports '{module}'")

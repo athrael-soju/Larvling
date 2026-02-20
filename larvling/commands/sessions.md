@@ -6,14 +6,8 @@ arguments:
     description: "Date, keyword, or topic to filter by"
     required: false
 ---
+Use /query to search across session titles, summaries, and message content. Craft SQL based on the user's search term.
 
-**Schema:**
-- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT)`
-- `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT, content TEXT, metadata TEXT)`
+Example: python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "SELECT substr(id,1,8) as id, started_at, title, agent_summary FROM sessions WHERE title LIKE '%keyword%' OR agent_summary LIKE '%keyword%' ORDER BY started_at DESC LIMIT 10"
 
-Search sessions by date, keyword, topic, or any available context. Search across session titles, summaries, and message content as needed. Present results readably.
-
-Run SQL via:
-```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
-```
+Present results readably.

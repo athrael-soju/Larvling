@@ -16,6 +16,7 @@ from db import (
     ensure_session,
     record_message,
     record_summary,
+    reconfigure_stdout,
 )
 from transcript import strip_ide_tags
 
@@ -94,6 +95,7 @@ def _log_error(msg):
 
 
 def main():
+    reconfigure_stdout()
     try:
         raw = sys.stdin.buffer.read().decode("utf-8")
     except Exception as e:

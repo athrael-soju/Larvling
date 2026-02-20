@@ -3,27 +3,24 @@ name: summarize
 description: Generate or view a session summary
 arguments:
   - name: session
-    description: "Session ID (short or full). Pass --list to see sessions, or use 'all' for batch."
+    description: "Session ID (short or full). Pass 'list' to see sessions, or omit to summarize the current session."
     required: false
 ---
+If $ARGUMENTS is "list" or "--list":
+  Run: python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" --list
+  Report the output to the user.
 
-**Schema:** `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT)`
+Otherwise:
+  1. Fetch message pairs:
+     python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" $ARGUMENTS --pairs
+     This prints the conversation pairs as JSON.
 
-Run via:
-```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <args>
-```
+  2. Check for existing summary:
+     python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" $ARGUMENTS --get
 
-Available flags: `--list`, `--get`, `--pairs`, `--store "SUMMARY"`
+  3. Generate a 1-3 sentence summary from the pairs. Focus on what was discussed and accomplished.
 
-## Approach
+  4. Store the summary:
+     python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --store "<summary>"
 
-Summarize incrementally, not all at once:
-
-1. **Pair summaries** — 1-2 sentences per user/agent exchange
-2. **Group summaries** — combine pairs into groups of 3-5, one paragraph each
-3. **Final summary** — combine groups into one cohesive summary covering accomplishments, decisions, and unresolved items
-
-For small sessions (5 or fewer pairs), skip to the final summary. Prepend `[N exchanges]`.
-
-After storing, always display the summary immediately.
+  5. Report the summary to the user.

@@ -6,12 +6,12 @@ arguments:
     description: "Fact ID (e.g. M-001) or keyword to search for"
     required: false
 ---
+1. Find matching facts:
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/facts.py" forget $ARGUMENTS
 
-**Schema:** `facts (id TEXT PK, claim TEXT NOT NULL, domain TEXT, tags TEXT, confidence TEXT DEFAULT 'observed', source TEXT, established TEXT NOT NULL DEFAULT date('now'), confirmed TEXT, expires TEXT, notes TEXT)`
+2. Present the matches to the user. Use AskUserQuestion to confirm which fact(s) to delete.
 
-Find the fact to remove - by ID, keyword, or by asking the user to clarify. Show matching fact(s) and use AskUserQuestion to confirm before deleting.
+3. Delete the confirmed fact:
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "DELETE FROM facts WHERE id = '<confirmed_id>'"
 
-Run SQL via:
-```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
-```
+4. Confirm deletion.

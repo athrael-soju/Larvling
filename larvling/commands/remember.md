@@ -6,14 +6,5 @@ arguments:
     description: "The fact, preference, or decision to remember"
     required: false
 ---
-
-**Schema:** `facts (id TEXT PK, claim TEXT NOT NULL, domain TEXT, tags TEXT, confidence TEXT DEFAULT 'observed', source TEXT, established TEXT NOT NULL DEFAULT date('now'), confirmed TEXT, expires TEXT, notes TEXT)`
-
-Store the given fact, or identify what's worth persisting from available context. Use `M-NNN` format for IDs (auto-increment from the highest existing).
-
-Run SQL via:
-```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
-```
-
-Confirm what was stored.
+Run: python "${CLAUDE_PLUGIN_ROOT}/scripts/facts.py" remember $ARGUMENTS
+Report the results to the user.
