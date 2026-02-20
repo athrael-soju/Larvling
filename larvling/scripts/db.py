@@ -65,7 +65,7 @@ def require_db():
 # Schema creation and versioning
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def get_schema_version(conn):
@@ -144,6 +144,28 @@ def create_schema(conn):
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)"
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS loops (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL REFERENCES sessions(id),
+            prompt TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            iteration INTEGER NOT NULL DEFAULT 1,
+            max_iterations INTEGER NOT NULL DEFAULT 0,
+            completion_promise TEXT,
+            started_at TEXT NOT NULL DEFAULT (datetime('now')),
+            ended_at TEXT,
+            outcome TEXT
+        )
+    """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_loops_session ON loops(session_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_loops_status ON loops(status)"
     )
     conn.commit()
 
@@ -282,6 +304,52 @@ def list_sessions(conn, show_summary_status=False):
             print(f"{short_id}  {date}{dur}{tag}  {title}")
         else:
             print(f"{short_id}  {date}{dur}  {title}")
+
+
+# ---------------------------------------------------------------------------
+# Loop CRUD
+# ---------------------------------------------------------------------------
+
+
+def create_loop(conn, session_id, prompt, max_iterations=0, completion_promise=None):
+    """Insert a new loop row. Returns the loop id."""
+    cur = conn.execute(
+        "INSERT INTO loops (session_id, prompt, max_iterations, completion_promise) "
+        "VALUES (?, ?, ?, ?)",
+        (session_id, prompt, max_iterations, completion_promise),
+    )
+    return cur.lastrowid
+
+
+def get_active_loop(conn, session_id):
+    """Get the active loop for a specific session. Returns Row or None."""
+    return conn.execute(
+        "SELECT * FROM loops WHERE session_id = ? AND status = 'active' LIMIT 1",
+        (session_id,),
+    ).fetchone()
+
+
+def get_any_active_loop(conn):
+    """Get any active loop across all sessions. Returns Row or None."""
+    return conn.execute(
+        "SELECT * FROM loops WHERE status = 'active' LIMIT 1"
+    ).fetchone()
+
+
+def increment_loop(conn, loop_id):
+    """Bump iteration count by 1."""
+    conn.execute(
+        "UPDATE loops SET iteration = iteration + 1 WHERE id = ?",
+        (loop_id,),
+    )
+
+
+def end_loop(conn, loop_id, status, outcome=None):
+    """Mark a loop as finished with a status and optional outcome."""
+    conn.execute(
+        "UPDATE loops SET status = ?, outcome = ?, ended_at = datetime('now') WHERE id = ?",
+        (status, outcome, loop_id),
+    )
 
 
 def print_sessions(**kwargs):

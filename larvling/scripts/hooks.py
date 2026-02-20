@@ -19,6 +19,9 @@ from db import (
     record_message,
     finalize_session,
     record_summary,
+    get_active_loop,
+    increment_loop,
+    end_loop,
 )
 
 
@@ -179,6 +182,29 @@ def handle_session_end(data):
         conn.commit()
 
 
+def _check_loop_completion(loop, response):
+    """Check if a loop should end based on its conditions.
+
+    Returns (status, outcome) if done, or None if the loop should continue.
+    """
+    # Completion promise found in response (checked first — fulfilling the
+    # promise on the last iteration should count as "completed", not "exhausted")
+    if loop["completion_promise"] and response:
+        tag = f"<promise>{loop['completion_promise']}</promise>"
+        if tag in response:
+            return "completed", loop["completion_promise"]
+
+    # No response at all (safety)
+    if not response:
+        return "exhausted", "No response from agent"
+
+    # Max iterations reached
+    if loop["max_iterations"] > 0 and loop["iteration"] >= loop["max_iterations"]:
+        return "exhausted", f"Reached max iterations ({loop['max_iterations']})"
+
+    return None
+
+
 def handle_stop(data):
     """Log the agent's last response from a Stop event."""
     session_id = data.get("session_id")
@@ -190,25 +216,56 @@ def handle_stop(data):
     wait_for_transcript_stable(transcript_path)
 
     response, tools = parse_last_turn(transcript_path)
-    if not response:
-        return
 
     with open_db() as conn:
         ensure_session(conn, session_id)
 
-        # Dedup: skip if we already logged this exact content for this session
-        row = conn.execute(
-            "SELECT content FROM messages "
-            "WHERE session_id = ? AND role = 'assistant' "
-            "ORDER BY id DESC LIMIT 1",
-            (session_id,),
-        ).fetchone()
-        if row and row[0] == response:
-            return
+        # Log the response (if any and not a duplicate)
+        if response:
+            row = conn.execute(
+                "SELECT content FROM messages "
+                "WHERE session_id = ? AND role = 'assistant' "
+                "ORDER BY id DESC LIMIT 1",
+                (session_id,),
+            ).fetchone()
+            if not (row and row[0] == response):
+                meta = {"tool_calls": tools} if tools else None
+                record_message(conn, session_id, "assistant", response, meta)
+                conn.commit()
 
-        meta = {"tool_calls": tools} if tools else None
-        record_message(conn, session_id, "assistant", response, meta)
+        # Loop check
+        loop = get_active_loop(conn, session_id)
+        if not loop:
+            return  # Normal exit
+
+        result = _check_loop_completion(loop, response)
+        if result:
+            status, outcome = result
+            end_loop(conn, loop["id"], status, outcome)
+            conn.commit()
+            return  # Allow exit
+
+        # Loop continues — increment and block exit
+        increment_loop(conn, loop["id"])
         conn.commit()
+
+        # Re-read to get updated iteration
+        updated = conn.execute(
+            "SELECT iteration, max_iterations, prompt FROM loops WHERE id = ?",
+            (loop["id"],),
+        ).fetchone()
+
+        iteration = updated["iteration"]
+        max_iter = updated["max_iterations"]
+        prompt = updated["prompt"]
+        iter_str = f"{iteration}/{max_iter}" if max_iter > 0 else str(iteration)
+
+        block = {
+            "decision": "block",
+            "reason": prompt,
+            "systemMessage": f"Loop iteration {iter_str} | Continue working on the task. Review your previous work in files and git, then proceed.",
+        }
+        print(json.dumps(block))
 
 
 def _log_error(msg):

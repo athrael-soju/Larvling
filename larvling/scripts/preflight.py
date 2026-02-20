@@ -220,6 +220,25 @@ def get_session_context():
                 lines.extend(relevant)
                 lines.append("")
 
+        # Orphaned loop detection
+        orphaned = conn.execute(
+            "SELECT id, session_id, prompt, iteration, max_iterations, started_at "
+            "FROM loops WHERE status = 'active'"
+        ).fetchall()
+        if orphaned:
+            lines.append("## Orphaned Loops")
+            for loop in orphaned:
+                iter_str = (f"{loop['iteration']}/{loop['max_iterations']}"
+                            if loop["max_iterations"] > 0 else str(loop["iteration"]))
+                prompt_preview = (loop["prompt"] or "")[:80]
+                lines.append(
+                    f"- Loop #{loop['id']} (session {loop['session_id'][:8]}, "
+                    f"iter {iter_str}, started {loop['started_at']}): {prompt_preview}"
+                )
+            lines.append("")
+            lines.append("Use `/cancel-loop` to clear orphaned loops.")
+            lines.append("")
+
         # Fallback: if no summaries, show recent data
         if not summaries:
             try:
