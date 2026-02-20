@@ -1,9 +1,9 @@
 ---
 name: loop
-description: Start an iteration loop that blocks Claude from exiting until the task is complete
+description: "Start, cancel, or check status of an iteration loop. Use `/loop cancel` to stop an active loop."
 arguments:
   - name: prompt
-    description: "The task prompt to iterate on. Flags: --max-iterations N, --completion-promise TEXT"
+    description: "The task prompt, or 'cancel'/'status'. Flags: --max-iterations N, --completion-promise TEXT"
     required: true
 ---
 
@@ -14,5 +14,5 @@ Each iteration, relevant facts from the database are automatically surfaced. Use
 **CRITICAL RULE:** Do NOT output a false completion promise. The `<promise>` tag must reflect genuine task completion, not a shortcut to end the loop.
 
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/loop.py" start $ARGUMENTS
+python "${CLAUDE_PLUGIN_ROOT}/scripts/loop.py" $ARGUMENTS
 ```

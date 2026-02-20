@@ -6,12 +6,19 @@ arguments:
     description: "Fact ID (e.g. M-001) or keyword to search for"
     required: false
 ---
+
+Remove a fact from Larvling's memory using `/query`.
+
 1. Find matching facts:
-   python "${CLAUDE_PLUGIN_ROOT}/scripts/facts.py" forget $ARGUMENTS
+   ```
+   /query "SELECT id, claim, domain, tags FROM facts WHERE id = '<search>' OR claim LIKE '%<search>%' OR tags LIKE '%<search>%'"
+   ```
 
 2. Present the matches to the user. Use AskUserQuestion to confirm which fact(s) to delete.
 
 3. Delete the confirmed fact:
-   python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "DELETE FROM facts WHERE id = '<confirmed_id>'"
+   ```
+   /query "DELETE FROM facts WHERE id = '<confirmed_id>'"
+   ```
 
-4. Confirm deletion.
+4. Confirm deletion to the user.

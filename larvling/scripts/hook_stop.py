@@ -14,6 +14,8 @@ from db import (
     escape_like,
     ensure_session,
     record_message,
+    record_summary,
+    finalize_session,
     get_active_loop,
     increment_loop,
     end_loop,
@@ -139,6 +141,31 @@ def _build_loop_context(conn, loop, session_id):
     return "\n\n".join(sections) if sections else ""
 
 
+def handle_session_end(data):
+    """Finalize session timing and record exchange count."""
+    if os.environ.get("LARVLING_AGENT"):
+        return
+
+    session_id = data.get("session_id")
+    if not session_id:
+        return
+
+    with open_db() as conn:
+        ensure_session(conn, session_id)
+        finalize_session(conn, session_id)
+
+        exchange_count = conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
+            (session_id,),
+        ).fetchone()[0]
+
+        record_summary(
+            conn, session_id,
+            exchange_count=exchange_count or None,
+        )
+        conn.commit()
+
+
 def handle_stop(data):
     """Log the agent's last response from a Stop event."""
     if os.environ.get("LARVLING_AGENT"):
@@ -251,7 +278,11 @@ def main():
         _log_error(f"JSON parse failed ({len(raw)} bytes): {e}")
         return
 
-    handle_stop(data)
+    mode = sys.argv[1] if len(sys.argv) > 1 else ""
+    if mode == "end":
+        handle_session_end(data)
+    else:
+        handle_stop(data)
 
 
 if __name__ == "__main__":

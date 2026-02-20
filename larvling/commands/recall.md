@@ -6,5 +6,17 @@ arguments:
     description: "Keyword or topic to search for"
     required: false
 ---
-Run: python "${CLAUDE_PLUGIN_ROOT}/scripts/facts.py" recall $ARGUMENTS
-Report the results to the user.
+
+Search or list facts using `/query`.
+
+If a search term is provided:
+```
+/query "SELECT id, claim, domain, tags FROM facts WHERE claim LIKE '%<search>%' OR tags LIKE '%<search>%' ORDER BY established DESC"
+```
+
+If no search term, list all facts:
+```
+/query "SELECT id, claim, domain, tags FROM facts ORDER BY established DESC"
+```
+
+Present results readably to the user.

@@ -38,7 +38,7 @@
           },
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hook_facts.py\"",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hook_agents.py\" facts",
             "timeout": 60,
             "async": true
           }
@@ -50,12 +50,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hook_end.py\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hook_stop.py\" end && python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"",
             "timeout": 15
           },
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hook_summary.py\"",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hook_agents.py\" summary",
             "timeout": 60,
             "async": true
           }

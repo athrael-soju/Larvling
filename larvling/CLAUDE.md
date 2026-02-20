@@ -10,7 +10,7 @@ When the SessionStart context contains "Larvling - First Run", this is the very 
 - That Larvling is now installed and will quietly remember their sessions
 - A mention of the dashboard at `.claude/dashboard.html` for browsing past conversations
 - That everything is automatic - no setup or extra effort needed
-- Mention the available commands naturally: `/remember` to store a fact, `/recall` to search them, `/forget` to remove one, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/query` for direct SQL access, `/loop` to start an iteration loop, and `/cancel-loop` to stop one
+- Mention the available commands naturally: `/remember` to store a fact, `/recall` to search them, `/forget` to remove one, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/query` for direct SQL access, and `/loop` to start an iteration loop (with `/loop cancel` to stop one)
 - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 
 ## Update Notice
@@ -53,7 +53,7 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 Loops create self-referential iteration cycles. When a loop is active, the Stop hook blocks Claude from exiting and re-feeds the prompt, letting Claude see its previous work in files and git each iteration.
 
 - `/loop "Build X" --max-iterations 5 --completion-promise "DONE"` — start a loop
-- `/cancel-loop` — cancel the active loop
+- `/loop cancel` — cancel the active loop
 - Only one loop can be active at a time
 - Loops end when: max iterations reached (status: `exhausted`), completion promise found in output (status: `completed`), or manually cancelled (status: `cancelled`)
 - To signal completion, output `<promise>PROMISE_TEXT</promise>` in your response

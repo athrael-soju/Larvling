@@ -54,7 +54,7 @@ def cmd_start(args):
             print(f"Error: An active loop already exists (id={existing['id']}, "
                   f"session={existing['session_id'][:8]}, "
                   f"iteration={existing['iteration']})")
-            print("Use /cancel-loop to cancel it first.")
+            print("Use /loop cancel to cancel it first.")
             sys.exit(1)
 
         # Resolve session: prefer env var, fall back to most recent
@@ -130,21 +130,20 @@ def main():
 
     args = sys.argv[1:]
     if not args:
-        print("Usage: loop.py <start|cancel|status> [args...]", file=sys.stderr)
+        print("Usage: loop.py <prompt|cancel|status> [args...]", file=sys.stderr)
         sys.exit(1)
 
     cmd = args[0]
-    rest = args[1:]
 
-    if cmd == "start":
-        cmd_start(rest)
-    elif cmd == "cancel":
-        cmd_cancel(rest)
+    if cmd == "cancel":
+        cmd_cancel(args[1:])
     elif cmd == "status":
-        cmd_status(rest)
+        cmd_status(args[1:])
+    elif cmd == "start":
+        cmd_start(args[1:])
     else:
-        print(f"Unknown subcommand: {cmd}", file=sys.stderr)
-        sys.exit(1)
+        # No recognized subcommand — treat entire args as a start command
+        cmd_start(args)
 
 
 if __name__ == "__main__":
