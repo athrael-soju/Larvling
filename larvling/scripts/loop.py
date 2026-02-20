@@ -4,6 +4,7 @@ Larvling Loop - iteration loop lifecycle management.
 Subcommands: start, cancel, status
 """
 
+import os
 import sys
 
 from db import (
@@ -56,15 +57,16 @@ def cmd_start(args):
             print("Use /cancel-loop to cancel it first.")
             sys.exit(1)
 
-        # Get the most recent session
-        row = conn.execute(
-            "SELECT id FROM sessions ORDER BY started_at DESC LIMIT 1"
-        ).fetchone()
-        if not row:
-            print("Error: No active session found", file=sys.stderr)
-            sys.exit(1)
-
-        session_id = row["id"]
+        # Resolve session: prefer env var, fall back to most recent
+        session_id = os.environ.get("CLAUDE_SESSION_ID")
+        if not session_id:
+            row = conn.execute(
+                "SELECT id FROM sessions ORDER BY started_at DESC LIMIT 1"
+            ).fetchone()
+            if not row:
+                print("Error: No active session found", file=sys.stderr)
+                sys.exit(1)
+            session_id = row["id"]
         loop_id = create_loop(conn, session_id, prompt, max_iterations, completion_promise)
         conn.commit()
 

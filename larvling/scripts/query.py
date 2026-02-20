@@ -9,7 +9,7 @@ Usage:
 import json
 import sys
 
-from db import get_db, require_db, reconfigure_stdout
+from db import open_db, require_db, reconfigure_stdout
 
 
 def format_table(rows):
@@ -53,27 +53,24 @@ def main():
     as_json = "--json" in sys.argv
 
     require_db()
-    conn = get_db()
 
-    try:
-        cursor = conn.execute(sql)
-    except Exception as e:
-        print(f"SQL error: {e}", file=sys.stderr)
-        conn.close()
-        sys.exit(1)
+    with open_db() as conn:
+        try:
+            cursor = conn.execute(sql)
+        except Exception as e:
+            print(f"SQL error: {e}", file=sys.stderr)
+            sys.exit(1)
 
-    # Detect if this is a SELECT (has results) or a write statement
-    if cursor.description:
-        rows = cursor.fetchall()
-        if as_json:
-            print(json.dumps([dict(r) for r in rows], indent=2, default=str))
+        # Detect if this is a SELECT (has results) or a write statement
+        if cursor.description:
+            rows = cursor.fetchall()
+            if as_json:
+                print(json.dumps([dict(r) for r in rows], indent=2, default=str))
+            else:
+                print(format_table(rows))
         else:
-            print(format_table(rows))
-    else:
-        conn.commit()
-        print(f"{cursor.rowcount} row(s) affected.")
-
-    conn.close()
+            conn.commit()
+            print(f"{cursor.rowcount} row(s) affected.")
 
 
 if __name__ == "__main__":

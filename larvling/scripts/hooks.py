@@ -307,6 +307,7 @@ def handle_stop(data):
         ensure_session(conn, session_id)
 
         # Log the response (if any and not a duplicate)
+        logged = False
         if response:
             row = conn.execute(
                 "SELECT content FROM messages "
@@ -317,23 +318,25 @@ def handle_stop(data):
             if not (row and row[0] == response):
                 meta = {"tool_calls": tools} if tools else None
                 record_message(conn, session_id, "assistant", response, meta)
-                conn.commit()
+                logged = True
 
         # Loop check
         loop = get_active_loop(conn, session_id)
         if not loop:
+            if logged:
+                conn.commit()
             return  # Normal exit
 
         result = _check_loop_completion(loop, response)
         if result:
             status, outcome = result
             end_loop(conn, loop["id"], status, outcome)
-            conn.commit()
+            conn.commit()  # commits message + loop end together
             return  # Allow exit
 
         # Loop continues — increment and block exit
         increment_loop(conn, loop["id"])
-        conn.commit()
+        conn.commit()  # commits message + increment together
 
         # Re-read to get updated iteration
         updated = conn.execute(
@@ -354,13 +357,20 @@ def handle_stop(data):
         lid = loop['id']
         system_parts.append(
             "Continue working on the task. Review your previous work in files and git, then proceed.\n\n"
-            "**Manage your iteration knowledge** using `/query` before continuing work:\n"
-            f"- **Insert** new discoveries, challenges, decisions, or blockers as facts\n"
+            "**Before doing any work**, update your progress tracker using `/query`:\n"
+            f"```\n"
+            f"/query \"INSERT OR REPLACE INTO facts (id, claim, domain, tags, source) "
+            f"VALUES ('L{lid}-progress', 'DONE: <completed items> | REMAINING: <remaining items>', "
+            f"'loop-progress', 'loop,progress', 'loop-{lid}')\"\n"
+            f"```\n"
+            "This fact is surfaced each iteration so you know exactly where to pick up.\n\n"
+            "**Manage your iteration knowledge** using `/query`:\n"
+            f"- **Insert** discoveries, challenges, decisions, or blockers as facts\n"
             f"- **Update** facts that are incomplete or need refinement\n"
             f"- **Delete** facts that turned out to be wrong or irrelevant\n"
             f"- ID convention: `L{lid}-I{iteration}-a`, `L{lid}-I{iteration}-b`, etc.\n"
             f"- domain='loop-discovery', source='loop-{lid}'\n"
-            "- These facts are surfaced automatically in subsequent iterations"
+            "- All facts are surfaced automatically in subsequent iterations"
         )
 
         block = {
