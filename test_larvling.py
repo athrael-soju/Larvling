@@ -1362,6 +1362,155 @@ class TestHandleStopIntegration(unittest.TestCase):
             self.assertEqual(loop["outcome"], "ALL_DONE")
             conn.close()
 
+    def test_handle_stop_system_message_includes_fact_management(self):
+        """Verify the block system message includes fact management instructions."""
+        import db as db_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = self._setup_db(tmpdir)
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            from db import create_loop
+            create_loop(conn, "test-sess", "Evolve the framework", 10, "EVOLVED")
+            conn.commit()
+            conn.close()
+
+            transcript = os.path.join(tmpdir, "transcript.jsonl")
+            with open(transcript, "w", encoding="utf-8") as f:
+                f.write(json.dumps({"type": "user", "message": {"content": "go"}}) + "\n")
+                f.write(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Started work"}]}}) + "\n")
+
+            captured = io.StringIO()
+            with mock.patch.object(db_mod, "DB_PATH", test_db), \
+                 mock.patch("sys.stdout", captured):
+                from hooks import handle_stop
+                handle_stop({"session_id": "test-sess", "transcript_path": transcript})
+
+            block = json.loads(captured.getvalue())
+            sys_msg = block["systemMessage"]
+            # Should include progress tracker instructions
+            self.assertIn("progress tracker", sys_msg.lower())
+            self.assertIn("INSERT OR REPLACE", sys_msg)
+            # Should include fact management CRUD instructions
+            self.assertIn("Insert", sys_msg)
+            self.assertIn("Update", sys_msg)
+            self.assertIn("Delete", sys_msg)
+            # Should include ID convention
+            self.assertIn("L", sys_msg)
+            self.assertIn("loop-discovery", sys_msg)
+
+    def test_handle_stop_duplicate_response_not_logged(self):
+        """If the same response was already logged, don't log it again."""
+        import db as db_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = self._setup_db(tmpdir)
+            # Pre-log a response
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            conn.execute(
+                "INSERT INTO messages (session_id, role, content) VALUES ('test-sess', 'assistant', 'Same response')"
+            )
+            conn.commit()
+            conn.close()
+
+            transcript = os.path.join(tmpdir, "transcript.jsonl")
+            with open(transcript, "w", encoding="utf-8") as f:
+                f.write(json.dumps({"type": "user", "message": {"content": "do it"}}) + "\n")
+                f.write(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Same response"}]}}) + "\n")
+
+            with mock.patch.object(db_mod, "DB_PATH", test_db):
+                from hooks import handle_stop
+                handle_stop({"session_id": "test-sess", "transcript_path": transcript})
+
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            count = conn.execute("SELECT COUNT(*) FROM messages WHERE role = 'assistant'").fetchone()[0]
+            self.assertEqual(count, 1)  # Should still be just 1, not duplicated
+            conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Hooks Main Dispatch Tests
+# ---------------------------------------------------------------------------
+
+
+class TestHooksDispatch(unittest.TestCase):
+    """Test the main() dispatch function in hooks.py."""
+
+    def test_dispatch_user_prompt_submit(self):
+        from hooks import main as hooks_main
+        import db as db_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = os.path.join(tmpdir, ".claude", "larvling.db")
+            os.makedirs(os.path.dirname(test_db))
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            from db import create_schema
+            create_schema(conn)
+            conn.close()
+
+            data = json.dumps({
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": "dispatch-test",
+                "prompt": "Hello dispatch",
+            })
+            with mock.patch.object(db_mod, "DB_PATH", test_db), \
+                 mock.patch("sys.stdin", mock.MagicMock(buffer=io.BytesIO(data.encode()))):
+                hooks_main()
+
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            msg = conn.execute("SELECT content FROM messages").fetchone()
+            self.assertIsNotNone(msg)
+            self.assertEqual(msg["content"], "Hello dispatch")
+            conn.close()
+
+    def test_dispatch_session_end(self):
+        from hooks import main as hooks_main
+        import db as db_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = os.path.join(tmpdir, ".claude", "larvling.db")
+            os.makedirs(os.path.dirname(test_db))
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            from db import create_schema, ensure_session
+            create_schema(conn)
+            ensure_session(conn, "dispatch-end")
+            conn.commit()
+            conn.close()
+
+            data = json.dumps({
+                "hook_event_name": "SessionEnd",
+                "session_id": "dispatch-end",
+            })
+            with mock.patch.object(db_mod, "DB_PATH", test_db), \
+                 mock.patch("sys.stdin", mock.MagicMock(buffer=io.BytesIO(data.encode()))):
+                hooks_main()
+
+            conn = sqlite3.connect(test_db)
+            conn.row_factory = sqlite3.Row
+            sess = conn.execute("SELECT ended_at FROM sessions WHERE id = 'dispatch-end'").fetchone()
+            self.assertIsNotNone(sess["ended_at"])
+            conn.close()
+
+    def test_dispatch_unknown_event_noop(self):
+        """Unknown events should not raise."""
+        from hooks import main as hooks_main
+        data = json.dumps({"hook_event_name": "SomeUnknownEvent", "session_id": "x"})
+        with mock.patch("sys.stdin", mock.MagicMock(buffer=io.BytesIO(data.encode()))):
+            hooks_main()  # Should not raise
+
+    def test_dispatch_empty_stdin_noop(self):
+        """Empty stdin should not raise."""
+        from hooks import main as hooks_main
+        with mock.patch("sys.stdin", mock.MagicMock(buffer=io.BytesIO(b""))):
+            hooks_main()  # Should not raise
+
+    def test_dispatch_invalid_json_noop(self):
+        """Invalid JSON should not raise (logged to error file)."""
+        from hooks import main as hooks_main
+        with mock.patch("sys.stdin", mock.MagicMock(buffer=io.BytesIO(b"not json{{{"))):
+            hooks_main()  # Should not raise
+
 
 if __name__ == "__main__":
     unittest.main()
