@@ -23,10 +23,7 @@ def get_revision(conn):
     """Compute a revision number from table states."""
     msg = conn.execute("SELECT MAX(id) FROM messages").fetchone()[0] or 0
     sess = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] or 0
-    loop_rev = conn.execute(
-        "SELECT COALESCE(MAX(id),0) + COALESCE(SUM(iteration),0) FROM loops"
-    ).fetchone()[0] or 0
-    return msg + sess + loop_rev
+    return msg + sess
 
 
 def get_sessions(conn):
@@ -72,112 +69,6 @@ def get_sessions(conn):
         )
 
     return sessions
-
-
-def get_loops(conn):
-    """Get all loops, newest first."""
-    return conn.execute(
-        """
-        SELECT id, session_id, prompt, status, iteration,
-               max_iterations, completion_promise, started_at,
-               ended_at, outcome
-        FROM loops
-        ORDER BY started_at DESC
-        """
-    ).fetchall()
-
-
-def render_loop_sidebar_item(loop, index):
-    """Render a compact sidebar entry for a loop."""
-    status = loop["status"]
-    iteration = loop["iteration"]
-    max_iter = loop["max_iterations"]
-    iter_str = f"{iteration}/{max_iter}" if max_iter > 0 else str(iteration)
-    prompt_preview = escape((loop["prompt"] or "")[:80])
-    started = loop["started_at"] or "?"
-    date_part = started.split(" ")[0] if " " in started else started
-    time_part = started.split(" ")[-1][:5] if " " in started else ""
-    lid = loop["id"]
-
-    return f"""<div class="sidebar-item loop-entry" data-lid="{lid}" data-tab="loops">
-        <div class="si-top">
-            <span class="si-date">{escape(date_part)}</span>
-            <span class="si-time">{escape(time_part)}</span>
-            <span class="loop-status loop-status-{escape(status)}">{escape(status)}</span>
-        </div>
-        <div class="si-summary">{prompt_preview}</div>
-        <div class="si-meta">
-            <span>iter {iter_str}</span>
-        </div>
-    </div>"""
-
-
-def render_loop_detail(loop):
-    """Render the detail panel for a loop."""
-    status = loop["status"]
-    iteration = loop["iteration"]
-    max_iter = loop["max_iterations"]
-    iter_str = f"{iteration}/{max_iter}" if max_iter > 0 else str(iteration)
-    started = loop["started_at"] or "?"
-    date_part = started.split(" ")[0] if " " in started else started
-    prompt = escape(loop["prompt"] or "")
-    lid = loop["id"]
-
-    # Duration
-    duration_html = ""
-    if loop["ended_at"] and loop["started_at"]:
-        duration_html = f'<span class="chip">ended {escape(loop["ended_at"][:16])}</span>'
-
-    # Progress bar
-    progress_html = ""
-    if max_iter > 0:
-        pct = min(100, int(iteration / max_iter * 100))
-        pulse = " loop-progress-active" if status == "active" else ""
-        progress_html = f"""<div class="loop-progress-wrap">
-            <div class="loop-progress{pulse}" style="width:{pct}%"></div>
-        </div>"""
-
-    # Promise
-    promise_html = ""
-    if loop["completion_promise"]:
-        promise_html = f'<div class="loop-section"><strong>Completion promise:</strong> <code>{escape(loop["completion_promise"])}</code></div>'
-
-    # Outcome
-    outcome_html = ""
-    if loop["outcome"]:
-        outcome_html = f'<div class="loop-section"><strong>Outcome:</strong> {escape(loop["outcome"])}</div>'
-
-    return f"""<div class="detail-panel loop-detail" data-lid="{lid}" data-tab="loops">
-        <div class="detail-header">
-            <span class="detail-date">{escape(date_part)}</span>
-            <span class="loop-status loop-status-{escape(status)}">{escape(status)}</span>
-            <span class="chip">iter {iter_str}</span>
-            {duration_html}
-            <span class="detail-sid">loop #{lid}</span>
-        </div>
-        {progress_html}
-        <div class="loop-body">
-            <div class="loop-prompt">{prompt}</div>
-            {promise_html}
-            {outcome_html}
-        </div>
-    </div>"""
-
-
-def render_loop_banner(loops):
-    """Render a banner for any active loop."""
-    active = [l for l in loops if l["status"] == "active"]
-    if not active:
-        return ""
-    loop = active[0]
-    iteration = loop["iteration"]
-    max_iter = loop["max_iterations"]
-    iter_str = f"{iteration}/{max_iter}" if max_iter > 0 else str(iteration)
-    prompt_preview = escape((loop["prompt"] or "")[:60])
-    return f"""<div class="loop-banner">
-        <span class="loop-banner-pulse"></span>
-        <span class="loop-banner-text">Loop active &mdash; iter {iter_str} &mdash; {prompt_preview}</span>
-    </div>"""
 
 
 def render_message(msg):
@@ -293,7 +184,7 @@ def get_plugin_version():
         return "?"
 
 
-def render_page(sidebar_html, details_html, revision, **kwargs):
+def render_page(sidebar_html, details_html, revision):
     """Load the HTML template and fill in placeholders."""
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
         template = f.read()
@@ -303,9 +194,6 @@ def render_page(sidebar_html, details_html, revision, **kwargs):
         .replace("{{VERSION}}", get_plugin_version())
         .replace("{{SIDEBAR}}", sidebar_html)
         .replace("{{DETAILS}}", details_html)
-        .replace("{{LOOP_SIDEBAR}}", kwargs.get("loop_sidebar", ""))
-        .replace("{{LOOP_DETAILS}}", kwargs.get("loop_details", ""))
-        .replace("{{LOOP_BANNER}}", kwargs.get("loop_banner", ""))
         .replace("{{REVISION}}", str(revision))
     )
 
@@ -336,25 +224,13 @@ def main():
                 return
 
         sessions = get_sessions(conn)
-        loops = get_loops(conn)
 
         sidebar_html = "\n".join(
             render_sidebar_item(s, i) for i, s in enumerate(sessions)
         )
         details_html = "\n".join(render_detail_panel(s) for s in sessions)
 
-        loop_sidebar = "\n".join(
-            render_loop_sidebar_item(l, i) for i, l in enumerate(loops)
-        )
-        loop_details = "\n".join(render_loop_detail(l) for l in loops)
-        loop_banner = render_loop_banner(loops)
-
-    html = render_page(
-        sidebar_html, details_html, revision,
-        loop_sidebar=loop_sidebar,
-        loop_details=loop_details,
-        loop_banner=loop_banner,
-    )
+    html = render_page(sidebar_html, details_html, revision)
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(html)

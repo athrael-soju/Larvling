@@ -667,18 +667,10 @@ class TestDashboardRendering(unittest.TestCase):
 
     def test_render_page_replaces_placeholders(self):
         from dashboard import render_page
-        html = render_page(
-            "<div>sidebar</div>", "<div>details</div>", 42,
-            loop_sidebar="<div>loops</div>",
-            loop_details="<div>loop detail</div>",
-            loop_banner="<div>banner</div>",
-        )
+        html = render_page("<div>sidebar</div>", "<div>details</div>", 42)
         self.assertNotIn("{{SIDEBAR}}", html)
         self.assertNotIn("{{DETAILS}}", html)
         self.assertNotIn("{{REVISION}}", html)
-        self.assertNotIn("{{LOOP_SIDEBAR}}", html)
-        self.assertNotIn("{{LOOP_DETAILS}}", html)
-        self.assertNotIn("{{LOOP_BANNER}}", html)
         self.assertIn("42", html)
 
     def test_get_revision_changes(self):
@@ -1153,82 +1145,6 @@ class TestSummarize(unittest.TestCase):
                 store_summary("sum-sess", "This was a productive session")
                 result = get_existing_summary("sum-sess")
             self.assertEqual(result, "This was a productive session")
-
-
-# ---------------------------------------------------------------------------
-# Dashboard Loop Rendering Tests
-# ---------------------------------------------------------------------------
-
-
-class TestDashboardLoops(unittest.TestCase):
-    """Test loop-specific dashboard rendering functions."""
-
-    def _make_loop_row(self, **overrides):
-        defaults = {
-            "id": 1,
-            "session_id": "test-sess",
-            "prompt": "Build a feature",
-            "status": "active",
-            "iteration": 3,
-            "max_iterations": 10,
-            "completion_promise": "DONE",
-            "started_at": "2025-06-15 14:30:00",
-            "ended_at": None,
-            "outcome": None,
-        }
-        defaults.update(overrides)
-        return defaults
-
-    def test_render_loop_sidebar_item(self):
-        from dashboard import render_loop_sidebar_item
-        loop = self._make_loop_row()
-        html = render_loop_sidebar_item(loop, 0)
-        self.assertIn("loop-entry", html)
-        self.assertIn("loop-status-active", html)
-        self.assertIn("Build a feature", html)
-        self.assertIn("iter 3/10", html)
-        self.assertIn("2025-06-15", html)
-
-    def test_render_loop_detail_active(self):
-        from dashboard import render_loop_detail
-        loop = self._make_loop_row()
-        html = render_loop_detail(loop)
-        self.assertIn("loop-detail", html)
-        self.assertIn("loop-progress-active", html)
-        self.assertIn("Build a feature", html)
-        self.assertIn("DONE", html)
-
-    def test_render_loop_detail_completed(self):
-        from dashboard import render_loop_detail
-        loop = self._make_loop_row(
-            status="completed",
-            ended_at="2025-06-15 15:00:00",
-            outcome="All done"
-        )
-        html = render_loop_detail(loop)
-        self.assertIn("loop-status-completed", html)
-        self.assertIn("All done", html)
-        self.assertNotIn("loop-progress-active", html)
-
-    def test_render_loop_banner_active(self):
-        from dashboard import render_loop_banner
-        loops = [self._make_loop_row()]
-        html = render_loop_banner(loops)
-        self.assertIn("loop-banner", html)
-        self.assertIn("iter 3/10", html)
-
-    def test_render_loop_banner_no_active(self):
-        from dashboard import render_loop_banner
-        loops = [self._make_loop_row(status="completed")]
-        html = render_loop_banner(loops)
-        self.assertEqual(html, "")
-
-    def test_render_loop_detail_unlimited(self):
-        from dashboard import render_loop_detail
-        loop = self._make_loop_row(max_iterations=0, iteration=7)
-        html = render_loop_detail(loop)
-        self.assertIn("iter 7", html)
-        self.assertNotIn("loop-progress-wrap", html)
 
 
 # ---------------------------------------------------------------------------

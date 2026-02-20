@@ -122,37 +122,6 @@
     .msg-tools { display: flex; gap: 0.35rem; margin-top: 0.4rem; flex-wrap: wrap; }
     .tool-badge { font-size: 0.7rem; padding: 0.1rem 0.4rem; background: rgba(245, 166, 35, 0.08); border: 1px solid rgba(245, 166, 35, 0.25); border-radius: 4px; color: var(--accent2); font-family: monospace; }
 
-    /* Tab bar */
-    .tab-bar { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    .tab-btn { flex: 1; padding: 0.45rem 0; background: none; border: none; color: var(--muted); font-size: 0.75rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
-    .tab-btn:hover { color: var(--text); }
-    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-    /* Loop status badges */
-    .loop-status { font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
-    .loop-status-active { background: rgba(76, 175, 80, 0.15); color: #81c784; animation: pulse-badge 2s ease-in-out infinite; }
-    .loop-status-completed { background: rgba(66, 165, 245, 0.15); color: #64b5f6; }
-    .loop-status-cancelled { background: rgba(158, 158, 158, 0.15); color: #bdbdbd; }
-    .loop-status-exhausted { background: rgba(255, 152, 0, 0.15); color: #ffb74d; }
-    @keyframes pulse-badge { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-
-    /* Loop detail */
-    .loop-detail { padding: 0; }
-    .loop-body { padding: 1.25rem; overflow-y: auto; flex: 1; }
-    .loop-prompt { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-    .loop-section { margin-top: 0.8rem; font-size: 0.8rem; color: var(--muted); }
-    .loop-section code { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 0.78rem; background: rgba(0,0,0,0.3); padding: 0.1rem 0.3rem; border-radius: 3px; }
-
-    /* Loop progress bar */
-    .loop-progress-wrap { height: 4px; background: var(--border); flex-shrink: 0; }
-    .loop-progress { height: 100%; background: var(--accent); transition: width 0.3s; }
-    .loop-progress-active { animation: progress-pulse 2s ease-in-out infinite; }
-    @keyframes progress-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-    /* Loop banner */
-    .loop-banner { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem; background: rgba(76, 175, 80, 0.08); border-bottom: 1px solid rgba(76, 175, 80, 0.2); flex-shrink: 0; font-size: 0.75rem; color: #81c784; }
-    .loop-banner-pulse { width: 8px; height: 8px; border-radius: 50%; background: #81c784; animation: pulse-badge 2s ease-in-out infinite; flex-shrink: 0; }
-    .loop-banner-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -185,11 +154,7 @@
 
 <div class="layout">
     <div class="sidebar" id="sidebar">
-        <div class="tab-bar">
-            <button class="tab-btn active" data-tab="sessions">Sessions</button>
-            <button class="tab-btn" data-tab="loops">Loops</button>
-        </div>
-        <div class="sidebar-controls" data-tab-content="sessions">
+        <div class="sidebar-controls">
             <select id="sort-select">
                 <option value="newest">Newest</option>
                 <option value="oldest">Oldest</option>
@@ -202,18 +167,13 @@
                 <option value="week">This week</option>
             </select>
         </div>
-        <div class="sidebar-list" id="sidebar-list" data-tab-content="sessions">
+        <div class="sidebar-list" id="sidebar-list">
 {{SIDEBAR}}
-        </div>
-        <div class="sidebar-list" id="loop-sidebar-list" data-tab-content="loops" style="display:none">
-{{LOOP_SIDEBAR}}
         </div>
     </div>
     <div class="main" id="main">
-{{LOOP_BANNER}}
         <div class="no-session" id="no-session">Select a session</div>
 {{DETAILS}}
-{{LOOP_DETAILS}}
     </div>
 </div>
 
@@ -247,68 +207,17 @@ function checkTruncation(container) {
 }
 
 function selectSession(sid) {
-    document.querySelectorAll('.sidebar-item:not(.loop-entry)').forEach(function(el) {
+    document.querySelectorAll('.sidebar-item').forEach(function(el) {
         el.classList.toggle('active', el.dataset.sid === sid);
     });
-    document.querySelectorAll('.detail-panel:not(.loop-detail)').forEach(function(el) {
+    document.querySelectorAll('.detail-panel').forEach(function(el) {
         el.classList.toggle('active', el.dataset.sid === sid);
     });
-    document.querySelectorAll('.loop-entry').forEach(function(el) { el.classList.remove('active'); });
-    document.querySelectorAll('.loop-detail').forEach(function(el) { el.classList.remove('active'); });
     var ns = document.getElementById('no-session');
     if (ns) ns.style.display = sid ? 'none' : '';
     var active = document.querySelector('.detail-panel.active');
     if (active) checkTruncation(active);
 }
-
-function selectLoop(lid) {
-    document.querySelectorAll('.loop-entry').forEach(function(el) {
-        el.classList.toggle('active', el.dataset.lid == lid);
-    });
-    document.querySelectorAll('.loop-detail').forEach(function(el) {
-        el.classList.toggle('active', el.dataset.lid == lid);
-    });
-    document.querySelectorAll('.sidebar-item:not(.loop-entry)').forEach(function(el) { el.classList.remove('active'); });
-    document.querySelectorAll('.detail-panel:not(.loop-detail)').forEach(function(el) { el.classList.remove('active'); });
-    var ns = document.getElementById('no-session');
-    if (ns) ns.style.display = lid ? 'none' : '';
-}
-
-function switchTab(tab) {
-    document.querySelectorAll('.tab-btn').forEach(function(btn) {
-        btn.classList.toggle('active', btn.dataset.tab === tab);
-    });
-    document.querySelectorAll('[data-tab-content]').forEach(function(el) {
-        el.style.display = el.dataset.tabContent === tab ? '' : 'none';
-    });
-    // Deselect all when switching tabs
-    document.querySelectorAll('.sidebar-item').forEach(function(el) { el.classList.remove('active'); });
-    document.querySelectorAll('.detail-panel').forEach(function(el) { el.classList.remove('active'); });
-    var ns = document.getElementById('no-session');
-    if (ns) ns.style.display = '';
-    // Auto-select first item in new tab
-    if (tab === 'sessions') {
-        var first = document.querySelector('#sidebar-list .sidebar-item:not([style*="display: none"])');
-        if (first) selectSession(first.dataset.sid);
-    } else if (tab === 'loops') {
-        var first = document.querySelector('#loop-sidebar-list .loop-entry');
-        if (first) selectLoop(first.dataset.lid);
-    }
-    saveState('tab', tab);
-}
-
-document.querySelector('.tab-bar').addEventListener('click', function(e) {
-    var btn = e.target.closest('.tab-btn');
-    if (btn) switchTab(btn.dataset.tab);
-});
-
-document.getElementById('loop-sidebar-list').addEventListener('click', function(e) {
-    var item = e.target.closest('.loop-entry');
-    if (item) {
-        selectLoop(item.dataset.lid);
-        saveState('active-loop', item.dataset.lid);
-    }
-});
 
 function applySort(value) {
     var items = Array.from(list.querySelectorAll('.sidebar-item'));
@@ -508,7 +417,6 @@ document.addEventListener('click', function(e) {
     var filter = localStorage.getItem('larvling-filter');
     var search = localStorage.getItem('larvling-search');
     var sid = localStorage.getItem('larvling-active');
-    var savedTab = localStorage.getItem('larvling-tab');
 
     if (sort) document.getElementById('sort-select').value = sort;
     if (filter) document.getElementById('filter-select').value = filter;
@@ -516,19 +424,11 @@ document.addEventListener('click', function(e) {
 
     applyAll();
 
-    if (savedTab === 'loops') {
-        switchTab('loops');
-        var lid = localStorage.getItem('larvling-active-loop');
-        if (lid && document.querySelector('.loop-entry[data-lid="' + lid + '"]')) {
-            selectLoop(lid);
-        }
+    if (sid && document.querySelector('.sidebar-item[data-sid="' + sid + '"]')) {
+        selectSession(sid);
     } else {
-        if (sid && document.querySelector('.sidebar-item[data-sid="' + sid + '"]')) {
-            selectSession(sid);
-        } else {
-            var first = list.querySelector('.sidebar-item:not([style*="display: none"])');
-            if (first) selectSession(first.dataset.sid);
-        }
+        var first = list.querySelector('.sidebar-item:not([style*="display: none"])');
+        if (first) selectSession(first.dataset.sid);
     }
 
     var savedScroll = localStorage.getItem('larvling-scroll');
