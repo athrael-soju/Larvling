@@ -1,10 +1,7 @@
-"""Larvling async agent hooks — fact extraction and session summarization.
+"""Larvling async fact extraction hook.
 
-Usage:
-    hook_agents.py facts    — Stop hook (async): review last exchange for facts
-    hook_agents.py summary  — SessionEnd hook (async): generate session summary
-
-Both modes read stdin JSON, build a prompt, and spawn a sonnet subagent.
+Invoked by Stop hook (async, 60s timeout). Reads stdin JSON,
+reviews the last exchange, and spawns a subagent for fact management.
 """
 
 import json
@@ -57,8 +54,8 @@ def _handle_facts(data):
     prompt = f"""You are Larvling's fact agent. Review this exchange and manage the fact store.
 
 ## Exchange
-**User:** {user_prompt[:2000]}
-**Agent:** {(agent_response or '')[:2000]}
+**User:** {user_prompt}
+**Agent:** {agent_response or ''}
 
 ## Tasks
 1. Query existing facts for anything relevant: {qpy} "SELECT id, claim FROM facts LIMIT 20"
@@ -73,47 +70,10 @@ Fact ID convention: M-NNN (get next: SELECT id FROM facts WHERE id LIKE 'M-%' OR
     _spawn_agent(prompt, cwd=cwd)
 
 
-def _handle_summary(data):
-    """Generate a concise session summary."""
-    session_id = data.get("session_id", "")
-    if not session_id:
-        return
-    short_id = session_id[:8]
-    cwd = data.get("cwd", os.getcwd())
-
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
-    qpy = f'python "{plugin_root}/scripts/query.py"'
-
-    prompt = f"""You are Larvling's summary agent. Generate a concise session summary.
-
-## Step 1: Check if needed
-Run: {qpy} "SELECT agent_summary, exchange_count FROM sessions WHERE id LIKE '{short_id}%'"
-If agent_summary already exists AND exchange_count < 10, exit (already summarized, short session).
-
-## Step 2: Read messages
-Run: {qpy} "SELECT role, substr(content,1,500) as content FROM messages WHERE session_id LIKE '{short_id}%' ORDER BY id" --json
-
-## Step 3: Generate and store summary
-Write a 1-3 sentence summary capturing what was discussed and accomplished.
-Run: {qpy} "UPDATE sessions SET agent_summary = '<summary>', summary_at = datetime('now'), summary_msg_count = (SELECT COUNT(*) FROM messages WHERE session_id LIKE '{short_id}%') WHERE id LIKE '{short_id}%'"
-
-Output a brief status of what you did."""
-    _spawn_agent(prompt, cwd=cwd)
-
-
 def main():
-    mode = sys.argv[1] if len(sys.argv) > 1 else ""
-
     raw = sys.stdin.buffer.read().decode("utf-8")
     data = json.loads(raw) if raw.strip() else {}
-
-    if mode == "facts":
-        _handle_facts(data)
-    elif mode == "summary":
-        _handle_summary(data)
-    else:
-        print(f"Usage: hook_agents.py <facts|summary>", file=sys.stderr)
-        sys.exit(1)
+    _handle_facts(data)
 
 
 if __name__ == "__main__":

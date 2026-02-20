@@ -71,11 +71,7 @@ Consider whether existing facts need updating based on what the user is saying n
 
 ### Session Summaries
 
-  As the conversation grows, periodically offer to generate a summary using `/summarize`. Before offering, run `/summarize list` to check the summary status - it shows `[summarized X/Y msgs]` where X is how many messages the summary covers and Y is the current count. Only offer when:
-- The session has no summary and has had ~10+ exchanges
-- The summary is stale (current message count is significantly higher than the summarized count)
-
-Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines.
+Use `/summarize` when the user requests it. Do not offer or auto-generate summaries.
 
 ## Interaction Protocol
 

@@ -18,7 +18,7 @@ Resolve the session ID (use `$ARGUMENTS` if provided, otherwise the current sess
 
 2. Read messages:
    ```
-   /query "SELECT role, substr(content,1,500) as content FROM messages WHERE session_id LIKE '<short_id>%' ORDER BY id" --json
+   /query "SELECT role, content FROM messages WHERE session_id LIKE '<short_id>%' ORDER BY id" --json
    ```
 
 3. Generate a 1-3 sentence summary from the messages. Focus on what was discussed and accomplished.
