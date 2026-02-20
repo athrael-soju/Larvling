@@ -10,7 +10,7 @@ When the SessionStart context contains "Larvling - First Run", this is the very 
 - That Larvling is now installed and will quietly remember their sessions
 - A mention of the dashboard at `.claude/dashboard.html` for browsing past conversations
 - That everything is automatic - no setup or extra effort needed
-- Mention the available commands naturally: `/remember` to store a fact, `/recall` to search them, `/forget` to remove one, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/query` for direct SQL access, and `/loop` to orchestrate complex tasks with a team of parallel workers (with `/loop cancel` to shut it down)
+- Mention the available commands naturally: `/remember` to store a fact, `/recall` to search them, `/forget` to remove one, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/query` for direct SQL access, and `/loop` to run autonomous iteration loops on complex tasks (with `/loop cancel` to stop and `/loop status` to check progress)
 - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 
 ## Update Notice
@@ -49,13 +49,15 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 
 ### Iteration Loops
 
-Use `/loop` to run autonomous iteration loops with optional team orchestration, inspired by [Ralph](https://github.com/snarktank/ralph).
+Use `/loop` to run autonomous iteration loops inspired by [Ralph](https://github.com/snarktank/ralph). Each iteration spawns a fresh agent with clean context. Progress persists via Larvling's fact store.
 
-- `/loop "Build X"` — decomposes the task into stories, iterates through them serially or spawns parallel workers
-- `/loop cancel` — shuts down the active loop/team and cleans up loop facts
-- Progress persists across iterations via Larvling's fact store (domain: `loop`) and git commits
-- Each iteration reads facts before starting and writes learnings when done
-- Stories tracked as facts with status: `pending` / `in-progress` / `done` / `blocked`
+- `/loop "Build X"` — decomposes the task into stories, then iterates with a fresh agent per cycle
+- `/loop "Build X" --max-iterations 5` — limit iterations (default: 10)
+- `/loop cancel` — cleans up all loop facts
+- `/loop status` — shows current loop state
+- Each iteration can spawn teams for parallel sub-work within that cycle
+- Stories tracked as facts (domain: `loop`): `pending` / `done` / `blocked`
+- Agents NEVER commit — the user commits when ready
 - Query loop state: `/query "SELECT id, claim FROM facts WHERE domain = 'loop' ORDER BY id"`
 
 ### Facts
