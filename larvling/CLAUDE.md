@@ -10,7 +10,7 @@ When the SessionStart context contains "Larvling - First Run", this is the very 
 - That Larvling is now installed and will quietly remember their sessions
 - A mention of the dashboard at `.claude/dashboard.html` for browsing past conversations
 - That everything is automatic - no setup or extra effort needed
-- Mention the available commands naturally: `/remember` to store a fact, `/recall` to search them, `/forget` to remove one, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/query` for direct SQL access, and `/loop` to run autonomous iteration loops on complex tasks (with `/loop cancel` to stop and `/loop status` to check progress)
+- Mention the available commands naturally: `/remember` to store a fact, `/recall` to search them, `/forget` to remove one, `/summarize` for session summaries, `/export` to save a conversation as markdown, and `/query` for direct SQL access
 - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 
 ## Update Notice
@@ -46,21 +46,6 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 /query "DELETE FROM facts WHERE id = 'M-099'"
 /query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
 ```
-
-### Iteration Loops
-
-Use `/loop` to run autonomous iteration loops inspired by [Ralph](https://github.com/snarktank/ralph). Each iteration spawns a fresh agent with clean context. Progress persists via Larvling's fact store.
-
-- `/loop "Build X"` — decomposes the task into stories, then iterates with a fresh agent per cycle
-- `/loop "Build X" --max-iterations 5` — limit iterations (default: 10)
-- `/loop cancel` — cleans up all loop facts
-- `/loop status` — shows current loop state
-- Each iteration can spawn teams for parallel sub-work within that cycle
-- Each run gets a unique ID (stored in `.claude/larvling-loop-run`), so runs don't collide
-- Stories tracked as facts with status in the `notes` field: `pending` / `done` / `blocked`
-- Learnings, blockers, and decisions also stored as facts under the same run ID
-- Agents NEVER commit — the user commits when ready
-- Query loop state: `/query "SELECT id, claim, notes AS status FROM facts WHERE source LIKE 'loop-%' ORDER BY id"`
 
 ### Facts
 

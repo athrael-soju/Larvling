@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 
-from db import open_db
+from db import open_db, log_error
 from transcript import parse_last_turn
 
 
@@ -74,8 +74,21 @@ def main():
     if os.environ.get("LARVLING_AGENT"):
         return
 
-    raw = sys.stdin.buffer.read().decode("utf-8")
-    data = json.loads(raw) if raw.strip() else {}
+    try:
+        raw = sys.stdin.buffer.read().decode("utf-8")
+    except Exception as e:
+        log_error(f"hook_agents stdin read failed: {e}")
+        return
+
+    if not raw.strip():
+        return
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        log_error(f"hook_agents JSON parse failed ({len(raw)} bytes): {e}")
+        return
+
     _handle_facts(data)
 
 

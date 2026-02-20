@@ -105,18 +105,14 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 
 ## Commands
 
-| Command        | What it does                                                          |
-| -------------- | --------------------------------------------------------------------- |
-| `/remember`    | Store a fact, preference, or decision that persists across sessions   |
-| `/recall`      | Search stored facts by keyword, topic, or context                     |
-| `/forget`      | Remove a stored fact (with confirmation)                              |
-| `/sessions`    | Browse and search past sessions by date, keyword, or topic            |
-| `/summarize`   | Generate or view an LLM-written session summary                      |
-| `/export`      | Export a session conversation to markdown                             |
-| `/status`      | Quick overview of Larvling's state (counts, DB size, version)         |
-| `/query`       | Run arbitrary SQL against larvling.db                                 |
-| `/loop`        | Start an iteration loop that blocks exit until the task is complete   |
-| `/cancel-loop` | Cancel the active iteration loop                                     |
+| Command      | What it does                                                        |
+| ------------ | ------------------------------------------------------------------- |
+| `/remember`  | Store a fact, preference, or decision that persists across sessions |
+| `/recall`    | Search stored facts by keyword, topic, or context                   |
+| `/forget`    | Remove a stored fact (with confirmation)                            |
+| `/summarize` | Generate or view an LLM-written session summary                    |
+| `/export`    | Export a session conversation to markdown                           |
+| `/query`     | Run arbitrary SQL against larvling.db                               |
 
 ## Dashboard
 
@@ -140,16 +136,12 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 | `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context     |
 | `larvling/scripts/transcript.py`           | Transcript parsing utilities                                     |
 | `larvling/scripts/hook_prompt.py`          | Handles prompt logging and fact injection                        |
-| `larvling/scripts/hook_stop.py`            | Handles response capture and loop management                     |
-| `larvling/scripts/hook_end.py`             | Handles session end timing                                       |
-| `larvling/scripts/agent_facts.py`          | Background agent for auto-extracting facts                       |
-| `larvling/scripts/agent_summary.py`        | Background agent for auto-generating summaries                   |
+| `larvling/scripts/hook_stop.py`            | Handles response capture and session end                         |
+| `larvling/scripts/hook_agents.py`          | Async fact extraction via spawned subagent                       |
 | `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                      |
 | `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard                           |
-| `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries          |
 | `larvling/scripts/export.py`               | Exports a session conversation to markdown                       |
 | `larvling/scripts/query.py`                | Runs arbitrary SQL against larvling.db                           |
-| `larvling/scripts/loop.py`                 | Iteration loop lifecycle (start, cancel, status)                 |
 | `larvling/commands/*.md`                   | Slash command definitions (remember, recall, forget, etc.)       |
 | `larvling/CLAUDE.md`                       | Instructions for the agent                                       |
 
@@ -176,7 +168,7 @@ rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/d
 
 All data stays local in the project's `.claude/` directory:
 
-- `larvling.db` - SQLite database (WAL mode) with sessions, messages, facts, and loops
+- `larvling.db` - SQLite database (WAL mode) with sessions, messages, and facts
 - `dashboard.html` - static HTML dashboard, refreshed automatically
 
 When the plugin updates with schema changes, Larvling automatically backs up your database and guides the agent through the migration - your data is preserved.
