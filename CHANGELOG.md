@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.2.0](https://github.com/athrael-soju/Larvling/compare/v0.1.0...v0.2.0) (2026-02-21)
+
+
+### Features
+
+* add fact management docs, loops to status, expand to 109 tests ([ab91c8a](https://github.com/athrael-soju/Larvling/commit/ab91c8a7de7b956a177306390238991fdfe33847))
+* add factcheck stop hook to enforce fact management before stopping ([8451e3d](https://github.com/athrael-soju/Larvling/commit/8451e3d17d3c30e389ca6522e2ddd0928ec5029c))
+* enhance loop management with input validation and context building ([8551d6e](https://github.com/athrael-soju/Larvling/commit/8551d6e2eece6cb2afad81c4ee7220df840ca2c0))
+* enhance stop handling with detailed iteration management instructions ([f1ccf0f](https://github.com/athrael-soju/Larvling/commit/f1ccf0fa8544896d2afa94e56c8de96d52323cdd))
+* fix connection leak, improve session resolution, add 70-test suite ([17f7283](https://github.com/athrael-soju/Larvling/commit/17f728390a89bfc7b7905d10d4f089dea637c669))
+* guarantee loop facts surface via source-based query ([ec3d2bc](https://github.com/athrael-soju/Larvling/commit/ec3d2bc60fb3d145163add017044bbfab9047d82))
+* implement dynamic fact management system with new factcheck script ([03ef752](https://github.com/athrael-soju/Larvling/commit/03ef752692029ee0cfb1da604c88b53435a340d9))
+* implement iteration loop functionality with start, cancel, and status commands ([e4d22a5](https://github.com/athrael-soju/Larvling/commit/e4d22a55ddb52d9d75a1ac9d7bdc72429a06de2d))
+* implement marker file for fact queries in query script ([580c0aa](https://github.com/athrael-soju/Larvling/commit/580c0aa4b2ce75a4a5a19cf4d3a40b70c442af9a))
+
+
+### Refactoring
+
+* remove loop functionality and related documentation ([863a0ae](https://github.com/athrael-soju/Larvling/commit/863a0aeb577607295e14dec1b13b62f4159d7456))
+* remove loop functionality and related documentation ([927c068](https://github.com/athrael-soju/Larvling/commit/927c068b99a0862412e69402c2d8042a206d232f))
+* strip loops tab from dashboard (-10.4 KB) ([baac8c1](https://github.com/athrael-soju/Larvling/commit/baac8c1097dfbb8c05020ff34e12d523a1e9bb5a))
+
+
+### Documentation
+
+* add loop commands, loop.py to README ([da041ba](https://github.com/athrael-soju/Larvling/commit/da041ba7f6e995ea30043d93949be5da2556e75e))
+
 ## [0.1.0](https://github.com/athrael-soju/Larvling/compare/v0.0.1...v0.1.0) (2026-02-19)
 
 
