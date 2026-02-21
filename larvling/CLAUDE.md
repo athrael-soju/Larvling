@@ -49,13 +49,11 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 
 ### Facts
 
-Larvling stores persistent facts in the `facts` table. Fact management is split across two hooks:
+Larvling stores persistent facts in the `facts` table. Two mechanisms handle fact management:
 
-**UserPromptSubmit → Fact Lookup (read):** Search for facts relevant to the user's prompt before responding. Weave relevant facts into your response naturally.
+**UserPromptSubmit → Fact Context (read):** The `## Fact Context` directive prints on every exchange with the `query.py` path and fact count. Search for relevant facts and weave them into your response naturally.
 
-**Stop → Fact Update (write):** After responding, review the conversation and update facts — INSERT new ones, UPDATE refined ones, DELETE wrong ones. Use `M-NNN` IDs. Never mention fact management to the user.
-
-Both hooks print the `query.py` path, fact count, and column list.
+**Stop → Automatic extraction (write):** `extract_facts.py` runs as a command hook after every response. It reads the last exchange from the transcript, calls Haiku via the Agent SDK to identify storable facts, and writes them directly to SQLite. This runs automatically — no agent action needed during the response turn.
 
 **Manual commands** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
 

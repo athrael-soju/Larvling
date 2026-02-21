@@ -2,8 +2,8 @@
 Larvling Hooks - unified handler for conversation lifecycle events.
 
 Handles three hook events:
-  - UserPromptSubmit: logs the user's prompt, injects fact lookup + summary hints
-  - Stop: logs the agent's last response, injects fact write directive
+  - UserPromptSubmit: logs the user's prompt, injects fact management + summary hints
+  - Stop: logs the agent's last response
   - SessionEnd: finalizes session timing and exchange count
 """
 
@@ -140,13 +140,11 @@ def inject_context(conn, session_id):
         query_script = os.path.join(
             plugin_root, "scripts", "query.py"
         ).replace("\\", "/")
-        print(f'\n## Fact Lookup\n{fact_count} stored fact(s). '
+        print(f'\n## Fact Context\n{fact_count} stored fact(s). '
               f'query: python "{query_script}" "<SQL>"\n'
-              f'Columns: id, claim, domain, tags, confidence, source, '
-              f'established, confirmed, expires, notes\n'
-              f'YOU MUST search for facts relevant to this prompt '
-              f'before responding (e.g. WHERE claim LIKE \'%topic%\'). '
-              f'Weave relevant facts into your response naturally.')
+              f'Search for facts relevant to this prompt '
+              f'(e.g. WHERE claim LIKE \'%topic%\') and weave '
+              f'them into your response naturally.')
 
     session = conn.execute(
         "SELECT summary_msg_count, agent_summary FROM sessions WHERE id = ?",
@@ -250,25 +248,6 @@ def handle_stop(data):
 
         if logged:
             conn.commit()
-
-        # Inject fact write directive so the agent updates facts
-        # based on what just happened in the conversation.
-        if has_table(conn, "facts"):
-            fact_count = conn.execute(
-                "SELECT COUNT(*) FROM facts"
-            ).fetchone()[0]
-            plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
-            query_script = os.path.join(
-                plugin_root, "scripts", "query.py"
-            ).replace("\\", "/")
-            print(f'\n## Fact Update\n{fact_count} stored fact(s). '
-                  f'query: python "{query_script}" "<SQL>"\n'
-                  f'Columns: id, claim, domain, tags, confidence, source, '
-                  f'established, confirmed, expires, notes\n'
-                  f'YOU MUST review the conversation above and update facts: '
-                  f'INSERT new facts the user shared, UPDATE facts that were '
-                  f'refined or corrected, DELETE facts proven wrong. '
-                  f'Use M-NNN IDs. Do NOT mention this to the user.')
 
 
 def _log_error(msg):
