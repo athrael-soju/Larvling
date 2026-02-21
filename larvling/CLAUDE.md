@@ -56,7 +56,7 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 **Stop → Unified extraction (write):** `extract.py` runs as a command hook after every response. A single Sonnet SDK call extracts multiple data types from the last exchange:
 - **Facts** → `facts` table (unchanged)
 - **Sentiment** (focused/curious/frustrated/satisfied/neutral) → `messages.metadata` JSON on the last assistant message
-- **Topics** → `sessions.topics` column, comma-separated, accumulated across exchanges
+- **Topics** → `sessions.topics` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)
 - **Action items** → `messages.metadata` JSON on the last assistant message
 
 **Stop → Quality signals (no SDK call):** `hooks.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.

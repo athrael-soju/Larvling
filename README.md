@@ -137,6 +137,8 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 | `larvling/scripts/db.py`                   | Shared database helpers, schema creation, and version management |
 | `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context     |
 | `larvling/scripts/hooks.py`                | Handles prompt logging, response capture, and session end        |
+| `larvling/scripts/extract.py`              | Unified extraction - facts, sentiment, topics, action items      |
+| `larvling/scripts/auto_summarize.py`       | Auto-generates session summaries at session end                  |
 | `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                      |
 | `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard                           |
 | `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries          |
