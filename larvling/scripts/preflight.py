@@ -116,9 +116,9 @@ def get_git_context():
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
             if result.returncode == 0:
                 files.extend(result.stdout.strip().splitlines())
-        except (FileNotFoundError, OSError):
-            return []  # git not available
-        except subprocess.TimeoutExpired:
+        except FileNotFoundError:
+            return []  # git not installed
+        except (OSError, subprocess.TimeoutExpired):
             continue
 
     try:
@@ -324,9 +324,10 @@ def main():
     else:
         print(get_session_context())
 
-    update_notice = check_update()
-    if update_notice:
-        print(f"\n{update_notice}")
+    if result != "migrate":
+        update_notice = check_update()
+        if update_notice:
+            print(f"\n{update_notice}")
 
 
 if __name__ == "__main__":

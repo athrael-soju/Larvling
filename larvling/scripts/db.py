@@ -7,6 +7,7 @@ import json
 import os
 import sqlite3
 import sys
+import time
 from contextlib import contextmanager
 
 PROJECT_ROOT = os.getcwd()
@@ -298,3 +299,13 @@ def print_sessions(**kwargs):
     """Open DB, print session list, close. Passes kwargs to list_sessions."""
     with open_db() as conn:
         list_sessions(conn, **kwargs)
+
+
+def _log(msg):
+    """Append a message to .claude/larvling-errors.log for debugging."""
+    try:
+        log_path = os.path.join(os.getcwd(), ".claude", "larvling-errors.log")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass

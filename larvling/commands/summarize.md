@@ -7,7 +7,7 @@ arguments:
     required: false
 ---
 
-**Schema:** `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT)`
+**Schema:** `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, topics TEXT, quality_signals TEXT)`
 
 Run via:
 ```
@@ -17,6 +17,8 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <args>
 Available flags: `--list`, `--get`, `--pairs`, `--store "SUMMARY"`
 
 ## Approach
+
+0. **Check for existing summary** — run `--get` first. If one exists, display it and use AskUserQuestion to confirm before regenerating.
 
 Summarize incrementally, not all at once:
 

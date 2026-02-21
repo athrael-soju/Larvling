@@ -11,15 +11,14 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
 
-from db import open_db, reconfigure_stdout, record_summary
+from db import open_db, reconfigure_stdout, record_summary, _log
 
 
 def needs_summary(conn, session_id):
     """Check if the session needs a summary.
 
-    Returns (needs, exchange_count, pairs) where needs is True when
+    Returns (needs, exchange_count, pairs, msg_count) where needs is True when
     exchange_count >= 6 AND (no summary OR summary is stale).
     """
     row = conn.execute(
@@ -28,11 +27,11 @@ def needs_summary(conn, session_id):
         (session_id,),
     ).fetchone()
     if not row:
-        return False, 0, []
+        return False, 0, [], 0
 
     exchange_count = row["exchange_count"] or 0
     if exchange_count < 6:
-        return False, exchange_count, []
+        return False, exchange_count, [], 0
 
     msg_count = conn.execute(
         "SELECT COUNT(*) FROM messages WHERE session_id = ? "
@@ -44,7 +43,7 @@ def needs_summary(conn, session_id):
     summary_msg_count = row["summary_msg_count"] or 0
 
     if has_summary and msg_count <= summary_msg_count + 4:
-        return False, exchange_count, []
+        return False, exchange_count, [], msg_count
 
     # Fetch conversation pairs
     rows = conn.execute(
@@ -66,11 +65,12 @@ def needs_summary(conn, session_id):
                 agent_msg = rows[i]["content"] or ""
                 i += 1
         else:
-            agent_msg = rows[i]["content"] or ""
+            # Orphan assistant message — skip
             i += 1
+            continue
         pairs.append((user_msg, agent_msg))
 
-    return True, exchange_count, pairs
+    return True, exchange_count, pairs, msg_count
 
 
 def build_conversation_text(pairs):
@@ -140,7 +140,7 @@ def main():
     try:
         raw = sys.stdin.buffer.read().decode("utf-8")
     except Exception as e:
-        _log_error(f"stdin read failed: {e}")
+        _log(f"stdin read failed: {e}")
         return
 
     if not raw.strip():
@@ -156,7 +156,7 @@ def main():
         return
 
     with open_db() as conn:
-        needed, exchange_count, pairs = needs_summary(conn, session_id)
+        needed, exchange_count, pairs, msg_count = needs_summary(conn, session_id)
 
     if not needed:
         return
@@ -166,34 +166,23 @@ def main():
     try:
         summary = asyncio.run(call_sdk(conversation_text))
     except Exception as e:
-        _log_error(f"Auto-summarize SDK call failed: {e}")
+        _log(f"Auto-summarize SDK call failed: {e}")
         return
 
     if not summary:
         return
-
-    msg_count = sum(1 for u, a in pairs for _ in [u, a] if _)
 
     with open_db() as conn:
         record_summary(
             conn,
             session_id,
             agent_summary=summary,
-            summary_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            summary_at=time.strftime("%Y-%m-%d %H:%M:%S"),
             summary_msg_count=msg_count,
         )
         conn.commit()
 
-    _log_error(f"Auto-summarized session {session_id[:8]} ({exchange_count} exchanges)")
-
-
-def _log_error(msg):
-    try:
-        log_path = os.path.join(os.getcwd(), ".claude", "larvling-errors.log")
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
-    except Exception:
-        pass
+    _log(f"Auto-summarized session {session_id[:8]} ({exchange_count} exchanges)")
 
 
 if __name__ == "__main__":

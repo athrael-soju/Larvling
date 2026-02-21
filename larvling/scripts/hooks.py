@@ -21,6 +21,7 @@ from db import (
     record_message,
     finalize_session,
     record_summary,
+    _log,
 )
 
 
@@ -191,7 +192,10 @@ def handle_user_prompt(data):
             record_summary(conn, session_id, title=prompt)
 
         conn.commit()
-        inject_context(conn, session_id)
+        try:
+            inject_context(conn, session_id)
+        except Exception:
+            pass  # Context injection is non-critical
 
 
 def handle_session_end(data):
@@ -226,7 +230,7 @@ def compute_quality_signals(response_text, tools):
     signals = {}
     if response_text:
         text_lower = response_text.lower()
-        error_keywords = ["error", "failed", "exception", "traceback", "fatal"]
+        error_keywords = ["error:", "failed", "exception", "traceback", "fatal"]
         signals["error_count"] = sum(
             text_lower.count(kw) for kw in error_keywords
         )
@@ -291,16 +295,6 @@ def handle_stop(data):
         conn.commit()
 
 
-def _log_error(msg):
-    """Append an error to .claude/larvling-errors.log for debugging silent failures."""
-    try:
-        log_path = os.path.join(os.getcwd(), ".claude", "larvling-errors.log")
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
-    except Exception:
-        pass
-
-
 def main():
     if os.environ.get("LARVLING_INTERNAL"):
         return
@@ -310,7 +304,7 @@ def main():
     try:
         raw = sys.stdin.buffer.read().decode("utf-8")
     except Exception as e:
-        _log_error(f"stdin read failed: {e}")
+        _log(f"stdin read failed: {e}")
         return
 
     if not raw.strip():
@@ -319,7 +313,7 @@ def main():
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as e:
-        _log_error(f"JSON parse failed ({len(raw)} bytes): {e}")
+        _log(f"JSON parse failed ({len(raw)} bytes): {e}")
         return
 
     event = data.get("hook_event_name", "")

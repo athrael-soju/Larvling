@@ -9,35 +9,17 @@ items in a single SDK call, then writes results to SQLite.
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 
-from db import open_db, has_table, parse_meta, reconfigure_stdout, ensure_session
+from db import open_db, has_table, parse_meta, reconfigure_stdout, ensure_session, _log
 
-# Import parse_last_turn from hooks.py (also extracts tool counts)
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from hooks import parse_last_turn, wait_for_transcript_stable
+from hooks import parse_last_turn, wait_for_transcript_stable, _is_real_user_message
 
 # ---------------------------------------------------------------------------
 # Transcript parsing — extract user text from the last exchange
 # ---------------------------------------------------------------------------
-
-
-def _is_real_user_message(entry):
-    if entry.get("type") != "user":
-        return False
-    msg = entry.get("message", {})
-    if not isinstance(msg, dict):
-        return False
-    content = msg.get("content", "")
-    if isinstance(content, str):
-        return True
-    if isinstance(content, list):
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "tool_result":
-                return False
-        return True
-    return False
 
 
 def parse_last_user_text(transcript_path):
@@ -207,18 +189,22 @@ def store_facts(conn, facts_list):
     return count
 
 
-def store_sentiment(conn, session_id, sentiment):
+def store_sentiment(conn, session_id, sentiment, expected_content=None):
     """Store sentiment in the metadata of the last assistant message."""
     if not sentiment:
         return
 
     row = conn.execute(
-        "SELECT id, metadata FROM messages "
+        "SELECT id, content, metadata FROM messages "
         "WHERE session_id = ? AND role = 'assistant' "
         "ORDER BY id DESC LIMIT 1",
         (session_id,),
     ).fetchone()
     if not row:
+        return
+
+    # Don't attach metadata to a message from a different turn
+    if expected_content and row["content"] != expected_content:
         return
 
     meta = parse_meta(row["metadata"])
@@ -242,7 +228,7 @@ def fetch_existing_topics(conn, session_id):
 def store_topics(conn, session_id, topics):
     """Replace session topics with the model's consolidated list (deduped)."""
     if not topics:
-        return  # Empty model response → keep existing topics
+        return  # Empty model response -> keep existing topics
 
     # Case-insensitive dedup, preserving model's ordering (most relevant first)
     seen = set()
@@ -262,18 +248,22 @@ def store_topics(conn, session_id, topics):
     )
 
 
-def store_action_items(conn, session_id, action_items):
+def store_action_items(conn, session_id, action_items, expected_content=None):
     """Store action items in the metadata of the last assistant message."""
     if not action_items:
         return
 
     row = conn.execute(
-        "SELECT id, metadata FROM messages "
+        "SELECT id, content, metadata FROM messages "
         "WHERE session_id = ? AND role = 'assistant' "
         "ORDER BY id DESC LIMIT 1",
         (session_id,),
     ).fetchone()
     if not row:
+        return
+
+    # Don't attach metadata to a message from a different turn
+    if expected_content and row["content"] != expected_content:
         return
 
     meta = parse_meta(row["metadata"])
@@ -297,7 +287,7 @@ def main():
     try:
         raw = sys.stdin.buffer.read().decode("utf-8")
     except Exception as e:
-        _log_error(f"stdin read failed: {e}")
+        _log(f"stdin read failed: {e}")
         return
 
     if not raw.strip():
@@ -326,7 +316,6 @@ def main():
     if session_id:
         try:
             with open_db() as conn:
-                ensure_session(conn, session_id)
                 existing_topics = fetch_existing_topics(conn, session_id)
         except Exception:
             pass
@@ -334,19 +323,17 @@ def main():
     try:
         response = asyncio.run(call_sdk(user_text, agent_text, existing_topics))
     except Exception as e:
-        _log_error(f"SDK call failed: {e}")
+        _log(f"SDK call failed: {e}")
         return
 
-    # Parse JSON from response
+    # Parse JSON from response, stripping markdown fences if present
     try:
         clean = response.strip()
-        if clean.startswith("```"):
-            clean = "\n".join(clean.split("\n")[1:])
-        if clean.endswith("```"):
-            clean = clean.rsplit("```", 1)[0]
+        clean = re.sub(r"^```\w*\s*", "", clean)
+        clean = re.sub(r"\s*```$", "", clean)
         result = json.loads(clean.strip())
     except json.JSONDecodeError as e:
-        _log_error(f"JSON parse failed: {e}\nResponse: {response[:500]}")
+        _log(f"JSON parse failed: {e}\nResponse: {response[:500]}")
         return
 
     with open_db() as conn:
@@ -361,7 +348,7 @@ def main():
         # Sentiment
         sentiment = result.get("sentiment")
         if session_id and isinstance(sentiment, str):
-            store_sentiment(conn, session_id, sentiment)
+            store_sentiment(conn, session_id, sentiment, expected_content=agent_text)
 
         # Topics
         topics = result.get("topics", [])
@@ -371,12 +358,12 @@ def main():
         # Action items
         action_items = result.get("action_items", [])
         if session_id and isinstance(action_items, list) and action_items:
-            store_action_items(conn, session_id, action_items)
+            store_action_items(conn, session_id, action_items, expected_content=agent_text)
 
         conn.commit()
 
     if stored:
-        _log_error(f"Stored {stored} fact(s)")
+        _log(f"Stored {stored} fact(s)")
 
     extras = []
     if result.get("sentiment"):
@@ -386,16 +373,7 @@ def main():
     if result.get("action_items"):
         extras.append(f"actions={len(result['action_items'])}")
     if extras:
-        _log_error(f"Extraction: {', '.join(extras)}")
-
-
-def _log_error(msg):
-    try:
-        log_path = os.path.join(os.getcwd(), ".claude", "larvling-errors.log")
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
-    except Exception:
-        pass
+        _log(f"Extraction: {', '.join(extras)}")
 
 
 if __name__ == "__main__":

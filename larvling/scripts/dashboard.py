@@ -254,7 +254,7 @@ def main():
         # Skip regeneration if dashboard is already current AND the template hasn't changed
         if os.path.exists(HTML_PATH):
             with open(HTML_PATH, "r", encoding="utf-8") as f:
-                head = f.read(1024)
+                head = f.read(2048)
             template_modified = os.path.getmtime(TEMPLATE_PATH) > os.path.getmtime(
                 HTML_PATH
             )

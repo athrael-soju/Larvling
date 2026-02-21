@@ -14,7 +14,7 @@ Terminology:
 
 import json
 import sys
-from datetime import datetime, timezone
+import time
 
 from db import (
     get_summary,
@@ -63,10 +63,9 @@ def get_pairs(session_id):
                 agent_msg = rows[i]["content"]
                 i += 1
         else:
-            # Orphan assistant message
-            agent_msg = rows[i]["content"]
-            ts = rows[i]["timestamp"]
+            # Orphan assistant message — skip
             i += 1
+            continue
 
         pairs.append(
             {
@@ -92,13 +91,12 @@ def get_existing_summary(session_id):
 
 
 def store_summary(session_id, summary_text):
-    """Store a session summary in the sessions table."""
+    """Store a session summary in the sessions table. Returns session_id or None."""
     with open_db() as conn:
         original = session_id
         session_id = resolve_session(conn, original)
         if not session_id:
-            print(f"No session found matching '{original}'", file=sys.stderr)
-            sys.exit(1)
+            return None
 
         msg_count = conn.execute(
             "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role IN ('user', 'assistant')",
@@ -109,11 +107,12 @@ def store_summary(session_id, summary_text):
             conn,
             session_id,
             agent_summary=summary_text,
-            summary_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            summary_at=time.strftime("%Y-%m-%d %H:%M:%S"),
             summary_msg_count=msg_count,
         )
         conn.commit()
     print(f"Session summary stored for session {session_id[:8]} ({msg_count} messages)")
+    return session_id
 
 
 def main():
@@ -151,7 +150,10 @@ def main():
     elif "--store" in sys.argv:
         idx = sys.argv.index("--store")
         if idx + 1 < len(sys.argv):
-            store_summary(session_id, sys.argv[idx + 1])
+            result = store_summary(session_id, sys.argv[idx + 1])
+            if result is None:
+                print(f"No session found matching '{session_id}'", file=sys.stderr)
+                sys.exit(1)
         else:
             print("Missing summary text after --store", file=sys.stderr)
             sys.exit(1)
