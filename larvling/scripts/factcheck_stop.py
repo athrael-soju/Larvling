@@ -2,8 +2,8 @@
 Larvling Fact Check Stop Hook - enforces fact management.
 
 Blocks the agent from stopping until it has queried the facts table
-using query.py. Complements factcheck.py (UserPromptSubmit) which
-provides pre-response context.
+using query.py. Uses a marker file written by query.py to detect
+that a facts query occurred.
 """
 
 import json
@@ -12,6 +12,9 @@ import sys
 import time
 
 from db import DB_PATH, open_db, reconfigure_stdout
+
+MARKER_PATH = os.path.join(os.getcwd(), ".claude", "factcheck-marker")
+MAX_MARKER_AGE = 120  # seconds
 
 
 def _log_error(msg):
@@ -22,89 +25,6 @@ def _log_error(msg):
             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] factcheck_stop: {msg}\n")
     except Exception:
         pass
-
-
-def wait_for_transcript_stable(transcript_path, interval=0.1, max_wait=2):
-    """Wait until the transcript file stops being written to."""
-    if not transcript_path or not os.path.exists(transcript_path):
-        return
-    last_size = os.path.getsize(transcript_path)
-    waited = 0
-    while waited < max_wait:
-        time.sleep(interval)
-        waited += interval
-        size = os.path.getsize(transcript_path)
-        if size == last_size:
-            return
-        last_size = size
-
-
-def _is_real_user_message(entry):
-    """Return True if this is a genuine user message, not a tool_result."""
-    if entry.get("type") != "user":
-        return False
-    msg = entry.get("message", {})
-    if not isinstance(msg, dict):
-        return False
-    content = msg.get("content", "")
-    if isinstance(content, str):
-        return True
-    if isinstance(content, list):
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "tool_result":
-                return False
-        return True
-    return False
-
-
-def has_fact_query_in_last_turn(transcript_path):
-    """Check if the last turn contains a Bash tool_use with query.py + facts."""
-    if not transcript_path or not os.path.exists(transcript_path):
-        return False
-
-    lines = []
-    with open(transcript_path, "r", encoding="utf-8") as f:
-        for raw_line in f:
-            raw_line = raw_line.strip()
-            if raw_line:
-                lines.append(raw_line)
-
-    # Find where the last turn starts (after the last real user message)
-    turn_start = 0
-    for i in range(len(lines) - 1, -1, -1):
-        try:
-            entry = json.loads(lines[i])
-        except json.JSONDecodeError:
-            continue
-        if _is_real_user_message(entry):
-            turn_start = i + 1
-            break
-
-    # Scan assistant entries in the last turn for Bash tool_use with query.py + facts
-    for line in lines[turn_start:]:
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if entry.get("type") != "assistant":
-            continue
-        msg = entry.get("message", {})
-        content = msg.get("content", "") if isinstance(msg, dict) else ""
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if not isinstance(block, dict):
-                continue
-            if block.get("type") != "tool_use":
-                continue
-            if block.get("name") != "Bash":
-                continue
-            inp = block.get("input", {})
-            command = inp.get("command", "") if isinstance(inp, dict) else ""
-            if "query.py" in command and "facts" in command:
-                return True
-
-    return False
 
 
 def main():
@@ -141,13 +61,16 @@ def main():
         if not has_facts:
             return
 
-    # Wait for transcript to stabilize
-    transcript_path = data.get("transcript_path")
-    wait_for_transcript_stable(transcript_path)
-
-    # Check if the agent already queried facts
-    if has_fact_query_in_last_turn(transcript_path):
-        return
+    # Check for marker file written by query.py
+    if os.path.exists(MARKER_PATH):
+        try:
+            with open(MARKER_PATH, "r", encoding="utf-8") as f:
+                written_at = float(f.read().strip())
+            if time.time() - written_at <= MAX_MARKER_AGE:
+                os.remove(MARKER_PATH)
+                return
+        except Exception as e:
+            _log_error(f"marker read failed: {e}")
 
     # Block: agent hasn't queried facts yet
     plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
