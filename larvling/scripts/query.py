@@ -9,11 +9,8 @@ Usage:
 import json
 import os
 import sys
-import time
 
 from db import open_db, require_db, reconfigure_stdout
-
-MARKER_PATH = os.path.join(os.getcwd(), ".claude", "factcheck-marker")
 
 
 def format_table(rows):
@@ -64,14 +61,6 @@ def main():
         except Exception as e:
             print(f"SQL error: {e}", file=sys.stderr)
             sys.exit(1)
-
-        # Write marker if this query touches the facts table
-        if "facts" in sql.lower():
-            try:
-                with open(MARKER_PATH, "w", encoding="utf-8") as mf:
-                    mf.write(str(time.time()))
-            except Exception:
-                pass
 
         # Detect if this is a SELECT (has results) or a write statement
         if cursor.description:

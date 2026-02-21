@@ -131,7 +131,7 @@ def wait_for_transcript_stable(transcript_path, interval=0.1, max_wait=2):
 
 
 def handle_user_prompt(data):
-    """Log the user's prompt from a UserPromptSubmit event."""
+    """Log the user's prompt and inject fact context."""
     session_id = data.get("session_id")
     if not session_id:
         return
@@ -156,6 +156,19 @@ def handle_user_prompt(data):
 
         conn.commit()
 
+        # Inject fact context so the agent can query and manage facts
+        has_facts = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='facts'"
+        ).fetchone()
+        if has_facts:
+            fact_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
+            plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+            query_script = os.path.join(
+                plugin_root, "scripts", "query.py"
+            ).replace("\\", "/")
+            print(f'\n## Fact Check\n{fact_count} stored fact(s). '
+                  f'query: python "{query_script}" "<SQL>"')
+
 
 def handle_session_end(data):
     """Finalize session timing and record exchange count."""
@@ -173,7 +186,8 @@ def handle_session_end(data):
         ).fetchone()[0]
 
         record_summary(
-            conn, session_id,
+            conn,
+            session_id,
             exchange_count=exchange_count or None,
         )
         conn.commit()
