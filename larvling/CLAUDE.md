@@ -61,11 +61,13 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 
 **Stop → Quality signals (no SDK call):** `hooks.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
 
-**SessionEnd → Auto-summarization:** `auto_summarize.py` runs at session end. If `exchange_count >= 6` and the summary is missing or stale, it calls Sonnet to generate a 2-3 sentence summary and stores it via `record_summary()`.
+**SessionEnd → Auto-summarization:** `auto_summarize.py` runs at session end. If `exchange_count >= 6` and the summary is missing or stale, it calls Sonnet to generate a summary (length scales to conversation size) and stores it via `record_summary()`.
 
 **Manual commands** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
 
 ### Session Summaries
+
+**Auto-summarization** runs at `SessionEnd` for sessions with 6+ exchanges — but only if the session ends gracefully (via `/exit` or Ctrl+C). Simply closing the terminal skips it. When a user is wrapping up a long session, mention that exiting with `/exit` will auto-generate a summary for next time.
 
 `inject_context()` automatically prints a `## Summary` hint when a summary is needed. Thresholds:
 - **No summary yet:** shown when the session reaches 10+ messages

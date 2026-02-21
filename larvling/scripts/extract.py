@@ -97,7 +97,11 @@ Extract ALL of the following:
 2. **sentiment** - Single word for the user's mood in this exchange:
    - One of: focused, curious, frustrated, satisfied, neutral
 
-3. **topics** - Short topic labels for what was discussed (1-4 words each)
+3. **topics** - Updated session topic list (1-4 words each, max ~8 topics).
+   Current session topics: {existing_topics}
+   Return the FULL updated list — merge similar topics, drop topics no longer
+   relevant, and add new topics from this exchange.
+   If current topics is empty, just return new topics from this exchange.
 
 4. **action_items** - Commitments or TODOs mentioned by either party
 
@@ -114,13 +118,14 @@ If nothing to extract for a section, use empty list/string:
 JSON only, no markdown fences."""
 
 
-async def call_sdk(user_text, agent_text):
+async def call_sdk(user_text, agent_text, existing_topics=""):
     """Call Sonnet via Agent SDK to extract facts, sentiment, topics, action items."""
     from claude_code_sdk import query, ClaudeCodeOptions
 
     prompt = EXTRACTION_PROMPT.format(
         user_text=user_text or "(no user text)",
-        agent_text=(agent_text or "(no agent text)")[:2000],
+        agent_text=agent_text or "(no agent text)",
+        existing_topics=existing_topics or "(none)",
     )
 
     options = ClaudeCodeOptions(
@@ -160,14 +165,10 @@ async def call_sdk(user_text, agent_text):
 def get_next_fact_id(conn):
     """Get the next M-NNN id."""
     row = conn.execute(
-        "SELECT id FROM facts ORDER BY CAST(SUBSTR(id, 3) AS INTEGER) DESC LIMIT 1"
+        "SELECT MAX(CAST(SUBSTR(id, 3) AS INTEGER)) FROM facts WHERE id LIKE 'M-%'"
     ).fetchone()
-    if row:
-        try:
-            num = int(row["id"].split("-")[1])
-            return num + 1
-        except (IndexError, ValueError):
-            pass
+    if row and row[0] is not None:
+        return row[0] + 1
     return 1
 
 
@@ -228,40 +229,36 @@ def store_sentiment(conn, session_id, sentiment):
     )
 
 
-def store_topics(conn, session_id, topics):
-    """Accumulate topics into sessions.topics (comma-separated, deduplicated)."""
-    if not topics:
-        return
-
+def fetch_existing_topics(conn, session_id):
+    """Read the current topics string for a session."""
     row = conn.execute(
         "SELECT topics FROM sessions WHERE id = ?", (session_id,)
     ).fetchone()
-    if not row:
-        return
+    if row and row["topics"]:
+        return row["topics"]
+    return ""
 
-    existing = set()
-    if row["topics"]:
-        existing = {t.strip().lower() for t in row["topics"].split(",") if t.strip()}
 
-    new_topics = []
+def store_topics(conn, session_id, topics):
+    """Replace session topics with the model's consolidated list (deduped)."""
+    if not topics:
+        return  # Empty model response → keep existing topics
+
+    # Case-insensitive dedup, preserving model's ordering (most relevant first)
+    seen = set()
+    deduped = []
     for t in topics:
         t_clean = str(t).strip()
-        if t_clean and t_clean.lower() not in existing:
-            new_topics.append(t_clean)
-            existing.add(t_clean.lower())
+        if t_clean and t_clean.lower() not in seen:
+            deduped.append(t_clean)
+            seen.add(t_clean.lower())
 
-    if not new_topics:
+    if not deduped:
         return
-
-    all_topics = row["topics"] or ""
-    if all_topics:
-        all_topics += ", " + ", ".join(new_topics)
-    else:
-        all_topics = ", ".join(new_topics)
 
     conn.execute(
         "UPDATE sessions SET topics = ? WHERE id = ?",
-        (all_topics, session_id),
+        (", ".join(deduped), session_id),
     )
 
 
@@ -299,7 +296,8 @@ def main():
 
     try:
         raw = sys.stdin.buffer.read().decode("utf-8")
-    except Exception:
+    except Exception as e:
+        _log_error(f"stdin read failed: {e}")
         return
 
     if not raw.strip():
@@ -323,8 +321,18 @@ def main():
     if not user_text and not agent_text:
         return
 
+    # Read existing topics before the SDK call (brief read-only access)
+    existing_topics = ""
+    if session_id:
+        try:
+            with open_db() as conn:
+                ensure_session(conn, session_id)
+                existing_topics = fetch_existing_topics(conn, session_id)
+        except Exception:
+            pass
+
     try:
-        response = asyncio.run(call_sdk(user_text, agent_text))
+        response = asyncio.run(call_sdk(user_text, agent_text, existing_topics))
     except Exception as e:
         _log_error(f"SDK call failed: {e}")
         return

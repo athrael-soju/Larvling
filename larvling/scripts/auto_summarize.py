@@ -73,25 +73,25 @@ def needs_summary(conn, session_id):
     return True, exchange_count, pairs
 
 
-def build_conversation_text(pairs, max_chars=3000):
-    """Build a compact conversation representation, truncated to max_chars."""
+def build_conversation_text(pairs):
+    """Build a compact conversation representation."""
     lines = []
     for i, (user, agent) in enumerate(pairs, 1):
-        u = (user or "").strip()[:200]
-        a = (agent or "").strip()[:200]
+        u = (user or "").strip()
+        a = (agent or "").strip()
         lines.append(f"[{i}] User: {u}")
         lines.append(f"    Agent: {a}")
 
-    text = "\n".join(lines)
-    if len(text) > max_chars:
-        text = text[:max_chars] + "\n[...truncated]"
-    return text
+    return "\n".join(lines)
 
 
 SUMMARIZE_PROMPT = """\
-Summarize this coding session in 2-3 sentences. Focus on what was accomplished, \
+Summarize this coding session. Focus on what was accomplished, \
 key decisions made, and any unresolved items. Be specific about technologies, \
 files, or features discussed.
+
+Scale your summary length to the conversation: 2-3 sentences for short sessions, \
+a paragraph for longer ones. Be concise but don't omit important details.
 
 Conversation:
 {conversation}
@@ -114,12 +114,14 @@ async def call_sdk(conversation_text):
     # Prevent the sub-agent from triggering Larvling hooks
     os.environ["LARVLING_INTERNAL"] = "1"
 
+    from claude_code_sdk import AssistantMessage, TextBlock
+
     response_text = ""
     try:
         async for msg in query(prompt=prompt, options=options):
-            if hasattr(msg, "content"):
+            if isinstance(msg, AssistantMessage):
                 for block in msg.content:
-                    if hasattr(block, "text"):
+                    if isinstance(block, TextBlock):
                         response_text += block.text
     except Exception as e:
         if not response_text:
@@ -137,7 +139,8 @@ def main():
 
     try:
         raw = sys.stdin.buffer.read().decode("utf-8")
-    except Exception:
+    except Exception as e:
+        _log_error(f"stdin read failed: {e}")
         return
 
     if not raw.strip():
