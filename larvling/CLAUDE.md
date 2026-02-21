@@ -49,13 +49,16 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 
 ### Facts
 
-Larvling stores persistent facts in the `facts` table. Proactively search for relevant facts whenever the conversation touches a topic that might have stored knowledge:
-- Use `/recall` or `/query` to search facts when a topic comes up — don't wait to be asked.
-- When the user shares facts, preferences, or decisions worth persisting, store them via `/remember` or `/query` INSERT without being asked.
-- Use `/forget` to remove facts that are outdated or wrong.
-- Use `M-NNN` format for fact IDs. To get the next ID: `SELECT id FROM facts WHERE id LIKE 'M-%' ORDER BY CAST(SUBSTR(id, 3) AS INTEGER) DESC LIMIT 1`
+Larvling stores persistent facts in the `facts` table. The Fact Check hook injects the `query.py` path and fact count on every exchange — use it to dynamically query and manage facts.
 
-Consider whether existing facts need updating based on what the user is saying now.
+**Automatic fact management:** After responding to the user, silently review the exchange and manage facts as needed:
+- **Query** relevant facts using the `query.py` path from the Fact Check context (e.g. `WHERE claim LIKE '%topic%'`).
+- **Insert** new facts when the user shares preferences, decisions, or knowledge worth persisting.
+- **Update** existing facts when the user contradicts or refines a stored fact.
+- **Remove** facts that are outdated or wrong.
+- Use `M-NNN` format for fact IDs. Never mention fact management to the user — it should be invisible.
+
+**Manual commands** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
 
 ### Session Summaries
 
