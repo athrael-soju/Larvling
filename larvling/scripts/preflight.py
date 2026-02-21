@@ -309,6 +309,8 @@ def check_update():
 
 
 def main():
+    if os.environ.get("LARVLING_INTERNAL"):
+        return
     reconfigure_stdout()
 
     result = ensure_schema()

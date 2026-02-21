@@ -122,6 +122,21 @@
     .msg-tools { display: flex; gap: 0.35rem; margin-top: 0.4rem; flex-wrap: wrap; }
     .tool-badge { font-size: 0.7rem; padding: 0.1rem 0.4rem; background: rgba(245, 166, 35, 0.08); border: 1px solid rgba(245, 166, 35, 0.25); border-radius: 4px; color: var(--accent2); font-family: monospace; }
 
+    /* Topic chips */
+    .topic-chip { display: inline-block; font-size: 0.65rem; padding: 0.08rem 0.4rem; background: rgba(120, 180, 120, 0.1); border: 1px solid rgba(120, 180, 120, 0.25); border-radius: 10px; color: #8cb88c; margin-right: 0.2rem; }
+    .si-topics { display: flex; gap: 0.2rem; margin-top: 0.2rem; flex-wrap: wrap; }
+    .detail-header .topic-chip { font-size: 0.7rem; }
+
+    /* Sentiment dots */
+    .sentiment-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-left: 0.3rem; vertical-align: middle; }
+    .sentiment-dot.positive { background: #5cb85c; }
+    .sentiment-dot.neutral-s { background: #f0ad4e; }
+    .sentiment-dot.negative { background: #d9534f; }
+
+    /* Action items */
+    .msg-actions { display: flex; gap: 0.3rem; margin-top: 0.3rem; flex-wrap: wrap; }
+    .action-badge { font-size: 0.68rem; padding: 0.1rem 0.4rem; background: rgba(100, 150, 220, 0.1); border: 1px solid rgba(100, 150, 220, 0.25); border-radius: 4px; color: #7baed8; }
+
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

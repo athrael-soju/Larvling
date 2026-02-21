@@ -217,6 +217,29 @@ def handle_session_end(data):
         conn.commit()
 
 
+def compute_quality_signals(response_text, tools):
+    """Compute quality signals from response text and tool counts.
+
+    Returns a dict with error_count, retry_count, and total_tool_calls.
+    Pure Python — no SDK call, no added latency.
+    """
+    signals = {}
+    if response_text:
+        text_lower = response_text.lower()
+        error_keywords = ["error", "failed", "exception", "traceback", "fatal"]
+        signals["error_count"] = sum(
+            text_lower.count(kw) for kw in error_keywords
+        )
+        retry_patterns = ["let me try again", "trying a different", "let me retry",
+                          "try another approach", "try a different"]
+        signals["retry_count"] = sum(
+            text_lower.count(pat) for pat in retry_patterns
+        )
+    if tools:
+        signals["total_tool_calls"] = sum(tools.values())
+    return signals
+
+
 def handle_stop(data):
     """Log the agent's last response from a Stop event."""
     session_id = data.get("session_id")
@@ -233,7 +256,6 @@ def handle_stop(data):
         ensure_session(conn, session_id)
 
         # Log the response (if any and not a duplicate)
-        logged = False
         if response:
             row = conn.execute(
                 "SELECT content FROM messages "
@@ -244,10 +266,29 @@ def handle_stop(data):
             if not (row and row[0] == response):
                 meta = {"tool_calls": tools} if tools else None
                 record_message(conn, session_id, "assistant", response, meta)
-                logged = True
 
-        if logged:
-            conn.commit()
+        # Accumulate quality signals
+        signals = compute_quality_signals(response, tools)
+        if signals:
+            sess = conn.execute(
+                "SELECT quality_signals FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+            if sess:
+                existing = {}
+                if sess["quality_signals"]:
+                    try:
+                        existing = json.loads(sess["quality_signals"])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                for key, val in signals.items():
+                    existing[key] = existing.get(key, 0) + val
+                conn.execute(
+                    "UPDATE sessions SET quality_signals = ? WHERE id = ?",
+                    (json.dumps(existing), session_id),
+                )
+
+        conn.commit()
 
 
 def _log_error(msg):
@@ -261,6 +302,8 @@ def _log_error(msg):
 
 
 def main():
+    if os.environ.get("LARVLING_INTERNAL"):
+        return
     reconfigure_stdout()
     # Read stdin as bytes to avoid Windows text-mode encoding issues (cp1252)
     # that can corrupt or hang on large payloads exceeding the 4KB pipe buffer.

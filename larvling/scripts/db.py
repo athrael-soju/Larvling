@@ -73,7 +73,7 @@ def has_table(conn, name):
 # Schema creation and versioning
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 def get_schema_version(conn):
@@ -118,7 +118,9 @@ def create_schema(conn):
             agent_summary TEXT,
             exchange_count INTEGER,
             summary_at TEXT,
-            summary_msg_count INTEGER
+            summary_msg_count INTEGER,
+            topics TEXT,
+            quality_signals TEXT
         )
     """
     )

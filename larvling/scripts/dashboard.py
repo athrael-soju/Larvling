@@ -35,7 +35,8 @@ def get_sessions(conn):
     sessions_rows = conn.execute(
         """
         SELECT id, started_at, ended_at, duration_min,
-               title, agent_summary, exchange_count
+               title, agent_summary, exchange_count,
+               topics, quality_signals
         FROM sessions
         ORDER BY started_at DESC
         """
@@ -64,6 +65,8 @@ def get_sessions(conn):
                     "duration_min": sess["duration_min"],
                     "title": sess["title"],
                     "agent_summary": sess["agent_summary"],
+                    "topics": sess["topics"],
+                    "quality_signals": sess["quality_signals"],
                 },
             }
         )
@@ -94,10 +97,31 @@ def render_message(msg):
                 for name, count in tool_calls.items()
             )
             tools_html = f'<div class="msg-tools">{badges}</div>'
+
+        sentiment = meta.get("sentiment", "")
+        sentiment_html = ""
+        if sentiment:
+            sentiment_class = {
+                "satisfied": "positive", "curious": "positive",
+                "focused": "neutral-s", "neutral": "neutral-s",
+                "frustrated": "negative",
+            }.get(sentiment, "neutral-s")
+            sentiment_html = f'<span class="sentiment-dot {sentiment_class}" title="{escape(sentiment)}"></span>'
+
+        action_items = meta.get("action_items", [])
+        actions_html = ""
+        if action_items:
+            items = " ".join(
+                f'<span class="action-badge">{escape(str(a))}</span>'
+                for a in action_items[:5]
+            )
+            actions_html = f'<div class="msg-actions">{items}</div>'
+
         return f"""<div class="msg msg-agent">
-            <div class="msg-header"><span class="msg-role">Agent</span><span class="msg-time">{escape(time_short)}</span></div>
+            <div class="msg-header"><span class="msg-role">Agent</span>{sentiment_html}<span class="msg-time">{escape(time_short)}</span></div>
             <div class="msg-body">{content}</div>
             {tools_html}
+            {actions_html}
         </div>"""
     else:
         return f"""<div class="msg msg-system">
@@ -125,7 +149,19 @@ def render_sidebar_item(session, index):
         if agent_summary
         else ""
     )
-    return f"""<div class="sidebar-item {active}" data-sid="{sid}" data-started="{escape(started)}" data-ended="{escape(ended)}" data-msgs="{session['msg_count']}" data-duration="{duration}">
+
+    topics = meta.get("topics") or ""
+    topics_html = ""
+    if topics:
+        topic_list = [t.strip() for t in topics.split(",") if t.strip()][:4]
+        topic_chips = " ".join(
+            f'<span class="topic-chip">{escape(t)}</span>' for t in topic_list
+        )
+        topics_html = f'<div class="si-topics">{topic_chips}</div>'
+
+    topics_attr = f' data-topics="{escape(topics)}"' if topics else ""
+
+    return f"""<div class="sidebar-item {active}" data-sid="{sid}" data-started="{escape(started)}" data-ended="{escape(ended)}" data-msgs="{session['msg_count']}" data-duration="{duration}"{topics_attr}>
         <div class="si-top">
             <span class="si-date">{escape(date_part)}</span>
             <span class="si-time">{escape(time_part)}</span>
@@ -138,6 +174,7 @@ def render_sidebar_item(session, index):
             </span>
         </div>
         <div class="si-summary">{summary}</div>
+        {topics_html}
         <div class="si-meta">
             <span>{session['msg_count']} msgs</span>
             {f'<span>{duration_str}</span>' if duration_str else ''}
@@ -158,6 +195,13 @@ def render_detail_panel(session):
     chips = []
     if duration_str:
         chips.append(f'<span class="chip">{duration_str}</span>')
+
+    topics = meta.get("topics") or ""
+    if topics:
+        topic_list = [t.strip() for t in topics.split(",") if t.strip()][:6]
+        for t in topic_list:
+            chips.append(f'<span class="chip topic-chip">{escape(t)}</span>')
+
     chips_html = " ".join(chips)
 
     msgs = [render_message(m) for m in session["messages"]]
@@ -199,6 +243,8 @@ def render_page(sidebar_html, details_html, revision):
 
 
 def main():
+    if os.environ.get("LARVLING_INTERNAL"):
+        return
     require_db()
     reconfigure_stdout()
 

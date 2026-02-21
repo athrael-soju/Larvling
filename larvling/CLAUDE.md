@@ -32,7 +32,7 @@ Review the context Larvling injects at session start - it's your memory of what 
 Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on conversation context.
 
 **Schema:**
-- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT)`
+- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, topics TEXT, quality_signals TEXT)`
 - `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT, content TEXT, metadata TEXT)`
 - `facts (id TEXT PK, claim TEXT NOT NULL, domain TEXT, tags TEXT, confidence TEXT DEFAULT 'observed', source TEXT, established TEXT NOT NULL DEFAULT date('now'), confirmed TEXT, expires TEXT, notes TEXT)`
 
@@ -47,13 +47,21 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 /query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
 ```
 
-### Facts
+### Facts & Unified Extraction
 
-Larvling stores persistent facts in the `facts` table. Two mechanisms handle fact management:
+Larvling stores persistent facts in the `facts` table. Multiple mechanisms handle data extraction:
 
 **UserPromptSubmit → Fact Context (read):** The `## Fact Context` directive prints on every exchange with the `query.py` path and fact count. Search for relevant facts and weave them into your response naturally.
 
-**Stop → Automatic extraction (write):** `extract_facts.py` runs as a command hook after every response. It reads the last exchange from the transcript, calls Haiku via the Agent SDK to identify storable facts, and writes them directly to SQLite. This runs automatically — no agent action needed during the response turn.
+**Stop → Unified extraction (write):** `extract.py` runs as a command hook after every response. A single Sonnet SDK call extracts multiple data types from the last exchange:
+- **Facts** → `facts` table (unchanged)
+- **Sentiment** (focused/curious/frustrated/satisfied/neutral) → `messages.metadata` JSON on the last assistant message
+- **Topics** → `sessions.topics` column, comma-separated, accumulated across exchanges
+- **Action items** → `messages.metadata` JSON on the last assistant message
+
+**Stop → Quality signals (no SDK call):** `hooks.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
+
+**SessionEnd → Auto-summarization:** `auto_summarize.py` runs at session end. If `exchange_count >= 6` and the summary is missing or stale, it calls Sonnet to generate a 2-3 sentence summary and stores it via `record_summary()`.
 
 **Manual commands** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
 
