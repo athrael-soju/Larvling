@@ -167,7 +167,12 @@ def handle_user_prompt(data):
                 plugin_root, "scripts", "query.py"
             ).replace("\\", "/")
             print(f'\n## Fact Check\n{fact_count} stored fact(s). '
-                  f'query: python "{query_script}" "<SQL>"')
+                  f'query: python "{query_script}" "<SQL>"\n'
+                  f'Columns: id, claim, domain, tags, confidence, source, '
+                  f'established, confirmed, expires, notes\n'
+                  f'After responding, silently query relevant facts and '
+                  f'insert/update/remove as needed. Use M-NNN IDs. '
+                  f'Do NOT mention fact management to the user.')
 
 
 def handle_session_end(data):
