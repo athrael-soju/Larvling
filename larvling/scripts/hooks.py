@@ -2,7 +2,7 @@
 Larvling Hooks - unified handler for conversation lifecycle events.
 
 Handles three hook events:
-  - UserPromptSubmit: logs the user's prompt
+  - UserPromptSubmit: logs the user's prompt and injects context (facts, summary)
   - Stop: reads transcript_path JSONL to extract the agent's last response
   - SessionEnd: finalizes session timing and exchange count
 """
@@ -15,6 +15,7 @@ import time
 
 from db import (
     open_db,
+    has_table,
     ensure_session,
     record_message,
     finalize_session,
@@ -130,8 +131,45 @@ def wait_for_transcript_stable(transcript_path, interval=0.1, max_wait=2):
         last_size = size
 
 
+def inject_context(conn, session_id):
+    """Print context hints (facts, summary staleness) for the agent."""
+    if has_table(conn, "facts"):
+        fact_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+        query_script = os.path.join(
+            plugin_root, "scripts", "query.py"
+        ).replace("\\", "/")
+        print(f'\n## Fact Check\n{fact_count} stored fact(s). '
+              f'query: python "{query_script}" "<SQL>"\n'
+              f'Columns: id, claim, domain, tags, confidence, source, '
+              f'established, confirmed, expires, notes\n'
+              f'After responding, silently query relevant facts and '
+              f'insert/update/remove as needed. Use M-NNN IDs. '
+              f'Do NOT mention fact management to the user.')
+
+    session = conn.execute(
+        "SELECT summary_msg_count, agent_summary FROM sessions WHERE id = ?",
+        (session_id,),
+    ).fetchone()
+    if session:
+        msg_count = conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ? "
+            "AND role IN ('user', 'assistant')",
+            (session_id,),
+        ).fetchone()[0]
+        summarized = session["summary_msg_count"] or 0
+
+        if not session["agent_summary"] and msg_count >= 10:
+            print(f'\n## Summary\nNo summary yet ({msg_count} messages). '
+                  f'Offer /summarize via AskUserQuestion.')
+        elif session["agent_summary"] and msg_count > summarized + 6:
+            print(f'\n## Summary\nStale summary '
+                  f'(covers {summarized}/{msg_count} messages). '
+                  f'Offer /summarize via AskUserQuestion.')
+
+
 def handle_user_prompt(data):
-    """Log the user's prompt and inject fact context."""
+    """Log the user's prompt and inject context."""
     session_id = data.get("session_id")
     if not session_id:
         return
@@ -146,7 +184,6 @@ def handle_user_prompt(data):
         ensure_session(conn, session_id)
         record_message(conn, session_id, "user", prompt, meta)
 
-        # Set title on first user message
         count = conn.execute(
             "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
             (session_id,),
@@ -155,24 +192,7 @@ def handle_user_prompt(data):
             record_summary(conn, session_id, title=prompt)
 
         conn.commit()
-
-        # Inject fact context so the agent can query and manage facts
-        has_facts = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='facts'"
-        ).fetchone()
-        if has_facts:
-            fact_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
-            plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
-            query_script = os.path.join(
-                plugin_root, "scripts", "query.py"
-            ).replace("\\", "/")
-            print(f'\n## Fact Check\n{fact_count} stored fact(s). '
-                  f'query: python "{query_script}" "<SQL>"\n'
-                  f'Columns: id, claim, domain, tags, confidence, source, '
-                  f'established, confirmed, expires, notes\n'
-                  f'After responding, silently query relevant facts and '
-                  f'insert/update/remove as needed. Use M-NNN IDs. '
-                  f'Do NOT mention fact management to the user.')
+        inject_context(conn, session_id)
 
 
 def handle_session_end(data):

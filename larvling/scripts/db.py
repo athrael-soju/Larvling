@@ -61,6 +61,14 @@ def require_db():
         sys.exit(1)
 
 
+def has_table(conn, name):
+    """Check if a table exists in the database."""
+    return conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (name,),
+    ).fetchone() is not None
+
+
 # ---------------------------------------------------------------------------
 # Schema creation and versioning
 # ---------------------------------------------------------------------------

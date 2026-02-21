@@ -14,6 +14,7 @@ from db import (
     SCHEMA_VERSION,
     escape_like,
     get_summary,
+    has_table,
     open_db,
     reconfigure_stdout,
     create_schema,
@@ -218,6 +219,26 @@ def get_session_context():
             if relevant:
                 lines.append("## Relevant Sessions")
                 lines.extend(relevant)
+                lines.append("")
+
+        # Fact awareness at session start
+        if has_table(conn, "facts"):
+            fact_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
+            if fact_count:
+                domain_rows = conn.execute(
+                    "SELECT COALESCE(domain, 'unset') as d, COUNT(*) as c "
+                    "FROM facts GROUP BY domain ORDER BY c DESC"
+                ).fetchall()
+                domains = ", ".join(
+                    f"{r['d']} ({r['c']})" for r in domain_rows
+                )
+                recent = conn.execute(
+                    "SELECT id, claim FROM facts ORDER BY established DESC LIMIT 3"
+                ).fetchall()
+                lines.append(f"## Stored Facts ({fact_count})")
+                lines.append(f"Domains: {domains}")
+                for r in recent:
+                    lines.append(f"- {r['id']}: {r['claim']}")
                 lines.append("")
 
         # Fallback: if no summaries, show recent data
