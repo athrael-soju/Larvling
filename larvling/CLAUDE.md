@@ -49,7 +49,10 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 
 ### Facts
 
-Larvling stores persistent facts in the `facts` table. The Fact Check hook injects the `query.py` path and fact count on every exchange — use it to dynamically query and manage facts.
+Larvling stores persistent facts in the `facts` table. The `inject_context()` hook prints on every exchange:
+- **Fact count** and the `query.py` path for running SQL
+- **Column list:** id, claim, domain, tags, confidence, source, established, confirmed, expires, notes
+- **Directive:** silently query/insert/update/remove facts after responding; use `M-NNN` IDs; never mention fact management to the user
 
 **Automatic fact management:** After responding to the user, silently review the exchange and manage facts as needed:
 - **Query** relevant facts using the `query.py` path from the Fact Check context (e.g. `WHERE claim LIKE '%topic%'`).
@@ -62,11 +65,11 @@ Larvling stores persistent facts in the `facts` table. The Fact Check hook injec
 
 ### Session Summaries
 
-  As the conversation grows, periodically offer to generate a summary using `/summarize`. Before offering, run `/summarize list` to check the summary status - it shows `[summarized X/Y msgs]` where X is how many messages the summary covers and Y is the current count. Only offer when:
-- The session has no summary and has had ~10+ exchanges
-- The summary is stale (current message count is significantly higher than the summarized count)
+`inject_context()` automatically prints a `## Summary` hint when a summary is needed. Thresholds:
+- **No summary yet:** shown when the session reaches 10+ messages
+- **Stale summary:** shown when 6+ new messages have been added since the last summary
 
-Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines.
+When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines.
 
 ## Interaction Protocol
 

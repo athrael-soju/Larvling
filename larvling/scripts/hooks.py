@@ -16,6 +16,7 @@ import time
 from db import (
     open_db,
     has_table,
+    reconfigure_stdout,
     ensure_session,
     record_message,
     finalize_session,
@@ -262,6 +263,7 @@ def _log_error(msg):
 
 
 def main():
+    reconfigure_stdout()
     # Read stdin as bytes to avoid Windows text-mode encoding issues (cp1252)
     # that can corrupt or hang on large payloads exceeding the 4KB pipe buffer.
     try:
