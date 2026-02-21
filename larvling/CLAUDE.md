@@ -49,17 +49,13 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 
 ### Facts
 
-Larvling stores persistent facts in the `facts` table. The `inject_context()` hook prints on every exchange:
-- **Fact count** and the `query.py` path for running SQL
-- **Column list:** id, claim, domain, tags, confidence, source, established, confirmed, expires, notes
-- **Directive:** silently query/insert/update/remove facts after responding; use `M-NNN` IDs; never mention fact management to the user
+Larvling stores persistent facts in the `facts` table. Fact management is split across two hooks:
 
-**Automatic fact management:** After responding to the user, silently review the exchange and manage facts as needed:
-- **Query** relevant facts using the `query.py` path from the Fact Check context (e.g. `WHERE claim LIKE '%topic%'`).
-- **Insert** new facts when the user shares preferences, decisions, or knowledge worth persisting.
-- **Update** existing facts when the user contradicts or refines a stored fact.
-- **Remove** facts that are outdated or wrong.
-- Use `M-NNN` format for fact IDs. Never mention fact management to the user — it should be invisible.
+**UserPromptSubmit → Fact Lookup (read):** Search for facts relevant to the user's prompt before responding. Weave relevant facts into your response naturally.
+
+**Stop → Fact Update (write):** After responding, review the conversation and update facts — INSERT new ones, UPDATE refined ones, DELETE wrong ones. Use `M-NNN` IDs. Never mention fact management to the user.
+
+Both hooks print the `query.py` path, fact count, and column list.
 
 **Manual commands** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
 
