@@ -8,9 +8,8 @@ arguments: []
 - `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT)`
 - `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT, content TEXT, metadata TEXT)`
 - `facts (id TEXT PK, claim TEXT NOT NULL, domain TEXT, tags TEXT, confidence TEXT DEFAULT 'observed', source TEXT, established TEXT NOT NULL DEFAULT date('now'), confirmed TEXT, expires TEXT, notes TEXT)`
-- `loops (id INT PK AUTO, session_id TEXT FK, prompt TEXT, status TEXT DEFAULT 'active', iteration INT DEFAULT 1, max_iterations INT DEFAULT 0, completion_promise TEXT, started_at TEXT, ended_at TEXT, outcome TEXT)`
 
-Gather and present a brief overview: session count, message count, fact count, loop count (total + active), DB file size, and plugin version (from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`).
+Gather and present a brief overview: session count, message count, fact count, DB file size, and plugin version (from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`).
 
 Run SQL via:
 ```

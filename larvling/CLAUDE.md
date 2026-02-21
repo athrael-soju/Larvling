@@ -10,7 +10,7 @@ When the SessionStart context contains "Larvling - First Run", this is the very 
 - That Larvling is now installed and will quietly remember their sessions
 - A mention of the dashboard at `.claude/dashboard.html` for browsing past conversations
 - That everything is automatic - no setup or extra effort needed
-- Mention the available commands naturally: `/remember` to store a fact, `/recall` to search them, `/forget` to remove one, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/query` for direct SQL access, `/loop` to start an iteration loop, and `/cancel-loop` to stop one
+- Mention the available commands naturally: `/remember` to store a fact, `/recall` to search them, `/forget` to remove one, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/query` for direct SQL access
 - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 
 ## Update Notice
@@ -35,7 +35,6 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 - `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT)`
 - `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT, content TEXT, metadata TEXT)`
 - `facts (id TEXT PK, claim TEXT NOT NULL, domain TEXT, tags TEXT, confidence TEXT DEFAULT 'observed', source TEXT, established TEXT NOT NULL DEFAULT date('now'), confirmed TEXT, expires TEXT, notes TEXT)`
-- `loops (id INT PK AUTO, session_id TEXT FK, prompt TEXT, status TEXT DEFAULT 'active', iteration INT DEFAULT 1, max_iterations INT DEFAULT 0, completion_promise TEXT, started_at TEXT, ended_at TEXT, outcome TEXT)` — status: active/completed/cancelled/exhausted
 
 **Examples:**
 
@@ -48,26 +47,18 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 /query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
 ```
 
-### Iteration Loops
-
-Loops create self-referential iteration cycles. When a loop is active, the Stop hook blocks Claude from exiting and re-feeds the prompt, letting Claude see its previous work in files and git each iteration.
-
-- `/loop "Build X" --max-iterations 5 --completion-promise "DONE"` — start a loop
-- `/cancel-loop` — cancel the active loop
-- Only one loop can be active at a time
-- Loops end when: max iterations reached (status: `exhausted`), completion promise found in output (status: `completed`), or manually cancelled (status: `cancelled`)
-- To signal completion, output `<promise>PROMISE_TEXT</promise>` in your response
-- **Critical:** Never output a false completion promise. The tag must reflect genuine task completion.
-- Query past loops: `/query "SELECT * FROM loops ORDER BY started_at DESC"`
-
 ### Facts
 
-Larvling stores persistent facts in the `facts` table. Facts are not auto-injected, so query them on demand:
-- Whenever the conversation touches a topic that might have stored facts, proactively use `/query` to search the facts table.
-- When the user shares facts, preferences, or decisions worth persisting, store them via `/query` INSERT without being asked.
-- Use `M-NNN` format for fact IDs. To get the next ID: `SELECT id FROM facts WHERE id LIKE 'M-%' ORDER BY CAST(SUBSTR(id, 3) AS INTEGER) DESC LIMIT 1`
+Larvling stores persistent facts in the `facts` table. The Fact Check hook injects the `query.py` path and fact count on every exchange — use it to dynamically query and manage facts.
 
-Consider whether existing facts need updating based on what the user is saying now.
+**Automatic fact management:** After responding to the user, silently review the exchange and manage facts as needed:
+- **Query** relevant facts using the `query.py` path from the Fact Check context (e.g. `WHERE claim LIKE '%topic%'`).
+- **Insert** new facts when the user shares preferences, decisions, or knowledge worth persisting.
+- **Update** existing facts when the user contradicts or refines a stored fact.
+- **Remove** facts that are outdated or wrong.
+- Use `M-NNN` format for fact IDs. Never mention fact management to the user — it should be invisible.
+
+**Manual commands** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
 
 ### Session Summaries
 

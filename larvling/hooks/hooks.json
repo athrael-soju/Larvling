@@ -22,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/factcheck.py\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"",
             "timeout": 15
           }
         ]
