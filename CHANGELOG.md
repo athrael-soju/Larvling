@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.1.2](https://github.com/athrael-soju/Larvling/compare/v0.1.1...v0.1.2) (2026-02-23)
+
+
+### Features
+
+* add function to retrieve local time, UTC offset, and approximate location ([9856e9d](https://github.com/athrael-soju/Larvling/commit/9856e9d60e26b40fa120274ce3c3f2f10b6d1cec))
+* refine extraction criteria for user facts to enhance relevance and quality ([b455635](https://github.com/athrael-soju/Larvling/commit/b455635b2ff786a4e023228baeba823b7fe3662c))
+
+
+### Refactoring
+
+* add type check for SDK call result and log unexpected types ([c43174e](https://github.com/athrael-soju/Larvling/commit/c43174eff68840b4cf4f5355d6f29bcf08cc1d9d))
+* deduplicate shared helpers and tighten extraction ([2b71597](https://github.com/athrael-soju/Larvling/commit/2b7159756ee3a561abecd8ec386d053c7df5b858))
+* deduplicate shared helpers and tighten extraction prompt ([cc58534](https://github.com/athrael-soju/Larvling/commit/cc5853414a97c430aac08daf045dad02ea0b8812))
+* enhance command execution in hooks and improve extraction process ([fe1f841](https://github.com/athrael-soju/Larvling/commit/fe1f841c4a9b5e9e50d53ec3d4faf4fda2a80343))
+* improve call_model function for better error handling and flexibility ([2c4a1f4](https://github.com/athrael-soju/Larvling/commit/2c4a1f440a0920a3879194e67ffaf0b549e0664e))
+* improve error handling in call_model and clean up extraction logic ([11beca8](https://github.com/athrael-soju/Larvling/commit/11beca8b1a8e1b5891f3918c761400698acf7ae3))
+* improve message parsing in call_model function for better error handling ([ed1822b](https://github.com/athrael-soju/Larvling/commit/ed1822bf2ba9f125ae56fa43ba8dd1c28a3de999))
+
+
+### Documentation
+
+* add alternative installation method for local plugin usage and database persistence ([d3d9628](https://github.com/athrael-soju/Larvling/commit/d3d96281c8a1cd264e2f09b7ef63ad2c79fd5cf8))
+
 ## [0.2.0](https://github.com/athrael-soju/Larvling/compare/v0.1.0...v0.2.0) (2026-02-21)
 
 
