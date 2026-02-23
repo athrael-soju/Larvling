@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/athrael-soju/Larvling/compare/v0.1.1...v0.2.0) (2026-02-23)
+
+
+### Features
+
+* add function to retrieve local time, UTC offset, and approximate location ([9856e9d](https://github.com/athrael-soju/Larvling/commit/9856e9d60e26b40fa120274ce3c3f2f10b6d1cec))
+* refine extraction criteria for user facts to enhance relevance and quality ([b455635](https://github.com/athrael-soju/Larvling/commit/b455635b2ff786a4e023228baeba823b7fe3662c))
+
+
+### Documentation
+
+* add alternative installation method for local plugin usage and database persistence ([d3d9628](https://github.com/athrael-soju/Larvling/commit/d3d96281c8a1cd264e2f09b7ef63ad2c79fd5cf8))
+
 ## [0.2.0](https://github.com/athrael-soju/Larvling/compare/v0.1.0...v0.2.0) (2026-02-21)
 
 
