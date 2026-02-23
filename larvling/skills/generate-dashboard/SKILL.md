@@ -1,6 +1,6 @@
 ---
 name: generate-dashboard
-description: Generate the Larvling dashboard with Sessions and Knowledge Graph tabs
+description: Generate the Larvling dashboard with Sessions and Fact Graph tabs
 argument-hint: (no arguments)
 ---
 
@@ -12,7 +12,7 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py"
 
 This generates `.claude/dashboard.html` with two tabs:
 - **Sessions** — browse past conversations, messages, topics, sentiment
-- **Knowledge Graph** — D3.js force-directed graph of stored facts and their relationships
+- **Fact Graph** — D3.js force-directed graph of stored facts and their relationships
 
 If the dashboard is already up to date (no new data since last generation), the script will skip regeneration and report "up to date".
 

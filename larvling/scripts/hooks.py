@@ -138,9 +138,9 @@ def inject_context(conn, session_id):
     """Print context hints (fact lookup, summary staleness) for the agent."""
     if has_table(conn, "facts"):
         fact_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
-        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+        scripts_dir = os.path.dirname(os.path.abspath(__file__))
         query_script = os.path.join(
-            plugin_root, "scripts", "query.py"
+            scripts_dir, "query.py"
         ).replace("\\", "/")
         print(f'\n## Fact Context\n{fact_count} stored fact(s). '
               f'query: python "{query_script}" "<SQL>"\n'

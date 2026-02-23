@@ -1,12 +1,12 @@
 """Larvling Dashboard - generates a static HTML dashboard from larvling.db."""
 
-import asyncio
 import json
 import os
 import sys
 from html import escape
 
-from db import DB_PATH, get_plugin_version, open_db, has_table, parse_meta, require_db, reconfigure_stdout, call_model, _log
+from db import DB_PATH, get_plugin_version, open_db, has_table, parse_meta, require_db, reconfigure_stdout
+from graph_agent import get_graph_data
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
@@ -197,99 +197,6 @@ def render_detail_panel(session):
         </div>
         <div class="messages">{msgs_html}</div>
     </div>"""
-
-
-# ---------------------------------------------------------------------------
-# Knowledge Graph data structuring via Agent SDK
-# ---------------------------------------------------------------------------
-
-GRAPH_PROMPT = """\
-You are structuring knowledge facts into a graph. Each fact becomes a node.
-Connect facts that share semantic relationships (same topic, related concepts,
-same domain, causal links, etc.).
-
-## Facts
-{facts_text}
-
-## Instructions
-- Every fact MUST appear as a node (use the fact's DB id as node id).
-- Create edges between semantically related facts. Label each edge with the
-  relationship type (e.g. "same topic", "related", "preference", "builds on").
-- Weight edges 1-3 (1=weak, 3=strong relationship).
-- If there are no meaningful connections, return nodes with an empty edges array.
-
-Return the graph structure as JSON."""
-
-GRAPH_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "nodes": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "integer"},
-                    "label": {"type": "string"},
-                    "domain": {"type": "string"},
-                    "claim": {"type": "string"},
-                },
-                "required": ["id", "label", "domain", "claim"],
-            },
-        },
-        "edges": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "source": {"type": "integer"},
-                    "target": {"type": "integer"},
-                    "label": {"type": "string"},
-                    "weight": {"type": "integer"},
-                },
-                "required": ["source", "target", "label", "weight"],
-            },
-        },
-    },
-    "required": ["nodes", "edges"],
-}
-
-EMPTY_GRAPH = {"nodes": [], "edges": []}
-
-
-def get_graph_data(conn):
-    """Structure facts into graph nodes and edges via Agent SDK."""
-    if not has_table(conn, "facts"):
-        return EMPTY_GRAPH
-
-    rows = conn.execute(
-        "SELECT id, claim, domain, tags FROM facts ORDER BY id"
-    ).fetchall()
-
-    if not rows:
-        return EMPTY_GRAPH
-
-    facts_text = "\n".join(
-        f"- [id={r['id']}] ({r['domain']}) {r['claim']} (tags: {r['tags']})"
-        for r in rows
-    )
-
-    try:
-        prompt = GRAPH_PROMPT.format(facts_text=facts_text)
-        result = asyncio.run(
-            call_model(
-                prompt,
-                output_format={"type": "json_schema", "schema": GRAPH_SCHEMA},
-            )
-        )
-    except Exception as e:
-        _log(f"Graph structuring failed: {e}")
-        return EMPTY_GRAPH
-
-    if not isinstance(result, dict):
-        _log(f"Unexpected graph result type: {type(result)}")
-        return EMPTY_GRAPH
-
-    return result
 
 
 def render_page(sidebar_html, details_html, revision, graph_json="{}"):
