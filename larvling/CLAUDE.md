@@ -34,7 +34,7 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 **Schema:**
 - `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, topics TEXT, quality_signals TEXT)`
 - `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT, content TEXT, metadata TEXT)`
-- `facts (id TEXT PK, claim TEXT NOT NULL, domain TEXT, tags TEXT, confidence TEXT DEFAULT 'observed', source TEXT, established TEXT NOT NULL DEFAULT date('now'), confirmed TEXT, expires TEXT, notes TEXT)`
+- `facts (id INTEGER PK AUTO, claim TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT NOT NULL DEFAULT date('now'), updated TEXT)`
 
 **Examples:**
 
@@ -42,8 +42,8 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 /query "SELECT * FROM facts"
 /query "SELECT * FROM facts WHERE claim LIKE '%deploy%' OR tags LIKE '%ci%'"
 /query "SELECT id, title, agent_summary FROM sessions WHERE agent_summary IS NOT NULL ORDER BY started_at DESC LIMIT 5"
-/query "INSERT INTO facts (id, claim, domain) VALUES ('M-099', 'test fact', 'technical')"
-/query "DELETE FROM facts WHERE id = 'M-099'"
+/query "INSERT INTO facts (claim, domain, tags) VALUES ('test fact', 'technical', 'testing')"
+/query "DELETE FROM facts WHERE id = 1"
 /query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
 ```
 
