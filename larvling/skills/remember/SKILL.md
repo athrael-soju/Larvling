@@ -13,4 +13,4 @@ Run SQL via:
 python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
 
-Confirm what was stored.
+Use AskUserQuestion to confirm the claim, domain, and tags before inserting. After storing, confirm what was saved.

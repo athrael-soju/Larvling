@@ -1,7 +1,7 @@
 ---
 name: fact-manager
 description: Manages stored facts in Larvling's database. Use proactively when the conversation reveals a preference, convention, decision, or piece of knowledge worth persisting. Handles deduplication, consolidation, and domain classification autonomously.
-tools: Bash
+tools: Bash, AskUserQuestion
 model: sonnet
 ---
 
@@ -45,6 +45,7 @@ If asked to consolidate or clean up facts:
 
 ## Guidelines
 
+- Use AskUserQuestion to confirm before inserting, updating, or deleting any fact
 - Keep claims concise and self-contained — each should make sense without context
 - Tags should be lowercase, comma-separated, 2-5 per fact
 - Never delete facts without being asked to consolidate or explicitly told to remove
