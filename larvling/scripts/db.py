@@ -347,18 +347,17 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
     Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
     """
     from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-    from claude_agent_sdk._internal import client as _sdk_client
-    from claude_agent_sdk._errors import MessageParseError
+    from claude_agent_sdk._internal.message_parser import parse_message  # noqa: PLC2701
+    from claude_agent_sdk._errors import MessageParseError  # noqa: PLC2701
+    import claude_agent_sdk._internal.client as _sdk_client  # noqa: PLC2701
 
     # Patch parse_message to skip unknown message types instead of crashing.
     # The SDK (as of 0.1.39) doesn't handle rate_limit_event and other CLI
     # message types, which kills the async generator mid-stream and loses
     # all subsequent messages including the ResultMessage with structured_output.
-    _original_parse = _sdk_client.parse_message
-
     def _tolerant_parse(data):
         try:
-            return _original_parse(data)
+            return parse_message(data)
         except MessageParseError:
             return None
 
@@ -370,7 +369,7 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
     options = ClaudeAgentOptions(**opts)
 
     os.environ["LARVLING_INTERNAL"] = "1"
-    _sdk_client.parse_message = _tolerant_parse
+    setattr(_sdk_client, "parse_message", _tolerant_parse)
 
     response_text = ""
     structured = None
@@ -393,7 +392,7 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
                     response_text += text
     finally:
         os.environ.pop("LARVLING_INTERNAL", None)
-        _sdk_client.parse_message = _original_parse
+        setattr(_sdk_client, "parse_message", parse_message)
 
     if structured is not None:
         return structured
