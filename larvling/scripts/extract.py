@@ -9,7 +9,6 @@ items in a single SDK call, then writes results to SQLite.
 import asyncio
 import json
 import os
-import re
 import sys
 
 from db import open_db, has_table, parse_meta, reconfigure_stdout, ensure_session, call_model, _log
@@ -59,20 +58,33 @@ def parse_last_user_text(transcript_path):
 # ---------------------------------------------------------------------------
 
 EXTRACTION_PROMPT = """\
-Analyze this conversation exchange and extract structured data. Return ONLY valid JSON.
+Analyze this conversation exchange and extract structured data.
 
 USER said: {user_text}
 
 AGENT responded: {agent_text}
 
-Extract ALL of the following:
+## Fact-awareness
+
+Before extracting facts, query the existing facts table to check for duplicates \
+or facts that need updating. Run this command:
+
+python "{query_script}" "SELECT id, claim, domain, tags FROM facts"
+
+Review the results and decide for each potential fact:
+- **insert**: genuinely new fact not covered by any existing row
+- **update**: an existing fact needs its claim refined or domain/tags corrected \
+(include the existing "id" to update)
+- **skip**: the fact already exists and is unchanged — do NOT include it
+
+## Extraction
 
 1. **facts** - Durable facts worth remembering across sessions:
    - From USER: personal info, professional info, preferences, interests \
 (asking about ANY topic = an interest), decisions, opinions, workflow habits
    - From AGENT: key domain knowledge shared with the user (science, history, \
 concepts) — NOT code-level implementation details
-   - Each fact: {{"claim": "...", "domain": "...", "tags": "..."}}
+   - Each fact: {{"claim": "...", "domain": "...", "tags": "...", "action": "insert|update", "id": "M-NNN (update only)"}}
    - Domains: personal, professional, preferences, interests, knowledge, technical
    - Tags: short topic label (e.g. "octopuses", "physics", "python")
    - **SKIP** (do NOT extract): bug reports, code fixes, line numbers, function \
@@ -94,23 +106,48 @@ changelog entries, or anything that will go stale when the code changes.
 
 Return JSON:
 {{
-  "facts": [{{"claim": "...", "domain": "...", "tags": "..."}}],
+  "facts": [{{"claim": "...", "domain": "...", "tags": "...", "action": "insert"}}],
   "sentiment": "focused",
   "topics": ["python", "deployment"],
   "action_items": ["refactor auth module"]
 }}
 
-If nothing to extract for a section, use empty list/string:
-{{"facts": [], "sentiment": "neutral", "topics": [], "action_items": []}}
-JSON only, no markdown fences."""
+If nothing to extract for a section, use empty list/string."""
+
+
+EXTRACTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "facts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "claim": {"type": "string"},
+                    "domain": {"type": "string"},
+                    "tags": {"type": "string"},
+                    "action": {"type": "string"},
+                    "id": {"type": "string"},
+                },
+                "required": ["claim", "domain", "tags", "action"],
+            },
+        },
+        "sentiment": {"type": "string"},
+        "topics": {"type": "array", "items": {"type": "string"}},
+        "action_items": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["facts", "sentiment", "topics", "action_items"],
+}
 
 
 def build_extraction_prompt(user_text, agent_text, existing_topics=""):
     """Format the extraction prompt with the exchange text."""
+    query_script = os.path.join(os.path.dirname(__file__), "query.py")
     return EXTRACTION_PROMPT.format(
         user_text=user_text or "(no user text)",
         agent_text=agent_text or "(no agent text)",
         existing_topics=existing_topics or "(none)",
+        query_script=query_script.replace("\\", "/"),
     )
 
 
@@ -130,7 +167,7 @@ def get_next_fact_id(conn):
 
 
 def store_facts(conn, facts_list):
-    """Insert extracted facts into the DB. Returns count stored."""
+    """Insert or update extracted facts. Returns count stored/updated."""
     if not facts_list or not has_table(conn, "facts"):
         return 0
 
@@ -143,23 +180,41 @@ def store_facts(conn, facts_list):
             continue
         domain = fact.get("domain", "knowledge").strip()
         tags = fact.get("tags", "").strip()
+        action = fact.get("action", "insert").strip().lower()
 
-        fid = f"M-{next_id:03d}"
-        next_id += 1
+        if action == "update":
+            existing_id = fact.get("id", "").strip()
+            if not existing_id:
+                continue
+            row = conn.execute(
+                "SELECT 1 FROM facts WHERE id = ?", (existing_id,)
+            ).fetchone()
+            if not row:
+                continue
+            conn.execute(
+                "UPDATE facts SET claim = ?, domain = ?, tags = ?, "
+                "confirmed = date('now') WHERE id = ?",
+                (claim, domain, tags or None, existing_id),
+            )
+            count += 1
+        else:
+            # Insert — keep exact-match dedup as safety net
+            existing = conn.execute(
+                "SELECT 1 FROM facts WHERE claim = ?", (claim,)
+            ).fetchone()
+            if existing:
+                continue
 
-        existing = conn.execute(
-            "SELECT 1 FROM facts WHERE claim = ?", (claim,)
-        ).fetchone()
-        if existing:
-            continue
+            fid = f"M-{next_id:03d}"
+            next_id += 1
 
-        conn.execute(
-            "INSERT INTO facts (id, claim, domain, tags, confidence, "
-            "source, established) VALUES (?, ?, ?, ?, 'observed', "
-            "'conversation', date('now'))",
-            (fid, claim, domain, tags or None),
-        )
-        count += 1
+            conn.execute(
+                "INSERT INTO facts (id, claim, domain, tags, confidence, "
+                "source, established) VALUES (?, ?, ?, ?, 'observed', "
+                "'conversation', date('now'))",
+                (fid, claim, domain, tags or None),
+            )
+            count += 1
 
     return count
 
@@ -271,19 +326,20 @@ def main():
 
     try:
         prompt = build_extraction_prompt(user_text, agent_text, existing_topics)
-        response = asyncio.run(call_model(prompt))
+        result = asyncio.run(
+            call_model(
+                prompt,
+                allowed_tools=["Bash"],
+                max_turns=2,
+                output_format={"type": "json_schema", "schema": EXTRACTION_SCHEMA},
+            )
+        )
     except Exception as e:
         _log(f"SDK call failed: {e}")
         return
 
-    # Parse JSON from response, stripping markdown fences if present
-    try:
-        clean = response.strip()
-        clean = re.sub(r"^```\w*\s*", "", clean)
-        clean = re.sub(r"\s*```$", "", clean)
-        result = json.loads(clean.strip())
-    except json.JSONDecodeError as e:
-        _log(f"JSON parse failed: {e}\nResponse: {response[:500]}")
+    if not isinstance(result, dict):
+        _log(f"Unexpected result type: {type(result)}")
         return
 
     with open_db() as conn:

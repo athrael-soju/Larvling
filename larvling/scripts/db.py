@@ -339,24 +339,30 @@ def build_message_pairs(rows):
     return pairs
 
 
-async def call_model(prompt):
-    """Call the LLM via Agent SDK and return the response text.
+async def call_model(prompt, allowed_tools=None, max_turns=1, output_format=None):
+    """Call the LLM via Agent SDK and return the response.
 
+    Returns structured_output (dict) when output_format is set,
+    otherwise returns response text (str).
     Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
     """
-    from claude_code_sdk import query, ClaudeCodeOptions
+    from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
 
-    options = ClaudeCodeOptions(
-        model="claude-sonnet-4-6",
-        max_turns=1,
-        allowed_tools=[],
-    )
+    opts = {"model": "claude-sonnet-4-6", "max_turns": max_turns,
+            "allowed_tools": allowed_tools or []}
+    if output_format:
+        opts["output_format"] = output_format
+    options = ClaudeAgentOptions(**opts)
 
     os.environ["LARVLING_INTERNAL"] = "1"
 
     response_text = ""
+    structured = None
     try:
         async for msg in query(prompt=prompt, options=options):
+            if isinstance(msg, ResultMessage) and msg.structured_output:
+                structured = msg.structured_output
+                continue
             content = getattr(msg, "content", None)
             if not content:
                 continue
@@ -365,11 +371,13 @@ async def call_model(prompt):
                 if text:
                     response_text += text
     except Exception as e:
-        if not response_text:
+        if not response_text and not structured:
             raise e
     finally:
         os.environ.pop("LARVLING_INTERNAL", None)
 
+    if structured is not None:
+        return structured
     return response_text.strip()
 
 
