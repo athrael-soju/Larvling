@@ -49,9 +49,9 @@ def main():
                     for r in recent:
                         lines.append(f"- Fact {r['id']}: {r['claim']}")
 
-            # Reminder about Larvling commands
+            # Reminder about Larvling skills
             lines.append(
-                "Larvling commands: /remember, /recall, /forget, "
+                "Larvling skills: /remember, /recall, /forget, "
                 "/sessions, /summarize, /export, /status, /query, "
                 "/generate-dashboard"
             )
