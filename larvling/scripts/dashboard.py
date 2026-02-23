@@ -4,12 +4,11 @@ Two-panel layout: session list on left, conversation on right.
 Zero dependencies: just sqlite3 + Python string templating.
 """
 
-import json
 import os
 import sys
 from html import escape
 
-from db import DB_PATH, open_db, parse_meta, require_db, reconfigure_stdout
+from db import DB_PATH, get_plugin_version, open_db, parse_meta, require_db, reconfigure_stdout
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
@@ -215,17 +214,6 @@ def render_detail_panel(session):
         </div>
         <div class="messages">{msgs_html}</div>
     </div>"""
-
-
-def get_plugin_version():
-    """Read the plugin version from plugin.json. Returns '?' on failure."""
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
-    plugin_json = os.path.join(plugin_root, ".claude-plugin", "plugin.json")
-    try:
-        with open(plugin_json, "r", encoding="utf-8") as f:
-            return json.load(f).get("version", "?")
-    except Exception:
-        return "?"
 
 
 def render_page(sidebar_html, details_html, revision):

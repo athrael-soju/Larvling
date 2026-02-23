@@ -14,6 +14,17 @@ PROJECT_ROOT = os.getcwd()
 DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
 
 
+def get_plugin_version():
+    """Read the plugin version from plugin.json. Returns '?' on failure."""
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+    plugin_json = os.path.join(plugin_root, ".claude-plugin", "plugin.json")
+    try:
+        with open(plugin_json, "r", encoding="utf-8") as f:
+            return json.load(f).get("version", "?")
+    except Exception:
+        return "?"
+
+
 def get_db():
     """Open a connection to larvling.db with WAL mode and Row factory."""
     conn = sqlite3.connect(DB_PATH)

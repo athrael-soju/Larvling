@@ -14,6 +14,7 @@ from db import (
     DB_PATH,
     SCHEMA_VERSION,
     escape_like,
+    get_plugin_version,
     get_summary,
     has_table,
     open_db,
@@ -80,6 +81,13 @@ def ensure_schema():
     return "migrate"
 
 
+def format_session_line(started_at, duration_min, summary):
+    """Format a session as a markdown bullet line."""
+    date = (started_at or "?")[:10]
+    dur = f" ({duration_min}m)" if duration_min else ""
+    return f"- **{date}**{dur}: {summary}"
+
+
 def get_recent_summaries(conn, limit=3):
     """Get summaries from the most recent sessions."""
     rows = conn.execute(
@@ -96,12 +104,8 @@ def get_recent_summaries(conn, limit=3):
     summaries = []
     for row in rows:
         summary = row["agent_summary"] or row["title"]
-        if not summary:
-            continue
-        date = (row["started_at"] or "?")[:10]
-        duration = row["duration_min"]
-        duration_str = f" ({duration}m)" if duration else ""
-        summaries.append(f"- **{date}**{duration_str}: {summary}")
+        if summary:
+            summaries.append(format_session_line(row["started_at"], row["duration_min"], summary))
     return summaries
 
 
@@ -137,14 +141,7 @@ def get_git_context():
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
 
-    seen = set()
-    unique = []
-    for f in files:
-        f = f.strip()
-        if f and f not in seen:
-            seen.add(f)
-            unique.append(f)
-    return unique[:20]
+    return list(dict.fromkeys(f.strip() for f in files if f.strip()))[:20]
 
 
 def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
@@ -182,12 +179,8 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
         if not ref:
             continue
         summary = ref["agent_summary"] or ref["title"]
-        if not summary:
-            continue
-        date = (ref["started_at"] or "?")[:10]
-        duration = ref["duration_min"]
-        duration_str = f" ({duration}m)" if duration else ""
-        results.append(f"- **{date}**{duration_str}: {summary}")
+        if summary:
+            results.append(format_session_line(ref["started_at"], ref["duration_min"], summary))
 
     return results
 
@@ -317,15 +310,8 @@ def check_update():
 
     Returns an update notice string, or None if up to date / check fails.
     """
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
-    plugin_json = os.path.join(plugin_root, ".claude-plugin", "plugin.json")
-    if not os.path.exists(plugin_json):
-        return None
-
-    try:
-        with open(plugin_json, "r", encoding="utf-8") as f:
-            local_version = json.load(f).get("version", "")
-    except Exception:
+    local_version = get_plugin_version()
+    if local_version == "?":
         return None
 
     try:
