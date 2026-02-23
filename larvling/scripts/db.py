@@ -339,7 +339,7 @@ def build_message_pairs(rows):
     return pairs
 
 
-async def call_model(prompt, allowed_tools=None, max_turns=1, output_format=None):
+async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=None):
     """Call the LLM via Agent SDK and return the response.
 
     Returns structured_output (dict) when output_format is set,
@@ -347,21 +347,42 @@ async def call_model(prompt, allowed_tools=None, max_turns=1, output_format=None
     Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
     """
     from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
+    from claude_agent_sdk._internal import client as _sdk_client
+    from claude_agent_sdk._errors import MessageParseError
 
-    opts = {"model": "claude-sonnet-4-6", "max_turns": max_turns,
-            "allowed_tools": allowed_tools or []}
+    # Patch parse_message to skip unknown message types instead of crashing.
+    # The SDK (as of 0.1.39) doesn't handle rate_limit_event and other CLI
+    # message types, which kills the async generator mid-stream and loses
+    # all subsequent messages including the ResultMessage with structured_output.
+    _original_parse = _sdk_client.parse_message
+
+    def _tolerant_parse(data):
+        try:
+            return _original_parse(data)
+        except MessageParseError:
+            return None
+
+    opts = {"model": "claude-sonnet-4-6", "allowed_tools": allowed_tools or []}
+    if max_turns is not None:
+        opts["max_turns"] = max_turns
     if output_format:
         opts["output_format"] = output_format
     options = ClaudeAgentOptions(**opts)
 
     os.environ["LARVLING_INTERNAL"] = "1"
+    _sdk_client.parse_message = _tolerant_parse
 
     response_text = ""
     structured = None
+    result_subtype = None
     try:
         async for msg in query(prompt=prompt, options=options):
-            if isinstance(msg, ResultMessage) and msg.structured_output:
-                structured = msg.structured_output
+            if msg is None:
+                continue
+            if isinstance(msg, ResultMessage):
+                result_subtype = getattr(msg, "subtype", None)
+                if msg.structured_output:
+                    structured = msg.structured_output
                 continue
             content = getattr(msg, "content", None)
             if not content:
@@ -370,14 +391,18 @@ async def call_model(prompt, allowed_tools=None, max_turns=1, output_format=None
                 text = getattr(block, "text", None)
                 if text:
                     response_text += text
-    except Exception as e:
-        if not response_text and not structured:
-            raise e
     finally:
         os.environ.pop("LARVLING_INTERNAL", None)
+        _sdk_client.parse_message = _original_parse
 
     if structured is not None:
         return structured
+
+    if output_format:
+        raise RuntimeError(
+            f"Structured output not returned (subtype={result_subtype})"
+        )
+
     return response_text.strip()
 
 

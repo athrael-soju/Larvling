@@ -330,7 +330,6 @@ def main():
             call_model(
                 prompt,
                 allowed_tools=["Bash"],
-                max_turns=2,
                 output_format={"type": "json_schema", "schema": EXTRACTION_SCHEMA},
             )
         )
@@ -339,7 +338,7 @@ def main():
         return
 
     if not isinstance(result, dict):
-        _log(f"Unexpected result type: {type(result)}")
+        _log(f"Extraction returned non-dict ({type(result).__name__}), skipping")
         return
 
     with open_db() as conn:
