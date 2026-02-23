@@ -1,14 +1,22 @@
 ---
 name: generate-dashboard
 description: Generate the Larvling dashboard with Sessions and Fact Graph tabs
-argument-hint: (no arguments)
+argument-hint: "--graph"
 ---
 
-Generate the Larvling dashboard by running:
+Generate the Larvling dashboard. Two modes:
 
+**Sessions only (default)** — fast refresh, preserves existing graph data from the previous run:
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py"
 ```
+
+**Full with graph** — also regenerates the Fact Graph via Agent SDK:
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py" --graph
+```
+
+Use `--graph` when the user explicitly wants the Fact Graph refreshed. Without it, the graph tab keeps whatever was last generated.
 
 This generates `.claude/dashboard.html` with two tabs:
 - **Sessions** — browse past conversations, messages, topics, sentiment

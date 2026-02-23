@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import sys
 from html import escape
 
@@ -199,7 +200,7 @@ def render_detail_panel(session):
     </div>"""
 
 
-def render_page(sidebar_html, details_html, revision, graph_json="{}"):
+def render_page(sidebar_html, details_html, revision, graph_json="{}", graph_fresh=False):
     """Fill template placeholders."""
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
         template = f.read()
@@ -211,7 +212,27 @@ def render_page(sidebar_html, details_html, revision, graph_json="{}"):
         .replace("{{DETAILS}}", details_html)
         .replace("{{REVISION}}", str(revision))
         .replace("{{GRAPH_JSON}}", graph_json)
+        .replace("{{GRAPH_FRESH}}", "true" if graph_fresh else "false")
     )
+
+
+def read_existing_graph_json():
+    """Extract GRAPH_DATA JSON from a previously generated dashboard."""
+    if not os.path.exists(HTML_PATH):
+        return "{}"
+    try:
+        with open(HTML_PATH, "r", encoding="utf-8") as f:
+            # GRAPH_DATA is on a single line near the top
+            for line in f:
+                m = re.search(r"var GRAPH_DATA = (.+);", line)
+                if m:
+                    return m.group(1)
+                # Stop scanning after the first <div> (past the script tag)
+                if "<div" in line:
+                    break
+    except Exception:
+        pass
+    return "{}"
 
 
 def main():
@@ -219,6 +240,8 @@ def main():
         return
     require_db()
     reconfigure_stdout()
+
+    include_graph = "--graph" in sys.argv
 
     with open_db() as conn:
         revision = get_revision(conn)
@@ -246,15 +269,18 @@ def main():
         )
         details_html = "\n".join(render_detail_panel(s) for s in sessions)
 
-        graph_data = get_graph_data(conn)
+        if include_graph:
+            graph_json = json.dumps(get_graph_data(conn))
+        else:
+            graph_json = read_existing_graph_json()
 
-    graph_json = json.dumps(graph_data)
-    html = render_page(sidebar_html, details_html, revision, graph_json)
+    html = render_page(sidebar_html, details_html, revision, graph_json, graph_fresh=include_graph)
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"Dashboard generated: {HTML_PATH}", file=sys.stderr)
+    mode = "full" if include_graph else "sessions only"
+    print(f"Dashboard generated ({mode}): {HTML_PATH}", file=sys.stderr)
 
 
 if __name__ == "__main__":
