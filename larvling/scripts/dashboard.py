@@ -1,12 +1,10 @@
 """Larvling Dashboard - generates a static HTML dashboard from larvling.db."""
 
-import json
 import os
 import sys
 from html import escape
 
 from db import DB_PATH, get_plugin_version, open_db, has_table, parse_meta, require_db, reconfigure_stdout
-from graph_agent import get_graph_data
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
@@ -199,7 +197,7 @@ def render_detail_panel(session):
     </div>"""
 
 
-def render_page(sidebar_html, details_html, revision, graph_json="{}"):
+def render_page(sidebar_html, details_html, revision):
     """Fill template placeholders."""
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
         template = f.read()
@@ -210,7 +208,6 @@ def render_page(sidebar_html, details_html, revision, graph_json="{}"):
         .replace("{{SIDEBAR}}", sidebar_html)
         .replace("{{DETAILS}}", details_html)
         .replace("{{REVISION}}", str(revision))
-        .replace("{{GRAPH_JSON}}", graph_json)
     )
 
 
@@ -219,8 +216,6 @@ def main():
         return
     require_db()
     reconfigure_stdout()
-
-    include_graph = "--graph" in sys.argv
 
     with open_db() as conn:
         revision = get_revision(conn)
@@ -231,18 +226,12 @@ def main():
         )
         details_html = "\n".join(render_detail_panel(s) for s in sessions)
 
-        if include_graph:
-            graph_json = json.dumps(get_graph_data(conn))
-        else:
-            graph_json = "{}"
-
-    html = render_page(sidebar_html, details_html, revision, graph_json)
+    html = render_page(sidebar_html, details_html, revision)
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(html)
 
-    mode = "full" if include_graph else "sessions only"
-    print(f"Dashboard generated ({mode}): {HTML_PATH}", file=sys.stderr)
+    print(f"Dashboard generated: {HTML_PATH}", file=sys.stderr)
 
 
 if __name__ == "__main__":
