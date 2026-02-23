@@ -55,6 +55,26 @@ claude --plugin-dir ./larvling
 
 > **Tip:** `--plugin-dir` loads the plugin directly from the repo - no caching involved. This is the simplest way to iterate on changes.
 
+### Alternative: Copy into the repo
+
+You can copy the `larvling/` directory directly into your project's repository. This ensures the SQLite database (stored in `.claude/`) stays tied to the project and persists across sessions, environments, and machines.
+
+```bash
+# Copy the plugin into your repo
+cp -r /path/to/Larvling/larvling ./larvling
+
+# Run Claude Code with the local copy
+claude --plugin-dir ./larvling
+```
+
+This approach is useful when:
+
+- You want the database to live alongside your project and survive environment rebuilds (e.g., containers, Codespaces, CI)
+- You work across multiple machines and sync the repo (the `.claude/` directory travels with it)
+- You prefer not to rely on the plugin marketplace or cache
+
+> **Note:** Add `larvling/` to `.gitignore` if you don't want to track the plugin files themselves. The database and dashboard live in `.claude/`, which you may also want to gitignore depending on your workflow.
+
 ## Local Development
 
 When Larvling is installed via `plugin install`, Claude Code copies the plugin files into a **cache directory** and runs hooks from there - not from the repo. This means editing files in the repo has no immediate effect on the running plugin.
