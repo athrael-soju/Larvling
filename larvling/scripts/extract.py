@@ -68,16 +68,18 @@ AGENT responded: {agent_text}
 
 ## Fact-awareness
 
-Before extracting facts, query the existing facts table to check for duplicates \
-or facts that need updating. Run this command:
+You can query the facts database to check for duplicates or stale facts:
 
-python "{query_script}" "SELECT id, claim, domain, tags FROM facts"
+python "{query_script}" "<SQL>"
 
-Review the results and decide for each potential fact:
-- **insert**: genuinely new fact not covered by any existing row
-- **update**: an existing fact needs its claim refined or domain/tags corrected \
-(include the existing "id" to update)
-- **skip**: the fact already exists and is unchanged — do NOT include it
+The `facts` table has columns: id, claim, domain, tags, confidence, source, \
+established, confirmed, expires, notes.
+
+Use this to avoid inserting duplicates and to update existing facts when \
+the wording or details have changed. For each fact you extract, set action to:
+- **insert**: genuinely new fact
+- **update**: existing fact needs its claim/domain/tags refined (include "id")
+- **skip**: fact already exists unchanged — do NOT include it
 
 ## Extraction
 
@@ -177,12 +179,14 @@ def store_facts(conn, facts_list):
     count = 0
 
     for fact in facts_list:
+        action = fact.get("action", "insert").strip().lower()
+        if action == "skip":
+            continue
         claim = fact.get("claim", "").strip()
         if not claim:
             continue
         domain = fact.get("domain", "knowledge").strip()
         tags = fact.get("tags", "").strip()
-        action = fact.get("action", "insert").strip().lower()
 
         if action == "update":
             existing_id = fact.get("id", "").strip()
