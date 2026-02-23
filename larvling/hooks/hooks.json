@@ -70,7 +70,6 @@
           {
             "type": "command",
             "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\"",
-            "async": true,
             "timeout": 5
           }
         ]
