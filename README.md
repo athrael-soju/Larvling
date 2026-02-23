@@ -154,8 +154,9 @@ The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessi
 | `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context     |
 | `larvling/scripts/hooks.py`                | Handles prompt logging, response capture, and session end        |
 | `larvling/scripts/extract.py`              | Unified extraction - facts, sentiment, topics, action items      |
+| `larvling/scripts/precompact.py`           | Injects critical context before compaction                       |
 | `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                      |
-| `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard                           |
+| `dashboard.html.template`                  | HTML/CSS/JS template for the dashboard                           |
 | `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries          |
 | `larvling/scripts/export.py`               | Exports a session conversation to markdown                       |
 | `larvling/scripts/query.py`                | Runs arbitrary SQL against larvling.db                           |
@@ -186,6 +187,6 @@ rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/d
 All data stays local in the project's `.claude/` directory:
 
 - `larvling.db` - SQLite database (WAL mode) with sessions, messages, and facts
-- `dashboard.html` - static HTML dashboard, refreshed automatically
+- `dashboard.html` - static HTML dashboard, generated on-demand via `/generate-dashboard`
 
 When the plugin updates with schema changes, Larvling automatically backs up your database and guides the agent through the migration - your data is preserved.
