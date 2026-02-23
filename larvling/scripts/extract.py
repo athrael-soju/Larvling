@@ -68,13 +68,19 @@ AGENT responded: {agent_text}
 
 Extract ALL of the following:
 
-1. **facts** - Storable facts about the user or key knowledge shared:
+1. **facts** - Durable facts worth remembering across sessions:
    - From USER: personal info, professional info, preferences, interests \
-(asking about ANY topic = an interest), decisions, opinions
-   - From AGENT: key knowledge facts shared with the user
+(asking about ANY topic = an interest), decisions, opinions, workflow habits
+   - From AGENT: key domain knowledge shared with the user (science, history, \
+concepts) — NOT code-level implementation details
    - Each fact: {{"claim": "...", "domain": "...", "tags": "..."}}
    - Domains: personal, professional, preferences, interests, knowledge, technical
    - Tags: short topic label (e.g. "octopuses", "physics", "python")
+   - **SKIP** (do NOT extract): bug reports, code fixes, line numbers, function \
+signatures, file paths, refactoring notes, schema changes, documentation edits, \
+changelog entries, or anything that will go stale when the code changes.
+   - When in doubt, ask: "Would this fact still be useful in 30 days?" If not, skip it.
+   - Prefer fewer, higher-quality facts over many low-value ones.
 
 2. **sentiment** - Single word for the user's mood in this exchange:
    - One of: focused, curious, frustrated, satisfied, neutral
