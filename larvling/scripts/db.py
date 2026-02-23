@@ -355,6 +355,7 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
     # The SDK (as of 0.1.39) doesn't handle rate_limit_event and other CLI
     # message types, which kills the async generator mid-stream and loses
     # all subsequent messages including the ResultMessage with structured_output.
+    # Note: not concurrent-safe — callers use asyncio.run() (one loop at a time).
     def _tolerant_parse(data):
         try:
             return parse_message(data)

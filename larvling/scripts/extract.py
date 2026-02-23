@@ -337,10 +337,6 @@ def main():
         _log(f"SDK call failed: {e}")
         return
 
-    if not isinstance(result, dict):
-        _log(f"Extraction returned non-dict ({type(result).__name__}), skipping")
-        return
-
     with open_db() as conn:
         # Ensure session row exists before writing session-scoped data
         if session_id:
