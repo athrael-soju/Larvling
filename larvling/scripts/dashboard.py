@@ -1,24 +1,28 @@
 """Larvling Dashboard - generates a static HTML dashboard from larvling.db."""
 
+import asyncio
+import json
 import os
 import sys
 from html import escape
 
-from db import DB_PATH, get_plugin_version, open_db, parse_meta, require_db, reconfigure_stdout
+from db import DB_PATH, get_plugin_version, open_db, has_table, parse_meta, require_db, reconfigure_stdout, call_model, _log
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
 LOGO_URL = "https://raw.githubusercontent.com/athrael-soju/Larvling/main/larvling.png"
 
 HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
-REVISION_PATH = os.path.join(os.path.dirname(DB_PATH), "larvling-revision")
 
 
 def get_revision(conn):
-    """Revision = MAX(messages.id) + COUNT(sessions)."""
+    """Revision = MAX(messages.id) + COUNT(sessions) + COUNT(facts)."""
     msg = conn.execute("SELECT MAX(id) FROM messages").fetchone()[0] or 0
     sess = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] or 0
-    return msg + sess
+    facts = 0
+    if has_table(conn, "facts"):
+        facts = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0] or 0
+    return msg + sess + facts
 
 
 def get_sessions(conn):
@@ -195,7 +199,100 @@ def render_detail_panel(session):
     </div>"""
 
 
-def render_page(sidebar_html, details_html, revision):
+# ---------------------------------------------------------------------------
+# Knowledge Graph data structuring via Agent SDK
+# ---------------------------------------------------------------------------
+
+GRAPH_PROMPT = """\
+You are structuring knowledge facts into a graph. Each fact becomes a node.
+Connect facts that share semantic relationships (same topic, related concepts,
+same domain, causal links, etc.).
+
+## Facts
+{facts_text}
+
+## Instructions
+- Every fact MUST appear as a node (use the fact's DB id as node id).
+- Create edges between semantically related facts. Label each edge with the
+  relationship type (e.g. "same topic", "related", "preference", "builds on").
+- Weight edges 1-3 (1=weak, 3=strong relationship).
+- If there are no meaningful connections, return nodes with an empty edges array.
+
+Return the graph structure as JSON."""
+
+GRAPH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "nodes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "label": {"type": "string"},
+                    "domain": {"type": "string"},
+                    "claim": {"type": "string"},
+                },
+                "required": ["id", "label", "domain", "claim"],
+            },
+        },
+        "edges": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "source": {"type": "integer"},
+                    "target": {"type": "integer"},
+                    "label": {"type": "string"},
+                    "weight": {"type": "integer"},
+                },
+                "required": ["source", "target", "label", "weight"],
+            },
+        },
+    },
+    "required": ["nodes", "edges"],
+}
+
+EMPTY_GRAPH = {"nodes": [], "edges": []}
+
+
+def get_graph_data(conn):
+    """Structure facts into graph nodes and edges via Agent SDK."""
+    if not has_table(conn, "facts"):
+        return EMPTY_GRAPH
+
+    rows = conn.execute(
+        "SELECT id, claim, domain, tags FROM facts ORDER BY id"
+    ).fetchall()
+
+    if not rows:
+        return EMPTY_GRAPH
+
+    facts_text = "\n".join(
+        f"- [id={r['id']}] ({r['domain']}) {r['claim']} (tags: {r['tags']})"
+        for r in rows
+    )
+
+    try:
+        prompt = GRAPH_PROMPT.format(facts_text=facts_text)
+        result = asyncio.run(
+            call_model(
+                prompt,
+                output_format={"type": "json_schema", "schema": GRAPH_SCHEMA},
+            )
+        )
+    except Exception as e:
+        _log(f"Graph structuring failed: {e}")
+        return EMPTY_GRAPH
+
+    if not isinstance(result, dict):
+        _log(f"Unexpected graph result type: {type(result)}")
+        return EMPTY_GRAPH
+
+    return result
+
+
+def render_page(sidebar_html, details_html, revision, graph_json="{}"):
     """Fill template placeholders."""
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
         template = f.read()
@@ -206,6 +303,7 @@ def render_page(sidebar_html, details_html, revision):
         .replace("{{SIDEBAR}}", sidebar_html)
         .replace("{{DETAILS}}", details_html)
         .replace("{{REVISION}}", str(revision))
+        .replace("{{GRAPH_JSON}}", graph_json)
     )
 
 
@@ -231,8 +329,6 @@ def main():
                 and not template_modified
                 and not script_modified
             ):
-                with open(REVISION_PATH, "w", encoding="utf-8") as f:
-                    f.write(str(revision))
                 print(f"Dashboard up to date: {HTML_PATH}", file=sys.stderr)
                 return
 
@@ -243,12 +339,13 @@ def main():
         )
         details_html = "\n".join(render_detail_panel(s) for s in sessions)
 
-    html = render_page(sidebar_html, details_html, revision)
+        graph_data = get_graph_data(conn)
+
+    graph_json = json.dumps(graph_data)
+    html = render_page(sidebar_html, details_html, revision, graph_json)
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(html)
-    with open(REVISION_PATH, "w", encoding="utf-8") as f:
-        f.write(str(revision))
 
     print(f"Dashboard generated: {HTML_PATH}", file=sys.stderr)
 

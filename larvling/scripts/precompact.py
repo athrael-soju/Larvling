@@ -52,7 +52,8 @@ def main():
             # Reminder about Larvling commands
             lines.append(
                 "Larvling commands: /remember, /recall, /forget, "
-                "/sessions, /summarize, /export, /status, /query"
+                "/sessions, /summarize, /export, /status, /query, "
+                "/generate-dashboard"
             )
     except Exception:
         return
