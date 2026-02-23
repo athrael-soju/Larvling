@@ -75,10 +75,11 @@ python "{query_script}" "<SQL>"
 The `facts` table has columns: id, claim, domain, tags, confidence, source, \
 established, confirmed, expires, notes.
 
-Use this to avoid inserting duplicates and to update existing facts when \
-the wording or details have changed. For each fact you extract, set action to:
-- **insert**: genuinely new fact
-- **update**: existing fact needs its claim/domain/tags refined (include "id")
+Use this to avoid duplicates and to consolidate related facts. When a new \
+fact overlaps with an existing one, **update** the existing row to be more \
+comprehensive rather than inserting alongside it. For each fact, set action to:
+- **insert**: genuinely new fact with no existing overlap
+- **update**: existing fact should be consolidated or refined (include "id")
 - **skip**: fact already exists unchanged — do NOT include it
 
 ## Extraction
