@@ -9,7 +9,9 @@ items in a single SDK call, then writes results to SQLite.
 import asyncio
 import json
 import os
+import subprocess
 import sys
+import tempfile
 
 from db import open_db, has_table, parse_meta, reconfigure_stdout, ensure_session, call_model, _log
 
@@ -283,19 +285,54 @@ def store_topics(conn, session_id, topics):
 # ---------------------------------------------------------------------------
 
 
+def _spawn_detached(payload_path):
+    """Spawn self as a detached process that outlives the parent."""
+    creation = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    subprocess.Popen(
+        [sys.executable, __file__, "--detached", payload_path],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=creation,
+        start_new_session=(os.name != "nt"),
+    )
+
+
 def main():
     if os.environ.get("LARVLING_INTERNAL"):
         return
     reconfigure_stdout()
 
-    try:
-        raw = sys.stdin.buffer.read().decode("utf-8")
-    except Exception as e:
-        _log(f"stdin read failed: {e}")
-        return
+    # --detached mode: read payload from temp file (spawned by parent)
+    if "--detached" in sys.argv:
+        payload_path = sys.argv[sys.argv.index("--detached") + 1]
+        try:
+            with open(payload_path, "r", encoding="utf-8") as f:
+                raw = f.read()
+        finally:
+            try:
+                os.unlink(payload_path)
+            except OSError:
+                pass
+    else:
+        # Normal mode: read stdin, spawn detached child, exit immediately
+        try:
+            raw = sys.stdin.buffer.read().decode("utf-8")
+        except Exception as e:
+            _log(f"stdin read failed: {e}")
+            return
 
-    if not raw.strip():
-        return
+        if not raw.strip():
+            return
+
+        # Write payload to temp file and spawn detached child
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        )
+        tmp.write(raw)
+        tmp.close()
+        _spawn_detached(tmp.name)
+        return  # Parent exits immediately
 
     try:
         data = json.loads(raw)
@@ -375,6 +412,11 @@ def main():
         extras.append(f"actions={len(result['action_items'])}")
     if extras:
         _log(f"Extraction: {', '.join(extras)}")
+
+    # Refresh dashboard after extraction (detached child runs after the hook's
+    # dashboard.py, so this picks up the newly written topics/sentiment/facts).
+    dashboard = os.path.join(os.path.dirname(__file__), "dashboard.py")
+    subprocess.run([sys.executable, dashboard], capture_output=True)
 
 
 if __name__ == "__main__":

@@ -20,7 +20,8 @@ def get_plugin_version():
     plugin_json = os.path.join(plugin_root, ".claude-plugin", "plugin.json")
     try:
         with open(plugin_json, "r", encoding="utf-8") as f:
-            return json.load(f).get("version", "?")
+            data = json.load(f)
+            return data.get("version", "?") if isinstance(data, dict) else "?"
     except Exception:
         return "?"
 
