@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.3](https://github.com/athrael-soju/Larvling/compare/v0.1.2...v0.1.3) (2026-02-23)
+
+
+### Refactoring
+
+* enhance fact handling instructions to improve consolidation and avoid duplicates ([79422f9](https://github.com/athrael-soju/Larvling/commit/79422f90826257dffa9d68ae0481c03b8654e81b))
+* improve facts extraction process and clarify database querying instructions ([d11aa79](https://github.com/athrael-soju/Larvling/commit/d11aa7928031b8ff45bdab24059cbfd0e02feb0e))
+* simplify facts schema and empower extraction agent ([041fb45](https://github.com/athrael-soju/Larvling/commit/041fb45b098e024369c05a89e66eec559dcc7b8d))
+* refine simplified facts schema and further tune extraction agent behavior ([e89db5e](https://github.com/athrael-soju/Larvling/commit/e89db5e34621ef561263fb187954f0452cbdc4b7))
+* streamline command documentation by removing example SQL queries and clarifying instructions ([6a78ef0](https://github.com/athrael-soju/Larvling/commit/6a78ef048afe7a24d46a8e965f199de5320149ef))
+
 ## [0.1.2](https://github.com/athrael-soju/Larvling/compare/v0.1.1...v0.1.2) (2026-02-23)
 
 
