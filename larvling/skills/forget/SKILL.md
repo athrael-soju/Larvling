@@ -1,10 +1,8 @@
 ---
 name: forget
 description: Remove a stored fact from Larvling's memory
-arguments:
-  - name: fact
-    description: "Fact ID or keyword to search for"
-    required: false
+argument-hint: "[fact ID or keyword]"
+disable-model-invocation: true
 ---
 
 **Schema:** `facts (id INTEGER PK AUTO, claim TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT NOT NULL DEFAULT date('now'), updated TEXT)`

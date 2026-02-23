@@ -6,7 +6,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"",
+            "async": true,
             "timeout": 10
           }
         ]
@@ -17,8 +23,14 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\"",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"",
+            "async": true,
+            "timeout": 10
           }
         ]
       }
@@ -28,7 +40,37 @@
         "hooks": [
           {
             "type": "command",
-            "command": "_TMP=$(mktemp) && cat >\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" <\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/extract.py\" <\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"; rm -f \"$_TMP\"",
+            "command": "_TMP=$(mktemp) && cat >\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" <\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/extract.py\" <\"$_TMP\"; rm -f \"$_TMP\"",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/precompact.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\"",
+            "async": true,
             "timeout": 5
           }
         ]
@@ -39,8 +81,14 @@
         "hooks": [
           {
             "type": "command",
-            "command": "_TMP=$(mktemp) && cat >\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" <\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/auto_summarize.py\" <\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"; rm -f \"$_TMP\"",
+            "command": "_TMP=$(mktemp) && cat >\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" <\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/auto_summarize.py\" <\"$_TMP\"; rm -f \"$_TMP\"",
             "timeout": 90
+          },
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"",
+            "async": true,
+            "timeout": 10
           }
         ]
       }
