@@ -61,6 +61,10 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 
 **Stop → Quality signals (no SDK call):** `hooks.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
 
+**PostToolUseFailure → Tool failure tracking:** `hooks.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.
+
+**PreCompact → Context preservation:** `precompact.py` injects critical session context (current topics, recent facts, command reminders) before compaction so it survives context summarization.
+
 **SessionEnd → Auto-summarization:** `auto_summarize.py` runs at session end. If `exchange_count >= 6` and the summary is missing or stale, it calls the Agent to generate a summary (length scales to conversation size) and stores it via `record_summary()`.
 
 **Manual commands** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
@@ -74,6 +78,10 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 - **Stale summary:** shown when 5+ new messages have been added since the last summary
 
 When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines.
+
+### Fact Manager Agent
+
+The `fact-manager` agent is a Haiku-powered subagent for autonomous fact management. Claude can delegate to it proactively when the conversation reveals a preference, convention, decision, or knowledge worth persisting. It handles deduplication, consolidation, and domain classification autonomously — searching existing facts before deciding whether to insert, update, or skip.
 
 ## Interaction Protocol
 

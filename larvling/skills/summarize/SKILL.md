@@ -1,10 +1,7 @@
 ---
 name: summarize
 description: Generate or view a session summary
-arguments:
-  - name: session
-    description: "Session ID (short or full). Pass --list to see sessions, or use 'all' for batch."
-    required: false
+argument-hint: "[session-id or --list or all]"
 ---
 
 **Schema:** `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, topics TEXT, quality_signals TEXT)`

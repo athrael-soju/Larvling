@@ -1,10 +1,8 @@
 ---
 name: query
 description: Run arbitrary SQL against larvling.db
-arguments:
-  - name: sql
-    description: "SQL query to execute"
-    required: true
+argument-hint: "[SQL query]"
+disable-model-invocation: true
 ---
 
 **Schema:**

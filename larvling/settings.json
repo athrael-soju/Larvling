@@ -1,0 +1,7 @@
+{
+  "agent": {
+    "fact-manager": {
+      "model": "sonnet"
+    }
+  }
+}

@@ -1,9 +1,10 @@
 """
 Larvling Hooks - unified handler for conversation lifecycle events.
 
-Handles three hook events:
+Handles four hook events:
   - UserPromptSubmit: logs the user's prompt, injects fact management + summary hints
   - Stop: logs the agent's last response
+  - PostToolUseFailure: records tool failures as quality signals
   - SessionEnd: finalizes session timing and exchange count
 """
 
@@ -295,6 +296,39 @@ def handle_stop(data):
         conn.commit()
 
 
+def handle_tool_failure(data):
+    """Record a tool failure as a quality signal."""
+    session_id = data.get("session_id")
+    if not session_id:
+        return
+
+    tool_name = data.get("tool_name", "unknown")
+    error = data.get("error", "")
+
+    with open_db() as conn:
+        ensure_session(conn, session_id)
+        sess = conn.execute(
+            "SELECT quality_signals FROM sessions WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+        if sess:
+            existing = {}
+            if sess["quality_signals"]:
+                try:
+                    existing = json.loads(sess["quality_signals"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            existing["tool_failures"] = existing.get("tool_failures", 0) + 1
+            failures_by_tool = existing.get("failures_by_tool", {})
+            failures_by_tool[tool_name] = failures_by_tool.get(tool_name, 0) + 1
+            existing["failures_by_tool"] = failures_by_tool
+            conn.execute(
+                "UPDATE sessions SET quality_signals = ? WHERE id = ?",
+                (json.dumps(existing), session_id),
+            )
+        conn.commit()
+
+
 def main():
     if os.environ.get("LARVLING_INTERNAL"):
         return
@@ -322,6 +356,8 @@ def main():
         handle_user_prompt(data)
     elif event == "Stop":
         handle_stop(data)
+    elif event == "PostToolUseFailure":
+        handle_tool_failure(data)
     elif event == "SessionEnd":
         handle_session_end(data)
 
