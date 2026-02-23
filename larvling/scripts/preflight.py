@@ -274,7 +274,7 @@ def get_session_context():
                     f"{r['d']} ({r['c']})" for r in domain_rows
                 )
                 recent = conn.execute(
-                    "SELECT id, claim FROM facts ORDER BY established DESC LIMIT 3"
+                    "SELECT id, claim FROM facts ORDER BY created DESC LIMIT 3"
                 ).fetchall()
                 lines.append(f"## Stored Facts ({fact_count})")
                 lines.append(f"Domains: {domains}")

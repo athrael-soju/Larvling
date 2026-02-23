@@ -86,7 +86,7 @@ def has_table(conn, name):
 # Schema creation and versioning
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def get_schema_version(conn):
@@ -152,16 +152,12 @@ def create_schema(conn):
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS facts (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             claim TEXT NOT NULL,
-            domain TEXT,
-            tags TEXT,
-            confidence TEXT DEFAULT 'observed',
-            source TEXT,
-            established TEXT NOT NULL DEFAULT (date('now')),
-            confirmed TEXT,
-            expires TEXT,
-            notes TEXT
+            domain TEXT NOT NULL,
+            tags TEXT NOT NULL,
+            created TEXT NOT NULL DEFAULT (date('now')),
+            updated TEXT
         )
     """
     )

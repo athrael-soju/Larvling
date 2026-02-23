@@ -72,8 +72,7 @@ You can query the facts database to check for duplicates or stale facts:
 
 python "{query_script}" "<SQL>"
 
-The `facts` table has columns: id, claim, domain, tags, confidence, source, \
-established, confirmed, expires, notes.
+The `facts` table has columns: id (INTEGER PK), claim, domain, tags, created, updated.
 
 Use this to avoid duplicates and to consolidate related facts. When a new \
 fact overlaps with an existing one, **update** the existing row to be more \
@@ -89,7 +88,7 @@ comprehensive rather than inserting alongside it. For each fact, set action to:
 (asking about ANY topic = an interest), decisions, opinions, workflow habits
    - From AGENT: key domain knowledge shared with the user (science, history, \
 concepts) — NOT code-level implementation details
-   - Each fact: {{"claim": "...", "domain": "...", "tags": "...", "action": "insert|update", "id": "M-NNN (update only)"}}
+   - Each fact: {{"claim": "...", "domain": "...", "tags": "...", "action": "insert|update", "id": N (update only)}}
    - Domains: personal, professional, preferences, interests, knowledge, technical
    - Tags: short topic label (e.g. "octopuses", "physics", "python")
    - **SKIP** (do NOT extract): bug reports, code fixes, line numbers, function \
@@ -132,7 +131,7 @@ EXTRACTION_SCHEMA = {
                     "domain": {"type": "string"},
                     "tags": {"type": "string"},
                     "action": {"type": "string"},
-                    "id": {"type": "string"},
+                    "id": {"type": "integer"},
                 },
                 "required": ["claim", "domain", "tags", "action"],
             },
@@ -161,22 +160,11 @@ def build_extraction_prompt(user_text, agent_text, existing_topics=""):
 # ---------------------------------------------------------------------------
 
 
-def get_next_fact_id(conn):
-    """Get the next M-NNN id."""
-    row = conn.execute(
-        "SELECT MAX(CAST(SUBSTR(id, 3) AS INTEGER)) FROM facts WHERE id LIKE 'M-%'"
-    ).fetchone()
-    if row and row[0] is not None:
-        return row[0] + 1
-    return 1
-
-
 def store_facts(conn, facts_list):
     """Insert or update extracted facts. Returns count stored/updated."""
     if not facts_list or not has_table(conn, "facts"):
         return 0
 
-    next_id = get_next_fact_id(conn)
     count = 0
 
     for fact in facts_list:
@@ -189,9 +177,16 @@ def store_facts(conn, facts_list):
         domain = fact.get("domain", "knowledge").strip()
         tags = fact.get("tags", "").strip()
 
+        if not domain or not tags:
+            continue
+
         if action == "update":
-            existing_id = fact.get("id", "").strip()
-            if not existing_id:
+            existing_id = fact.get("id")
+            if existing_id is None:
+                continue
+            try:
+                existing_id = int(existing_id)
+            except (ValueError, TypeError):
                 continue
             row = conn.execute(
                 "SELECT 1 FROM facts WHERE id = ?", (existing_id,)
@@ -200,8 +195,8 @@ def store_facts(conn, facts_list):
                 continue
             conn.execute(
                 "UPDATE facts SET claim = ?, domain = ?, tags = ?, "
-                "confirmed = date('now') WHERE id = ?",
-                (claim, domain, tags or None, existing_id),
+                "updated = date('now') WHERE id = ?",
+                (claim, domain, tags, existing_id),
             )
             count += 1
         else:
@@ -212,14 +207,9 @@ def store_facts(conn, facts_list):
             if existing:
                 continue
 
-            fid = f"M-{next_id:03d}"
-            next_id += 1
-
             conn.execute(
-                "INSERT INTO facts (id, claim, domain, tags, confidence, "
-                "source, established) VALUES (?, ?, ?, ?, 'observed', "
-                "'conversation', date('now'))",
-                (fid, claim, domain, tags or None),
+                "INSERT INTO facts (claim, domain, tags) VALUES (?, ?, ?)",
+                (claim, domain, tags),
             )
             count += 1
 
