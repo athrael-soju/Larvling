@@ -11,11 +11,10 @@ import json
 import os
 import re
 import sys
-import time
 
-from db import open_db, has_table, parse_meta, reconfigure_stdout, ensure_session, _log
+from db import open_db, has_table, parse_meta, reconfigure_stdout, ensure_session, call_model, _log
 
-from hooks import parse_last_turn, wait_for_transcript_stable, _is_real_user_message
+from hooks import parse_last_turn, wait_for_transcript_stable, is_real_user_message
 
 # ---------------------------------------------------------------------------
 # Transcript parsing — extract user text from the last exchange
@@ -39,7 +38,7 @@ def parse_last_user_text(transcript_path):
             entry = json.loads(lines[i])
         except json.JSONDecodeError:
             continue
-        if _is_real_user_message(entry):
+        if is_real_user_message(entry):
             msg = entry.get("message", {})
             content = msg.get("content", "")
             if isinstance(content, str):
@@ -106,43 +105,13 @@ If nothing to extract for a section, use empty list/string:
 JSON only, no markdown fences."""
 
 
-async def call_sdk(user_text, agent_text, existing_topics=""):
-    """Call Sonnet via Agent SDK to extract facts, sentiment, topics, action items."""
-    from claude_code_sdk import query, ClaudeCodeOptions
-
-    prompt = EXTRACTION_PROMPT.format(
+def build_extraction_prompt(user_text, agent_text, existing_topics=""):
+    """Format the extraction prompt with the exchange text."""
+    return EXTRACTION_PROMPT.format(
         user_text=user_text or "(no user text)",
         agent_text=agent_text or "(no agent text)",
         existing_topics=existing_topics or "(none)",
     )
-
-    options = ClaudeCodeOptions(
-        model="claude-sonnet-4-6",
-        max_turns=1,
-        allowed_tools=[],
-    )
-
-    # Prevent the sub-agent from triggering Larvling hooks
-    os.environ["LARVLING_INTERNAL"] = "1"
-
-    response_text = ""
-    try:
-        async for msg in query(prompt=prompt, options=options):
-            content = getattr(msg, "content", None)
-            if not content:
-                continue
-
-            for block in content:
-                text = getattr(block, "text", None)
-                if text:
-                    response_text += text
-    except Exception as e:
-        if not response_text:
-            raise e
-    finally:
-        os.environ.pop("LARVLING_INTERNAL", None)
-
-    return response_text
 
 
 # ---------------------------------------------------------------------------
@@ -195,9 +164,9 @@ def store_facts(conn, facts_list):
     return count
 
 
-def store_sentiment(conn, session_id, sentiment, expected_content=None):
-    """Store sentiment in the metadata of the last assistant message."""
-    if not sentiment:
+def store_message_metadata(conn, session_id, field, value, expected_content=None):
+    """Store a field in the metadata of the last assistant message."""
+    if not value:
         return
 
     row = conn.execute(
@@ -214,7 +183,7 @@ def store_sentiment(conn, session_id, sentiment, expected_content=None):
         return
 
     meta = parse_meta(row["metadata"])
-    meta["sentiment"] = sentiment
+    meta[field] = value
     conn.execute(
         "UPDATE messages SET metadata = ? WHERE id = ?",
         (json.dumps(meta), row["id"]),
@@ -251,32 +220,6 @@ def store_topics(conn, session_id, topics):
     conn.execute(
         "UPDATE sessions SET topics = ? WHERE id = ?",
         (", ".join(deduped), session_id),
-    )
-
-
-def store_action_items(conn, session_id, action_items, expected_content=None):
-    """Store action items in the metadata of the last assistant message."""
-    if not action_items:
-        return
-
-    row = conn.execute(
-        "SELECT id, content, metadata FROM messages "
-        "WHERE session_id = ? AND role = 'assistant' "
-        "ORDER BY id DESC LIMIT 1",
-        (session_id,),
-    ).fetchone()
-    if not row:
-        return
-
-    # Don't attach metadata to a message from a different turn
-    if expected_content and row["content"] != expected_content:
-        return
-
-    meta = parse_meta(row["metadata"])
-    meta["action_items"] = action_items
-    conn.execute(
-        "UPDATE messages SET metadata = ? WHERE id = ?",
-        (json.dumps(meta), row["id"]),
     )
 
 
@@ -327,7 +270,8 @@ def main():
             pass
 
     try:
-        response = asyncio.run(call_sdk(user_text, agent_text, existing_topics))
+        prompt = build_extraction_prompt(user_text, agent_text, existing_topics)
+        response = asyncio.run(call_model(prompt))
     except Exception as e:
         _log(f"SDK call failed: {e}")
         return
@@ -354,7 +298,7 @@ def main():
         # Sentiment
         sentiment = result.get("sentiment")
         if session_id and isinstance(sentiment, str):
-            store_sentiment(conn, session_id, sentiment, expected_content=agent_text)
+            store_message_metadata(conn, session_id, "sentiment", sentiment, expected_content=agent_text)
 
         # Topics
         topics = result.get("topics", [])
@@ -364,7 +308,7 @@ def main():
         # Action items
         action_items = result.get("action_items", [])
         if session_id and isinstance(action_items, list) and action_items:
-            store_action_items(conn, session_id, action_items, expected_content=agent_text)
+            store_message_metadata(conn, session_id, "action_items", action_items, expected_content=agent_text)
 
         conn.commit()
 

@@ -301,6 +301,67 @@ def print_sessions(**kwargs):
         list_sessions(conn, **kwargs)
 
 
+def build_message_pairs(rows):
+    """Build user/agent pairs from ordered message rows, skipping orphans.
+
+    Each pair: {"user": str, "agent": str, "timestamp": str or None}
+    Works with rows that include or omit the timestamp column.
+    """
+    pairs = []
+    i = 0
+    while i < len(rows):
+        if rows[i]["role"] == "user":
+            user_msg = rows[i]["content"] or ""
+            try:
+                ts = rows[i]["timestamp"]
+            except (IndexError, KeyError):
+                ts = None
+            i += 1
+            agent_msg = ""
+            if i < len(rows) and rows[i]["role"] == "assistant":
+                agent_msg = rows[i]["content"] or ""
+                i += 1
+            pairs.append({"user": user_msg, "agent": agent_msg, "timestamp": ts})
+        else:
+            # Orphan assistant message — skip
+            i += 1
+    return pairs
+
+
+async def call_model(prompt):
+    """Call the LLM via Agent SDK and return the response text.
+
+    Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
+    """
+    from claude_code_sdk import query, ClaudeCodeOptions
+
+    options = ClaudeCodeOptions(
+        model="claude-sonnet-4-6",
+        max_turns=1,
+        allowed_tools=[],
+    )
+
+    os.environ["LARVLING_INTERNAL"] = "1"
+
+    response_text = ""
+    try:
+        async for msg in query(prompt=prompt, options=options):
+            content = getattr(msg, "content", None)
+            if not content:
+                continue
+            for block in content:
+                text = getattr(block, "text", None)
+                if text:
+                    response_text += text
+    except Exception as e:
+        if not response_text:
+            raise e
+    finally:
+        os.environ.pop("LARVLING_INTERNAL", None)
+
+    return response_text.strip()
+
+
 def _log(msg):
     """Append a message to .claude/larvling-errors.log for debugging."""
     try:

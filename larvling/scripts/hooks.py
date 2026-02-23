@@ -25,7 +25,7 @@ from db import (
 )
 
 
-def _is_real_user_message(entry):
+def is_real_user_message(entry):
     """Return True if this is a genuine user message, not a tool_result."""
     if entry.get("type") != "user":
         return False
@@ -70,7 +70,7 @@ def parse_last_turn(transcript_path):
             entry = json.loads(lines[i])
         except json.JSONDecodeError:
             continue
-        if _is_real_user_message(entry):
+        if is_real_user_message(entry):
             turn_start = i + 1
             break
 
@@ -162,7 +162,7 @@ def inject_context(conn, session_id):
         if not session["agent_summary"] and msg_count >= 10:
             print(f'\n## Summary\nNo summary yet ({msg_count} messages). '
                   f'Offer /summarize via AskUserQuestion.')
-        elif session["agent_summary"] and msg_count > summarized + 6:
+        elif session["agent_summary"] and msg_count > summarized + 4:
             print(f'\n## Summary\nStale summary '
                   f'(covers {summarized}/{msg_count} messages). '
                   f'Offer /summarize via AskUserQuestion.')

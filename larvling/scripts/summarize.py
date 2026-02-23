@@ -17,6 +17,7 @@ import sys
 import time
 
 from db import (
+    build_message_pairs,
     get_summary,
     open_db,
     record_summary,
@@ -47,36 +48,16 @@ def get_pairs(session_id):
             (session_id,),
         ).fetchall()
 
-    # Pair up user/agent messages
-    pairs = []
-    i = 0
-    while i < len(rows):
-        user_msg = None
-        agent_msg = None
-        ts = None
-
-        if rows[i]["role"] == "user":
-            user_msg = rows[i]["content"]
-            ts = rows[i]["timestamp"]
-            i += 1
-            if i < len(rows) and rows[i]["role"] == "assistant":
-                agent_msg = rows[i]["content"]
-                i += 1
-        else:
-            # Orphan assistant message — skip
-            i += 1
-            continue
-
-        pairs.append(
-            {
-                "index": len(pairs) + 1,
-                "user": user_msg or "",
-                "agent": agent_msg or "",
-                "timestamp": ts or "",
-            }
-        )
-
-    return pairs
+    raw_pairs = build_message_pairs(rows)
+    return [
+        {
+            "index": i + 1,
+            "user": p["user"],
+            "agent": p["agent"],
+            "timestamp": p["timestamp"] or "",
+        }
+        for i, p in enumerate(raw_pairs)
+    ]
 
 
 def get_existing_summary(session_id):
