@@ -18,14 +18,6 @@ Available flags: `--list`, `--get`, `--pairs`, `--store "SUMMARY"`
 
 ## Approach
 
-0. **Check for existing summary** — run `--get` first. If one exists, display it and use AskUserQuestion to confirm before regenerating.
+Check for an existing summary first (`--get`). If one exists, display it and use AskUserQuestion to confirm before regenerating.
 
-Summarize incrementally, not all at once:
-
-1. **Pair summaries** — 1-2 sentences per user/agent exchange
-2. **Group summaries** — combine pairs into groups of 3-5, one paragraph each
-3. **Final summary** — combine groups into one cohesive summary covering accomplishments, decisions, and unresolved items
-
-For small sessions (5 or fewer pairs), skip to the final summary. Prepend `[N exchanges]`.
-
-After storing, always display the summary immediately.
+To summarize: read the conversation pairs (`--pairs`), write a summary that covers accomplishments, key decisions, and unresolved items. Scale detail to conversation length. Store with `--store` and display the result.
