@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 import urllib.request
 
 from db import (
@@ -191,10 +192,57 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
     return results
 
 
+def get_time_and_location():
+    """Return a line with local datetime, UTC offset, and approximate location.
+
+    Location comes from a free IP-geolocation API (no auth required).
+    Falls back gracefully — time is always available, location is best-effort.
+    """
+    now = time.localtime()
+    utc_offset_sec = time.timezone if now.tm_isdst == 0 else time.altzone
+    utc_offset_h = -utc_offset_sec / 3600  # sign convention: west = positive timezone
+    sign = "+" if utc_offset_h >= 0 else "-"
+    offset_str = f"UTC{sign}{abs(utc_offset_h):g}"
+
+    dt_str = time.strftime("%A, %B %d, %Y at %I:%M %p", now)
+    parts = [f"{dt_str} ({offset_str})"]
+
+    # Best-effort geolocation via free API
+    try:
+        req = urllib.request.Request(
+            "https://ipinfo.io/json",
+            headers={"User-Agent": "larvling", "Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            geo = json.loads(resp.read().decode("utf-8"))
+        city = geo.get("city", "")
+        region = geo.get("region", "")
+        country = geo.get("country", "")
+        tz = geo.get("timezone", "")
+        loc_parts = [p for p in [city, region, country] if p]
+        if loc_parts:
+            loc_str = ", ".join(loc_parts)
+            if tz:
+                loc_str += f" ({tz})"
+            parts.append(loc_str)
+    except Exception:
+        pass
+
+    return " — ".join(parts)
+
+
 def get_session_context():
     """Build curated session context from summaries and relevant sessions."""
     with open_db() as conn:
         lines = ["# Larvling Session Context", ""]
+
+        # Time and location
+        try:
+            time_loc = get_time_and_location()
+            lines.append(f"**Now:** {time_loc}")
+            lines.append("")
+        except Exception:
+            pass
 
         # Recent session summaries
         summaries = get_recent_summaries(conn)
