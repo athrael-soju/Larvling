@@ -12,7 +12,7 @@ import os
 import sys
 import time
 
-from db import open_db, reconfigure_stdout, record_summary, _log
+from db import build_message_pairs, call_model, open_db, reconfigure_stdout, record_summary, _log
 
 
 def needs_summary(conn, session_id):
@@ -53,22 +53,7 @@ def needs_summary(conn, session_id):
         (session_id,),
     ).fetchall()
 
-    pairs = []
-    i = 0
-    while i < len(rows):
-        user_msg = ""
-        agent_msg = ""
-        if rows[i]["role"] == "user":
-            user_msg = rows[i]["content"] or ""
-            i += 1
-            if i < len(rows) and rows[i]["role"] == "assistant":
-                agent_msg = rows[i]["content"] or ""
-                i += 1
-        else:
-            # Orphan assistant message — skip
-            i += 1
-            continue
-        pairs.append((user_msg, agent_msg))
+    pairs = build_message_pairs(rows)
 
     return True, exchange_count, pairs, msg_count
 
@@ -76,9 +61,9 @@ def needs_summary(conn, session_id):
 def build_conversation_text(pairs):
     """Build a compact conversation representation."""
     lines = []
-    for i, (user, agent) in enumerate(pairs, 1):
-        u = (user or "").strip()
-        a = (agent or "").strip()
+    for i, p in enumerate(pairs, 1):
+        u = (p["user"] or "").strip()
+        a = (p["agent"] or "").strip()
         lines.append(f"[{i}] User: {u}")
         lines.append(f"    Agent: {a}")
 
@@ -99,37 +84,9 @@ Conversation:
 Return ONLY the summary text, no JSON, no markdown fences, no labels."""
 
 
-async def call_sdk(conversation_text):
-    """Call Sonnet via Agent SDK to generate a session summary."""
-    from claude_code_sdk import query, ClaudeCodeOptions
-
-    prompt = SUMMARIZE_PROMPT.format(conversation=conversation_text)
-
-    options = ClaudeCodeOptions(
-        model="claude-sonnet-4-6",
-        max_turns=1,
-        allowed_tools=[],
-    )
-
-    # Prevent the sub-agent from triggering Larvling hooks
-    os.environ["LARVLING_INTERNAL"] = "1"
-
-    from claude_code_sdk import AssistantMessage, TextBlock
-
-    response_text = ""
-    try:
-        async for msg in query(prompt=prompt, options=options):
-            if isinstance(msg, AssistantMessage):
-                for block in msg.content:
-                    if isinstance(block, TextBlock):
-                        response_text += block.text
-    except Exception as e:
-        if not response_text:
-            raise e
-    finally:
-        os.environ.pop("LARVLING_INTERNAL", None)
-
-    return response_text.strip()
+def build_summarize_prompt(conversation_text):
+    """Format the summarization prompt with the conversation."""
+    return SUMMARIZE_PROMPT.format(conversation=conversation_text)
 
 
 def main():
@@ -164,7 +121,8 @@ def main():
     conversation_text = build_conversation_text(pairs)
 
     try:
-        summary = asyncio.run(call_sdk(conversation_text))
+        prompt = build_summarize_prompt(conversation_text)
+        summary = asyncio.run(call_model(prompt))
     except Exception as e:
         _log(f"Auto-summarize SDK call failed: {e}")
         return

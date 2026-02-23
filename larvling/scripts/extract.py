@@ -9,13 +9,13 @@ items in a single SDK call, then writes results to SQLite.
 import asyncio
 import json
 import os
-import re
+import subprocess
 import sys
-import time
+import tempfile
 
-from db import open_db, has_table, parse_meta, reconfigure_stdout, ensure_session, _log
+from db import open_db, has_table, parse_meta, reconfigure_stdout, ensure_session, call_model, _log
 
-from hooks import parse_last_turn, wait_for_transcript_stable, _is_real_user_message
+from hooks import parse_last_turn, wait_for_transcript_stable, is_real_user_message
 
 # ---------------------------------------------------------------------------
 # Transcript parsing — extract user text from the last exchange
@@ -39,7 +39,7 @@ def parse_last_user_text(transcript_path):
             entry = json.loads(lines[i])
         except json.JSONDecodeError:
             continue
-        if _is_real_user_message(entry):
+        if is_real_user_message(entry):
             msg = entry.get("message", {})
             content = msg.get("content", "")
             if isinstance(content, str):
@@ -60,20 +60,33 @@ def parse_last_user_text(transcript_path):
 # ---------------------------------------------------------------------------
 
 EXTRACTION_PROMPT = """\
-Analyze this conversation exchange and extract structured data. Return ONLY valid JSON.
+Analyze this conversation exchange and extract structured data.
 
 USER said: {user_text}
 
 AGENT responded: {agent_text}
 
-Extract ALL of the following:
+## Fact-awareness
+
+Before extracting facts, query the existing facts table to check for duplicates \
+or facts that need updating. Run this command:
+
+python "{query_script}" "SELECT id, claim, domain, tags FROM facts"
+
+Review the results and decide for each potential fact:
+- **insert**: genuinely new fact not covered by any existing row
+- **update**: an existing fact needs its claim refined or domain/tags corrected \
+(include the existing "id" to update)
+- **skip**: the fact already exists and is unchanged — do NOT include it
+
+## Extraction
 
 1. **facts** - Durable facts worth remembering across sessions:
    - From USER: personal info, professional info, preferences, interests \
 (asking about ANY topic = an interest), decisions, opinions, workflow habits
    - From AGENT: key domain knowledge shared with the user (science, history, \
 concepts) — NOT code-level implementation details
-   - Each fact: {{"claim": "...", "domain": "...", "tags": "..."}}
+   - Each fact: {{"claim": "...", "domain": "...", "tags": "...", "action": "insert|update", "id": "M-NNN (update only)"}}
    - Domains: personal, professional, preferences, interests, knowledge, technical
    - Tags: short topic label (e.g. "octopuses", "physics", "python")
    - **SKIP** (do NOT extract): bug reports, code fixes, line numbers, function \
@@ -95,54 +108,49 @@ changelog entries, or anything that will go stale when the code changes.
 
 Return JSON:
 {{
-  "facts": [{{"claim": "...", "domain": "...", "tags": "..."}}],
+  "facts": [{{"claim": "...", "domain": "...", "tags": "...", "action": "insert"}}],
   "sentiment": "focused",
   "topics": ["python", "deployment"],
   "action_items": ["refactor auth module"]
 }}
 
-If nothing to extract for a section, use empty list/string:
-{{"facts": [], "sentiment": "neutral", "topics": [], "action_items": []}}
-JSON only, no markdown fences."""
+If nothing to extract for a section, use empty list/string."""
 
 
-async def call_sdk(user_text, agent_text, existing_topics=""):
-    """Call Sonnet via Agent SDK to extract facts, sentiment, topics, action items."""
-    from claude_code_sdk import query, ClaudeCodeOptions
+EXTRACTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "facts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "claim": {"type": "string"},
+                    "domain": {"type": "string"},
+                    "tags": {"type": "string"},
+                    "action": {"type": "string"},
+                    "id": {"type": "string"},
+                },
+                "required": ["claim", "domain", "tags", "action"],
+            },
+        },
+        "sentiment": {"type": "string"},
+        "topics": {"type": "array", "items": {"type": "string"}},
+        "action_items": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["facts", "sentiment", "topics", "action_items"],
+}
 
-    prompt = EXTRACTION_PROMPT.format(
+
+def build_extraction_prompt(user_text, agent_text, existing_topics=""):
+    """Format the extraction prompt with the exchange text."""
+    query_script = os.path.join(os.path.dirname(__file__), "query.py")
+    return EXTRACTION_PROMPT.format(
         user_text=user_text or "(no user text)",
         agent_text=agent_text or "(no agent text)",
         existing_topics=existing_topics or "(none)",
+        query_script=query_script.replace("\\", "/"),
     )
-
-    options = ClaudeCodeOptions(
-        model="claude-sonnet-4-6",
-        max_turns=1,
-        allowed_tools=[],
-    )
-
-    # Prevent the sub-agent from triggering Larvling hooks
-    os.environ["LARVLING_INTERNAL"] = "1"
-
-    response_text = ""
-    try:
-        async for msg in query(prompt=prompt, options=options):
-            content = getattr(msg, "content", None)
-            if not content:
-                continue
-
-            for block in content:
-                text = getattr(block, "text", None)
-                if text:
-                    response_text += text
-    except Exception as e:
-        if not response_text:
-            raise e
-    finally:
-        os.environ.pop("LARVLING_INTERNAL", None)
-
-    return response_text
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +169,7 @@ def get_next_fact_id(conn):
 
 
 def store_facts(conn, facts_list):
-    """Insert extracted facts into the DB. Returns count stored."""
+    """Insert or update extracted facts. Returns count stored/updated."""
     if not facts_list or not has_table(conn, "facts"):
         return 0
 
@@ -174,30 +182,48 @@ def store_facts(conn, facts_list):
             continue
         domain = fact.get("domain", "knowledge").strip()
         tags = fact.get("tags", "").strip()
+        action = fact.get("action", "insert").strip().lower()
 
-        fid = f"M-{next_id:03d}"
-        next_id += 1
+        if action == "update":
+            existing_id = fact.get("id", "").strip()
+            if not existing_id:
+                continue
+            row = conn.execute(
+                "SELECT 1 FROM facts WHERE id = ?", (existing_id,)
+            ).fetchone()
+            if not row:
+                continue
+            conn.execute(
+                "UPDATE facts SET claim = ?, domain = ?, tags = ?, "
+                "confirmed = date('now') WHERE id = ?",
+                (claim, domain, tags or None, existing_id),
+            )
+            count += 1
+        else:
+            # Insert — keep exact-match dedup as safety net
+            existing = conn.execute(
+                "SELECT 1 FROM facts WHERE claim = ?", (claim,)
+            ).fetchone()
+            if existing:
+                continue
 
-        existing = conn.execute(
-            "SELECT 1 FROM facts WHERE claim = ?", (claim,)
-        ).fetchone()
-        if existing:
-            continue
+            fid = f"M-{next_id:03d}"
+            next_id += 1
 
-        conn.execute(
-            "INSERT INTO facts (id, claim, domain, tags, confidence, "
-            "source, established) VALUES (?, ?, ?, ?, 'observed', "
-            "'conversation', date('now'))",
-            (fid, claim, domain, tags or None),
-        )
-        count += 1
+            conn.execute(
+                "INSERT INTO facts (id, claim, domain, tags, confidence, "
+                "source, established) VALUES (?, ?, ?, ?, 'observed', "
+                "'conversation', date('now'))",
+                (fid, claim, domain, tags or None),
+            )
+            count += 1
 
     return count
 
 
-def store_sentiment(conn, session_id, sentiment, expected_content=None):
-    """Store sentiment in the metadata of the last assistant message."""
-    if not sentiment:
+def store_message_metadata(conn, session_id, field, value, expected_content=None):
+    """Store a field in the metadata of the last assistant message."""
+    if not value:
         return
 
     row = conn.execute(
@@ -214,7 +240,7 @@ def store_sentiment(conn, session_id, sentiment, expected_content=None):
         return
 
     meta = parse_meta(row["metadata"])
-    meta["sentiment"] = sentiment
+    meta[field] = value
     conn.execute(
         "UPDATE messages SET metadata = ? WHERE id = ?",
         (json.dumps(meta), row["id"]),
@@ -254,35 +280,22 @@ def store_topics(conn, session_id, topics):
     )
 
 
-def store_action_items(conn, session_id, action_items, expected_content=None):
-    """Store action items in the metadata of the last assistant message."""
-    if not action_items:
-        return
-
-    row = conn.execute(
-        "SELECT id, content, metadata FROM messages "
-        "WHERE session_id = ? AND role = 'assistant' "
-        "ORDER BY id DESC LIMIT 1",
-        (session_id,),
-    ).fetchone()
-    if not row:
-        return
-
-    # Don't attach metadata to a message from a different turn
-    if expected_content and row["content"] != expected_content:
-        return
-
-    meta = parse_meta(row["metadata"])
-    meta["action_items"] = action_items
-    conn.execute(
-        "UPDATE messages SET metadata = ? WHERE id = ?",
-        (json.dumps(meta), row["id"]),
-    )
-
-
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
+
+def _spawn_detached(payload_path):
+    """Spawn self as a detached process that outlives the parent."""
+    creation = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    subprocess.Popen(
+        [sys.executable, __file__, "--detached", payload_path],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=creation,
+        start_new_session=(os.name != "nt"),
+    )
 
 
 def main():
@@ -290,14 +303,36 @@ def main():
         return
     reconfigure_stdout()
 
-    try:
-        raw = sys.stdin.buffer.read().decode("utf-8")
-    except Exception as e:
-        _log(f"stdin read failed: {e}")
-        return
+    # --detached mode: read payload from temp file (spawned by parent)
+    if "--detached" in sys.argv:
+        payload_path = sys.argv[sys.argv.index("--detached") + 1]
+        try:
+            with open(payload_path, "r", encoding="utf-8") as f:
+                raw = f.read()
+        finally:
+            try:
+                os.unlink(payload_path)
+            except OSError:
+                pass
+    else:
+        # Normal mode: read stdin, spawn detached child, exit immediately
+        try:
+            raw = sys.stdin.buffer.read().decode("utf-8")
+        except Exception as e:
+            _log(f"stdin read failed: {e}")
+            return
 
-    if not raw.strip():
-        return
+        if not raw.strip():
+            return
+
+        # Write payload to temp file and spawn detached child
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        )
+        tmp.write(raw)
+        tmp.close()
+        _spawn_detached(tmp.name)
+        return  # Parent exits immediately
 
     try:
         data = json.loads(raw)
@@ -327,19 +362,20 @@ def main():
             pass
 
     try:
-        response = asyncio.run(call_sdk(user_text, agent_text, existing_topics))
+        prompt = build_extraction_prompt(user_text, agent_text, existing_topics)
+        result = asyncio.run(
+            call_model(
+                prompt,
+                allowed_tools=["Bash"],
+                output_format={"type": "json_schema", "schema": EXTRACTION_SCHEMA},
+            )
+        )
     except Exception as e:
         _log(f"SDK call failed: {e}")
         return
 
-    # Parse JSON from response, stripping markdown fences if present
-    try:
-        clean = response.strip()
-        clean = re.sub(r"^```\w*\s*", "", clean)
-        clean = re.sub(r"\s*```$", "", clean)
-        result = json.loads(clean.strip())
-    except json.JSONDecodeError as e:
-        _log(f"JSON parse failed: {e}\nResponse: {response[:500]}")
+    if not isinstance(result, dict):
+        _log(f"Unexpected result type: {type(result)}")
         return
 
     with open_db() as conn:
@@ -354,7 +390,7 @@ def main():
         # Sentiment
         sentiment = result.get("sentiment")
         if session_id and isinstance(sentiment, str):
-            store_sentiment(conn, session_id, sentiment, expected_content=agent_text)
+            store_message_metadata(conn, session_id, "sentiment", sentiment, expected_content=agent_text)
 
         # Topics
         topics = result.get("topics", [])
@@ -364,7 +400,7 @@ def main():
         # Action items
         action_items = result.get("action_items", [])
         if session_id and isinstance(action_items, list) and action_items:
-            store_action_items(conn, session_id, action_items, expected_content=agent_text)
+            store_message_metadata(conn, session_id, "action_items", action_items, expected_content=agent_text)
 
         conn.commit()
 
@@ -380,6 +416,11 @@ def main():
         extras.append(f"actions={len(result['action_items'])}")
     if extras:
         _log(f"Extraction: {', '.join(extras)}")
+
+    # Refresh dashboard after extraction (detached child runs after the hook's
+    # dashboard.py, so this picks up the newly written topics/sentiment/facts).
+    dashboard = os.path.join(os.path.dirname(__file__), "dashboard.py")
+    subprocess.run([sys.executable, dashboard], capture_output=True)
 
 
 if __name__ == "__main__":

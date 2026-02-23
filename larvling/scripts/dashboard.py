@@ -1,15 +1,10 @@
-"""
-Larvling Dashboard - generates a static HTML dashboard from larvling.db.
-Two-panel layout: session list on left, conversation on right.
-Zero dependencies: just sqlite3 + Python string templating.
-"""
+"""Larvling Dashboard - generates a static HTML dashboard from larvling.db."""
 
-import json
 import os
 import sys
 from html import escape
 
-from db import DB_PATH, open_db, parse_meta, require_db, reconfigure_stdout
+from db import DB_PATH, get_plugin_version, open_db, parse_meta, require_db, reconfigure_stdout
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
@@ -20,18 +15,14 @@ REVISION_PATH = os.path.join(os.path.dirname(DB_PATH), "larvling-revision")
 
 
 def get_revision(conn):
-    """Compute a revision number from table states."""
+    """Revision = MAX(messages.id) + COUNT(sessions)."""
     msg = conn.execute("SELECT MAX(id) FROM messages").fetchone()[0] or 0
     sess = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] or 0
     return msg + sess
 
 
 def get_sessions(conn):
-    """Get sessions with their messages and summary data, newest first.
-
-    Messages within each session are in reverse chronological order (DESC)
-    so the conversation panel shows the most recent exchange at the top.
-    """
+    """Get sessions with messages, newest first (messages DESC within each)."""
     sessions_rows = conn.execute(
         """
         SELECT id, started_at, ended_at, duration_min,
@@ -75,7 +66,7 @@ def get_sessions(conn):
 
 
 def render_message(msg):
-    """Render a single message as a chat bubble."""
+    """Render a message as a chat bubble."""
     role = msg["role"]
     content = escape(msg["content"] or "")
     timestamp = msg["timestamp"] or ""
@@ -130,7 +121,7 @@ def render_message(msg):
 
 
 def render_sidebar_item(session, index):
-    """Render a compact sidebar entry for a session."""
+    """Sidebar entry for a session."""
     meta = session["meta"]
     started = session["started"] or "?"
     date_part = started.split(" ")[0] if " " in started else started
@@ -143,12 +134,6 @@ def render_sidebar_item(session, index):
     sid = escape(session["session_id"] or "")
 
     ended = session["ended"] or started
-    agent_summary = meta.get("agent_summary") or ""
-    summary_item = (
-        f'<div class="menu-item si-summary-dl" data-summary="{escape(agent_summary)}">&#x1F4CB; Download summary</div>'
-        if agent_summary
-        else ""
-    )
 
     topics = meta.get("topics") or ""
     topics_html = ""
@@ -165,13 +150,6 @@ def render_sidebar_item(session, index):
         <div class="si-top">
             <span class="si-date">{escape(date_part)}</span>
             <span class="si-time">{escape(time_part)}</span>
-            <span class="si-menu-wrap">
-                <span class="si-menu-btn" title="Actions">&#x22EF;</span>
-                <div class="si-menu">
-                    {summary_item}
-                    <div class="menu-item si-export-dl">&#x1F4BE; Export session</div>
-                </div>
-            </span>
         </div>
         <div class="si-summary">{summary}</div>
         {topics_html}
@@ -183,7 +161,7 @@ def render_sidebar_item(session, index):
 
 
 def render_detail_panel(session):
-    """Render the full conversation panel for a session."""
+    """Full conversation panel for a session."""
     meta = session["meta"]
     started = session["started"] or "?"
     date_part = started.split(" ")[0] if " " in started else started
@@ -217,19 +195,8 @@ def render_detail_panel(session):
     </div>"""
 
 
-def get_plugin_version():
-    """Read the plugin version from plugin.json. Returns '?' on failure."""
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
-    plugin_json = os.path.join(plugin_root, ".claude-plugin", "plugin.json")
-    try:
-        with open(plugin_json, "r", encoding="utf-8") as f:
-            return json.load(f).get("version", "?")
-    except Exception:
-        return "?"
-
-
 def render_page(sidebar_html, details_html, revision):
-    """Load the HTML template and fill in placeholders."""
+    """Fill template placeholders."""
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
         template = f.read()
 

@@ -29,7 +29,7 @@
           {
             "type": "command",
             "command": "_TMP=$(mktemp) && cat >\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" <\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/extract.py\" <\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/dashboard.py\"; rm -f \"$_TMP\"",
-            "timeout": 90
+            "timeout": 5
           }
         ]
       }

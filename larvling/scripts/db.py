@@ -14,6 +14,18 @@ PROJECT_ROOT = os.getcwd()
 DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
 
 
+def get_plugin_version():
+    """Read the plugin version from plugin.json. Returns '?' on failure."""
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+    plugin_json = os.path.join(plugin_root, ".claude-plugin", "plugin.json")
+    try:
+        with open(plugin_json, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("version", "?") if isinstance(data, dict) else "?"
+    except Exception:
+        return "?"
+
+
 def get_db():
     """Open a connection to larvling.db with WAL mode and Row factory."""
     conn = sqlite3.connect(DB_PATH)
@@ -299,6 +311,100 @@ def print_sessions(**kwargs):
     """Open DB, print session list, close. Passes kwargs to list_sessions."""
     with open_db() as conn:
         list_sessions(conn, **kwargs)
+
+
+def build_message_pairs(rows):
+    """Build user/agent pairs from ordered message rows, skipping orphans.
+
+    Each pair: {"user": str, "agent": str, "timestamp": str or None}
+    Works with rows that include or omit the timestamp column.
+    """
+    pairs = []
+    i = 0
+    while i < len(rows):
+        if rows[i]["role"] == "user":
+            user_msg = rows[i]["content"] or ""
+            try:
+                ts = rows[i]["timestamp"]
+            except (IndexError, KeyError):
+                ts = None
+            i += 1
+            agent_msg = ""
+            if i < len(rows) and rows[i]["role"] == "assistant":
+                agent_msg = rows[i]["content"] or ""
+                i += 1
+            pairs.append({"user": user_msg, "agent": agent_msg, "timestamp": ts})
+        else:
+            # Orphan assistant message — skip
+            i += 1
+    return pairs
+
+
+async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=None):
+    """Call the LLM via Agent SDK and return the response.
+
+    Returns structured_output (dict) when output_format is set,
+    otherwise returns response text (str).
+    Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
+    """
+    from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
+    from claude_agent_sdk._internal.message_parser import parse_message  # noqa: PLC2701
+    from claude_agent_sdk._errors import MessageParseError  # noqa: PLC2701
+    import claude_agent_sdk._internal.client as _sdk_client  # noqa: PLC2701
+
+    # Patch parse_message to skip unknown message types instead of crashing.
+    # The SDK (as of 0.1.39) doesn't handle rate_limit_event and other CLI
+    # message types, which kills the async generator mid-stream and loses
+    # all subsequent messages including the ResultMessage with structured_output.
+    # Note: not concurrent-safe — callers use asyncio.run() (one loop at a time).
+    def _tolerant_parse(data):
+        try:
+            return parse_message(data)
+        except MessageParseError:
+            return None
+
+    opts = {"model": "claude-sonnet-4-6", "allowed_tools": allowed_tools or []}
+    if max_turns is not None:
+        opts["max_turns"] = max_turns
+    if output_format:
+        opts["output_format"] = output_format
+    options = ClaudeAgentOptions(**opts)
+
+    os.environ["LARVLING_INTERNAL"] = "1"
+    setattr(_sdk_client, "parse_message", _tolerant_parse)
+
+    response_text = ""
+    structured = None
+    result_subtype = None
+    try:
+        async for msg in query(prompt=prompt, options=options):
+            if msg is None:
+                continue
+            if isinstance(msg, ResultMessage):
+                result_subtype = getattr(msg, "subtype", None)
+                if msg.structured_output:
+                    structured = msg.structured_output
+                continue
+            content = getattr(msg, "content", None)
+            if not content:
+                continue
+            for block in content:
+                text = getattr(block, "text", None)
+                if text:
+                    response_text += text
+    finally:
+        os.environ.pop("LARVLING_INTERNAL", None)
+        setattr(_sdk_client, "parse_message", parse_message)
+
+    if structured is not None:
+        return structured
+
+    if output_format:
+        raise RuntimeError(
+            f"Structured output not returned (subtype={result_subtype})"
+        )
+
+    return response_text.strip()
 
 
 def _log(msg):

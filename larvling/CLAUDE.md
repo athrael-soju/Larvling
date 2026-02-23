@@ -53,7 +53,7 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 
 **UserPromptSubmit → Fact Context (read):** The `## Fact Context` directive prints on every exchange with the `query.py` path and fact count. Search for relevant facts and weave them into your response naturally.
 
-**Stop → Unified extraction (write):** `extract.py` runs as a command hook after every response. A single Sonnet SDK call extracts multiple data types from the last exchange:
+**Stop → Unified extraction (write):** `extract.py` runs as a command hook after every response. A single Agent SDK call extracts multiple data types from the last exchange:
 - **Facts** → `facts` table (unchanged)
 - **Sentiment** (focused/curious/frustrated/satisfied/neutral) → `messages.metadata` JSON on the last assistant message
 - **Topics** → `sessions.topics` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)
@@ -61,7 +61,7 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 
 **Stop → Quality signals (no SDK call):** `hooks.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
 
-**SessionEnd → Auto-summarization:** `auto_summarize.py` runs at session end. If `exchange_count >= 6` and the summary is missing or stale, it calls Sonnet to generate a summary (length scales to conversation size) and stores it via `record_summary()`.
+**SessionEnd → Auto-summarization:** `auto_summarize.py` runs at session end. If `exchange_count >= 6` and the summary is missing or stale, it calls the Agent to generate a summary (length scales to conversation size) and stores it via `record_summary()`.
 
 **Manual commands** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
 
@@ -71,7 +71,7 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 
 `inject_context()` automatically prints a `## Summary` hint when a summary is needed. Thresholds:
 - **No summary yet:** shown when the session reaches 10+ messages
-- **Stale summary:** shown when 6+ new messages have been added since the last summary
+- **Stale summary:** shown when 5+ new messages have been added since the last summary
 
 When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines.
 
