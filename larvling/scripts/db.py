@@ -16,8 +16,8 @@ DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
 
 def get_plugin_version():
     """Read the plugin version from plugin.json. Returns '?' on failure."""
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
-    plugin_json = os.path.join(plugin_root, ".claude-plugin", "plugin.json")
+    scripts_dir = os.path.dirname(os.path.abspath(__file__))
+    plugin_json = os.path.join(scripts_dir, "..", ".claude-plugin", "plugin.json")
     try:
         with open(plugin_json, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -367,6 +367,8 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
     options = ClaudeAgentOptions(**opts)
 
     os.environ["LARVLING_INTERNAL"] = "1"
+    # Remove CLAUDECODE to prevent "nested session" guard in the subprocess
+    saved_claudecode = os.environ.pop("CLAUDECODE", None)
     setattr(_sdk_client, "parse_message", _tolerant_parse)
 
     response_text = ""
@@ -390,6 +392,8 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
                     response_text += text
     finally:
         os.environ.pop("LARVLING_INTERNAL", None)
+        if saved_claudecode is not None:
+            os.environ["CLAUDECODE"] = saved_claudecode
         setattr(_sdk_client, "parse_message", parse_message)
 
     if structured is not None:

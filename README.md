@@ -114,7 +114,7 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 ### Cache gotchas
 
 - The cache path includes a hash suffix (e.g., `b378d4eab0ee`) that changes when the plugin is reinstalled
-- `${CLAUDE_PLUGIN_ROOT}` in hooks and commands points to the cache, not the repo
+- `${CLAUDE_PLUGIN_ROOT}` in hooks and skills points to the cache, not the repo
 - Committing + updating the plugin via `plugin install` also refreshes the cache
 
 ## How It Works
@@ -123,30 +123,26 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
   <img src="diagram.png" alt="Larvling capabilities diagram" width="100%" />
 </p>
 
-## Commands
+## Skills
 
-| Command        | What it does                                                          |
-| -------------- | --------------------------------------------------------------------- |
-| `/remember`    | Store a fact, preference, or decision that persists across sessions   |
-| `/recall`      | Search stored facts by keyword, topic, or context                     |
-| `/forget`      | Remove a stored fact (with confirmation)                              |
-| `/sessions`    | Browse and search past sessions by date, keyword, or topic            |
-| `/summarize`   | Generate or view an LLM-written session summary                      |
-| `/export`      | Export a session conversation to markdown                             |
-| `/status`      | Quick overview of Larvling's state (counts, DB size, version)         |
-| `/query`       | Run arbitrary SQL against larvling.db                                 |
+| Skill                  | What it does                                                          |
+| ---------------------- | --------------------------------------------------------------------- |
+| `/remember`            | Store a fact, preference, or decision that persists across sessions   |
+| `/recall`              | Search stored facts by keyword, topic, or context                     |
+| `/forget`              | Remove a stored fact (with confirmation)                              |
+| `/sessions`            | Browse and search past sessions by date, keyword, or topic            |
+| `/summarize`           | Generate or view an LLM-written session summary                      |
+| `/export`              | Export a session conversation to markdown                             |
+| `/status`              | Quick overview of Larvling's state (counts, DB size, version)         |
+| `/query`               | Run arbitrary SQL against larvling.db                                 |
+| `/generate-dashboard`  | Build the visual HTML dashboard from the database                     |
 
 ## Dashboard
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/63f94432-e1be-4ef8-b56b-8934bb37358d" alt="Larvling capabilities diagram" width="100%" />
 </p>
-The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessions. Each session has a "..." menu with:
-
-- **Download summary** - save the LLM-generated summary as a markdown file (only shown if a summary exists)
-- **Export session** - download the full conversation as markdown
-
-The dashboard polls every 3 seconds and reloads automatically when new data is available.
+The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessions with search, sorting, filtering, topic chips, sentiment indicators, and expandable messages. Generated on-demand via `/generate-dashboard`.
 
 ## Files
 
@@ -158,13 +154,13 @@ The dashboard polls every 3 seconds and reloads automatically when new data is a
 | `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context     |
 | `larvling/scripts/hooks.py`                | Handles prompt logging, response capture, and session end        |
 | `larvling/scripts/extract.py`              | Unified extraction - facts, sentiment, topics, action items      |
-| `larvling/scripts/auto_summarize.py`       | Auto-generates session summaries at session end                  |
+| `larvling/scripts/precompact.py`           | Injects critical context before compaction                       |
 | `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                      |
-| `larvling/scripts/dashboard.html.template` | HTML/CSS/JS template for the dashboard                           |
+| `dashboard.html.template`                  | HTML/CSS/JS template for the dashboard                           |
 | `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries          |
 | `larvling/scripts/export.py`               | Exports a session conversation to markdown                       |
 | `larvling/scripts/query.py`                | Runs arbitrary SQL against larvling.db                           |
-| `larvling/commands/*.md`                   | Slash command definitions (remember, recall, forget, etc.)       |
+| `larvling/skills/*.md`                     | Skill definitions (remember, recall, forget, etc.)               |
 | `larvling/CLAUDE.md`                       | Instructions for the agent                                       |
 
 ## Uninstall
@@ -191,6 +187,6 @@ rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/d
 All data stays local in the project's `.claude/` directory:
 
 - `larvling.db` - SQLite database (WAL mode) with sessions, messages, and facts
-- `dashboard.html` - static HTML dashboard, refreshed automatically
+- `dashboard.html` - static HTML dashboard, generated on-demand via `/generate-dashboard`
 
 When the plugin updates with schema changes, Larvling automatically backs up your database and guides the agent through the migration - your data is preserved.

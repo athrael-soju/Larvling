@@ -3,22 +3,26 @@
 import os
 import sys
 from html import escape
+from urllib.request import urlopen, Request
+from urllib.error import URLError
 
-from db import DB_PATH, get_plugin_version, open_db, parse_meta, require_db, reconfigure_stdout
+from db import DB_PATH, get_plugin_version, open_db, has_table, parse_meta, require_db, reconfigure_stdout, _log
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "dashboard.html.template")
+TEMPLATE_URL = "https://raw.githubusercontent.com/athrael-soju/Larvling/main/dashboard.html.template"
+TEMPLATE_CACHE = os.path.join(os.path.dirname(DB_PATH), "dashboard.html.template")
 LOGO_URL = "https://raw.githubusercontent.com/athrael-soju/Larvling/main/larvling.png"
 
 HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
-REVISION_PATH = os.path.join(os.path.dirname(DB_PATH), "larvling-revision")
 
 
 def get_revision(conn):
-    """Revision = MAX(messages.id) + COUNT(sessions)."""
+    """Revision = MAX(messages.id) + COUNT(sessions) + COUNT(facts)."""
     msg = conn.execute("SELECT MAX(id) FROM messages").fetchone()[0] or 0
     sess = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] or 0
-    return msg + sess
+    facts = 0
+    if has_table(conn, "facts"):
+        facts = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0] or 0
+    return msg + sess + facts
 
 
 def get_sessions(conn):
@@ -195,10 +199,30 @@ def render_detail_panel(session):
     </div>"""
 
 
+def get_template():
+    """Fetch template from GitHub, cache locally. Fall back to cache if fetch fails."""
+    os.makedirs(os.path.dirname(TEMPLATE_CACHE), exist_ok=True)
+
+    try:
+        req = Request(TEMPLATE_URL, headers={"User-Agent": "Larvling"})
+        with urlopen(req, timeout=10) as resp:
+            template = resp.read().decode("utf-8")
+        with open(TEMPLATE_CACHE, "w", encoding="utf-8") as f:
+            f.write(template)
+        return template
+    except (URLError, OSError, TimeoutError) as e:
+        _log(f"Template fetch failed, using cache: {e}")
+
+    if os.path.exists(TEMPLATE_CACHE):
+        with open(TEMPLATE_CACHE, "r", encoding="utf-8") as f:
+            return f.read()
+
+    raise RuntimeError("No template available — fetch failed and no cached copy exists")
+
+
 def render_page(sidebar_html, details_html, revision):
     """Fill template placeholders."""
-    with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
-        template = f.read()
+    template = get_template()
 
     return (
         template.replace("{{LOGO_URL}}", LOGO_URL)
@@ -217,25 +241,6 @@ def main():
 
     with open_db() as conn:
         revision = get_revision(conn)
-
-        # Skip regeneration if dashboard is already current AND the template hasn't changed
-        if os.path.exists(HTML_PATH):
-            with open(HTML_PATH, "r", encoding="utf-8") as f:
-                head = f.read(2048)
-            template_modified = os.path.getmtime(TEMPLATE_PATH) > os.path.getmtime(
-                HTML_PATH
-            )
-            script_modified = os.path.getmtime(__file__) > os.path.getmtime(HTML_PATH)
-            if (
-                f'content="{revision}"' in head
-                and not template_modified
-                and not script_modified
-            ):
-                with open(REVISION_PATH, "w", encoding="utf-8") as f:
-                    f.write(str(revision))
-                print(f"Dashboard up to date: {HTML_PATH}", file=sys.stderr)
-                return
-
         sessions = get_sessions(conn)
 
         sidebar_html = "\n".join(
@@ -247,8 +252,6 @@ def main():
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(html)
-    with open(REVISION_PATH, "w", encoding="utf-8") as f:
-        f.write(str(revision))
 
     print(f"Dashboard generated: {HTML_PATH}", file=sys.stderr)
 

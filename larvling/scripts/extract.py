@@ -412,10 +412,6 @@ def main():
     if extras:
         _log(f"Extraction: {', '.join(extras)}")
 
-    # Refresh dashboard after extraction (detached child runs after the hook's
-    # dashboard.py, so this picks up the newly written topics/sentiment/facts).
-    dashboard = os.path.join(os.path.dirname(__file__), "dashboard.py")
-    subprocess.run([sys.executable, dashboard], capture_output=True)
 
 
 if __name__ == "__main__":
