@@ -2,7 +2,6 @@
 
 import json
 import os
-import re
 import sys
 from html import escape
 
@@ -200,7 +199,7 @@ def render_detail_panel(session):
     </div>"""
 
 
-def render_page(sidebar_html, details_html, revision, graph_json="{}", graph_fresh=False):
+def render_page(sidebar_html, details_html, revision, graph_json="{}"):
     """Fill template placeholders."""
     with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
         template = f.read()
@@ -212,27 +211,7 @@ def render_page(sidebar_html, details_html, revision, graph_json="{}", graph_fre
         .replace("{{DETAILS}}", details_html)
         .replace("{{REVISION}}", str(revision))
         .replace("{{GRAPH_JSON}}", graph_json)
-        .replace("{{GRAPH_FRESH}}", "true" if graph_fresh else "false")
     )
-
-
-def read_existing_graph_json():
-    """Extract GRAPH_DATA JSON from a previously generated dashboard."""
-    if not os.path.exists(HTML_PATH):
-        return "{}"
-    try:
-        with open(HTML_PATH, "r", encoding="utf-8") as f:
-            # GRAPH_DATA is on a single line near the top
-            for line in f:
-                m = re.search(r"var GRAPH_DATA = (.+);", line)
-                if m:
-                    return m.group(1)
-                # Stop scanning after the first <div> (past the script tag)
-                if "<div" in line:
-                    break
-    except Exception:
-        pass
-    return "{}"
 
 
 def main():
@@ -245,23 +224,6 @@ def main():
 
     with open_db() as conn:
         revision = get_revision(conn)
-
-        # Skip regeneration if dashboard is already current AND the template hasn't changed
-        if os.path.exists(HTML_PATH):
-            with open(HTML_PATH, "r", encoding="utf-8") as f:
-                head = f.read(2048)
-            template_modified = os.path.getmtime(TEMPLATE_PATH) > os.path.getmtime(
-                HTML_PATH
-            )
-            script_modified = os.path.getmtime(__file__) > os.path.getmtime(HTML_PATH)
-            if (
-                f'content="{revision}"' in head
-                and not template_modified
-                and not script_modified
-            ):
-                print(f"Dashboard up to date: {HTML_PATH}", file=sys.stderr)
-                return
-
         sessions = get_sessions(conn)
 
         sidebar_html = "\n".join(
@@ -272,9 +234,9 @@ def main():
         if include_graph:
             graph_json = json.dumps(get_graph_data(conn))
         else:
-            graph_json = read_existing_graph_json()
+            graph_json = "{}"
 
-    html = render_page(sidebar_html, details_html, revision, graph_json, graph_fresh=include_graph)
+    html = render_page(sidebar_html, details_html, revision, graph_json)
     os.makedirs(os.path.dirname(HTML_PATH), exist_ok=True)
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(html)
