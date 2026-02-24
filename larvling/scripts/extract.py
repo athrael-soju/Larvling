@@ -13,46 +13,90 @@ import subprocess
 import sys
 import tempfile
 
-from db import open_db, has_table, parse_meta, reconfigure_stdout, ensure_session, call_model, _log
-
-from hooks import parse_last_turn, wait_for_transcript_stable, is_real_user_message
+from db import (
+    open_db,
+    has_table,
+    parse_meta,
+    reconfigure_stdout,
+    ensure_session,
+    log,
+)
+from transcript import parse_last_user_text, parse_last_turn, wait_for_transcript_stable
 
 # ---------------------------------------------------------------------------
-# Transcript parsing — extract user text from the last exchange
+# Agent SDK call
 # ---------------------------------------------------------------------------
 
 
-def parse_last_user_text(transcript_path):
-    """Return the last real user message text from the transcript."""
-    if not transcript_path or not os.path.exists(transcript_path):
-        return None
+async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=None):
+    """Call the LLM via Agent SDK and return the response.
 
-    lines = []
-    with open(transcript_path, "r", encoding="utf-8") as f:
-        for raw in f:
-            raw = raw.strip()
-            if raw:
-                lines.append(raw)
+    Returns structured_output (dict) when output_format is set,
+    otherwise returns response text (str).
+    Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
+    """
+    from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
+    from claude_agent_sdk._internal.message_parser import parse_message  # noqa: PLC2701
+    from claude_agent_sdk._errors import MessageParseError  # noqa: PLC2701
+    import claude_agent_sdk._internal.client as _sdk_client  # noqa: PLC2701
 
-    for i in range(len(lines) - 1, -1, -1):
+    # Patch parse_message to skip unknown message types instead of crashing.
+    # The SDK (as of 0.1.39) doesn't handle rate_limit_event and other CLI
+    # message types, which kills the async generator mid-stream and loses
+    # all subsequent messages including the ResultMessage with structured_output.
+    # Note: not concurrent-safe — callers use asyncio.run() (one loop at a time).
+    def _tolerant_parse(data):
         try:
-            entry = json.loads(lines[i])
-        except json.JSONDecodeError:
-            continue
-        if is_real_user_message(entry):
-            msg = entry.get("message", {})
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                return content
-            if isinstance(content, list):
-                parts = [
-                    b.get("text", "") if isinstance(b, dict) else str(b)
-                    for b in content
-                    if not (isinstance(b, dict) and b.get("type") == "tool_result")
-                ]
-                return " ".join(p for p in parts if p).strip()
+            return parse_message(data)
+        except MessageParseError:
+            return None
 
-    return None
+    opts = {"model": "claude-sonnet-4-6", "allowed_tools": allowed_tools or []}
+    if max_turns is not None:
+        opts["max_turns"] = max_turns
+    if output_format:
+        opts["output_format"] = output_format
+    options = ClaudeAgentOptions(**opts)
+
+    os.environ["LARVLING_INTERNAL"] = "1"
+    # Remove CLAUDECODE to prevent "nested session" guard in the subprocess
+    saved_claudecode = os.environ.pop("CLAUDECODE", None)
+    setattr(_sdk_client, "parse_message", _tolerant_parse)
+
+    response_text = ""
+    structured = None
+    result_subtype = None
+    try:
+        async for msg in query(prompt=prompt, options=options):
+            if msg is None:
+                continue
+            if isinstance(msg, ResultMessage):
+                result_subtype = getattr(msg, "subtype", None)
+                if msg.structured_output:
+                    structured = msg.structured_output
+                continue
+            content = getattr(msg, "content", None)
+            if not content:
+                continue
+            for block in content:
+                text = getattr(block, "text", None)
+                if text:
+                    response_text += text
+    finally:
+        os.environ.pop("LARVLING_INTERNAL", None)
+        if saved_claudecode is not None:
+            os.environ["CLAUDECODE"] = saved_claudecode
+        setattr(_sdk_client, "parse_message", parse_message)
+
+    if structured is not None:
+        return structured
+
+    if output_format:
+        raise RuntimeError(
+            f"Structured output not returned (subtype={result_subtype})"
+        )
+
+    return response_text.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -74,11 +118,13 @@ python "{query_script}" "<SQL>"
 
 The `facts` table has columns: id (INTEGER PK), claim, domain, tags, created, updated.
 
-Use this to avoid duplicates and to consolidate related facts. When a new \
-fact overlaps with an existing one, **update** the existing row to be more \
-comprehensive rather than inserting alongside it. For each fact, set action to:
+Use this to avoid duplicates, consolidate related facts, and clean up stale \
+or outdated entries. When a new fact overlaps with an existing one, **update** \
+the existing row to be more comprehensive rather than inserting alongside it. \
+For each fact, set action to:
 - **insert**: genuinely new fact with no existing overlap
 - **update**: existing fact should be consolidated or refined (include "id")
+- **delete**: existing fact is stale, outdated, or duplicated (include "id")
 - **skip**: fact already exists unchanged — do NOT include it
 
 ## Extraction
@@ -160,17 +206,37 @@ def build_extraction_prompt(user_text, agent_text, existing_topics=""):
 # ---------------------------------------------------------------------------
 
 
-def store_facts(conn, facts_list):
+def process_facts(conn, facts_list):
     """Insert or update extracted facts. Returns count stored/updated."""
     if not facts_list or not has_table(conn, "facts"):
-        return 0
+        return 0, 0, 0
 
-    count = 0
+    inserted = 0
+    updated = 0
+    deleted = 0
 
     for fact in facts_list:
         action = fact.get("action", "insert").strip().lower()
         if action == "skip":
             continue
+
+        if action == "delete":
+            existing_id = fact.get("id")
+            if existing_id is None:
+                continue
+            try:
+                existing_id = int(existing_id)
+            except (ValueError, TypeError):
+                continue
+            row = conn.execute(
+                "SELECT 1 FROM facts WHERE id = ?", (existing_id,)
+            ).fetchone()
+            if not row:
+                continue
+            conn.execute("DELETE FROM facts WHERE id = ?", (existing_id,))
+            deleted += 1
+            continue
+
         claim = fact.get("claim", "").strip()
         if not claim:
             continue
@@ -198,7 +264,7 @@ def store_facts(conn, facts_list):
                 "updated = date('now') WHERE id = ?",
                 (claim, domain, tags, existing_id),
             )
-            count += 1
+            updated += 1
         else:
             # Insert — keep exact-match dedup as safety net
             existing = conn.execute(
@@ -211,9 +277,9 @@ def store_facts(conn, facts_list):
                 "INSERT INTO facts (claim, domain, tags) VALUES (?, ?, ?)",
                 (claim, domain, tags),
             )
-            count += 1
+            inserted += 1
 
-    return count
+    return inserted, updated, deleted
 
 
 def store_message_metadata(conn, session_id, field, value, expected_content=None):
@@ -314,7 +380,7 @@ def main():
         try:
             raw = sys.stdin.buffer.read().decode("utf-8")
         except Exception as e:
-            _log(f"stdin read failed: {e}")
+            log(f"stdin read failed: {e}")
             return
 
         if not raw.strip():
@@ -345,6 +411,7 @@ def main():
     agent_text, _ = parse_last_turn(transcript_path)
 
     if not user_text and not agent_text:
+        log(f"Extraction skipped: session={session_id[:8] if session_id else '?'}, no text found")
         return
 
     # Read existing topics before the SDK call (brief read-only access)
@@ -353,8 +420,8 @@ def main():
         try:
             with open_db() as conn:
                 existing_topics = fetch_existing_topics(conn, session_id)
-        except Exception:
-            pass
+        except Exception as e:
+            log(f"Topic fetch failed: {e}")
 
     try:
         prompt = build_extraction_prompt(user_text, agent_text, existing_topics)
@@ -366,11 +433,11 @@ def main():
             )
         )
     except Exception as e:
-        _log(f"SDK call failed: {e}")
+        log(f"SDK call failed: {e}")
         return
 
     if not isinstance(result, dict):
-        _log(f"Unexpected result type: {type(result)}")
+        log(f"Unexpected result type: {type(result)}")
         return
 
     with open_db() as conn:
@@ -380,7 +447,7 @@ def main():
 
         # Facts
         facts = result.get("facts", [])
-        stored = store_facts(conn, facts)
+        inserted, updated, deleted = process_facts(conn, facts)
 
         # Sentiment
         sentiment = result.get("sentiment")
@@ -399,8 +466,15 @@ def main():
 
         conn.commit()
 
-    if stored:
-        _log(f"Stored {stored} fact(s)")
+    if inserted or updated or deleted:
+        parts = []
+        if inserted:
+            parts.append(f"inserted {inserted}")
+        if updated:
+            parts.append(f"updated {updated}")
+        if deleted:
+            parts.append(f"deleted {deleted}")
+        log(f"Facts: {', '.join(parts)}")
 
     extras = []
     if result.get("sentiment"):
@@ -410,7 +484,7 @@ def main():
     if result.get("action_items"):
         extras.append(f"actions={len(result['action_items'])}")
     if extras:
-        _log(f"Extraction: {', '.join(extras)}")
+        log(f"Extraction: {', '.join(extras)}")
 
 
 

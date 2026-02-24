@@ -1,0 +1,49 @@
+"""SessionEnd hook — finalizes session timing and records exchange count."""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from db import (
+    open_db,
+    ensure_session,
+    finalize_session,
+    record_summary,
+    read_hook_payload,
+    log,
+)
+
+
+def handle(data):
+    session_id = data.get("session_id")
+    if not session_id:
+        return
+
+    with open_db() as conn:
+        ensure_session(conn, session_id)
+        finalize_session(conn, session_id)
+
+        exchange_count = conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
+            (session_id,),
+        ).fetchone()[0]
+
+        record_summary(
+            conn,
+            session_id,
+            exchange_count=exchange_count or None,
+        )
+        conn.commit()
+
+        row = conn.execute(
+            "SELECT duration_min FROM sessions WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+        dur = f"{row['duration_min']:.1f}m" if row and row["duration_min"] else "?"
+        log(f"SessionEnd: session={session_id[:8]}, exchanges={exchange_count}, duration={dur}")
+
+
+if __name__ == "__main__":
+    data = read_hook_payload()
+    handle(data)

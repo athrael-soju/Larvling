@@ -4,14 +4,13 @@
 
 # Larvling
 
-Your friendly memory companion for Claude Code. Larvling quietly records every conversation - prompts, responses, tool usage - and keeps it all in a searchable dashboard. No config needed, just install and go.
+Your friendly memory companion for Claude Code. Larvling quietly records every conversation - prompts, responses, tool usage - and keeps it all searchable. No config needed, just install and go.
 
-## The 6 Principles of Larvling
+## Built to be
 
 - **Tiny** - under 100 KB
-- **Zero dependencies** - no pip install, no node_modules, no build step
 - **Portable** - works on any device that supports Claude Code plugins: macOS, Linux, Windows
-- **Private** - all data stays local in a single SQLite file
+- **Private** - all data stored locally in a single SQLite file
 - **Instant** - no setup, no config, no onboarding
 - **Lightweight** - SQLite WAL mode means near-zero overhead
 
@@ -125,43 +124,48 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 
 ## Skills
 
-| Skill                  | What it does                                                          |
-| ---------------------- | --------------------------------------------------------------------- |
-| `/remember`            | Store a fact, preference, or decision that persists across sessions   |
-| `/recall`              | Search stored facts by keyword, topic, or context                     |
-| `/forget`              | Remove a stored fact (with confirmation)                              |
-| `/sessions`            | Browse and search past sessions by date, keyword, or topic            |
-| `/summarize`           | Generate or view an LLM-written session summary                      |
-| `/export`              | Export a session conversation to markdown                             |
-| `/status`              | Quick overview of Larvling's state (counts, DB size, version)         |
-| `/query`               | Run arbitrary SQL against larvling.db                                 |
-| `/generate-dashboard`  | Build the visual HTML dashboard from the database                     |
+| Skill                 | What it does                                                        |
+| --------------------- | ------------------------------------------------------------------- |
+| `/remember`           | Store a fact, preference, or decision that persists across sessions |
+| `/recall`             | Search stored facts by keyword, topic, or context                   |
+| `/forget`             | Remove a stored fact (with confirmation)                            |
+| `/sessions`           | Browse and search past sessions by date, keyword, or topic          |
+| `/summarize`          | Generate or view an LLM-written session summary                     |
+| `/export`             | Export a session conversation to markdown                           |
+| `/status`             | Quick overview of Larvling's state (counts, DB size, version)       |
+| `/query`              | Run arbitrary SQL against larvling.db                               |
+| `/generate-dashboard` | Build the visual HTML dashboard from the database                   |
 
 ## Dashboard
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/63f94432-e1be-4ef8-b56b-8934bb37358d" alt="Larvling capabilities diagram" width="100%" />
+  <img src="https://github.com/user-attachments/assets/63f94432-e1be-4ef8-b56b-8934bb37358d" alt="Larvling dashboard" width="100%" />
 </p>
 The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessions with search, sorting, filtering, topic chips, sentiment indicators, and expandable messages. Generated on-demand via `/generate-dashboard`.
 
 ## Files
 
-| File                                       | What it does                                                     |
-| ------------------------------------------ | ---------------------------------------------------------------- |
-| `larvling/.claude-plugin/plugin.json`      | Plugin manifest - name and description                           |
-| `larvling/hooks/hooks.json`                | Hook definitions - tells Claude Code when to call Larvling       |
-| `larvling/scripts/db.py`                   | Shared database helpers, schema creation, and version management |
-| `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context     |
-| `larvling/scripts/hooks.py`                | Handles prompt logging, response capture, and session end        |
-| `larvling/scripts/extract.py`              | Unified extraction - facts, sentiment, topics, action items      |
-| `larvling/scripts/precompact.py`           | Injects critical context before compaction                       |
-| `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                      |
-| `dashboard.html.template`                  | HTML/CSS/JS template for the dashboard                           |
-| `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries          |
-| `larvling/scripts/export.py`               | Exports a session conversation to markdown                       |
-| `larvling/scripts/query.py`                | Runs arbitrary SQL against larvling.db                           |
-| `larvling/skills/*.md`                     | Skill definitions (remember, recall, forget, etc.)               |
-| `larvling/CLAUDE.md`                       | Instructions for the agent                                       |
+| File                                      | What it does                                                |
+| ----------------------------------------- | ----------------------------------------------------------- |
+| `larvling/.claude-plugin/plugin.json`     | Plugin manifest - name and description                      |
+| `larvling/hooks/hooks.json`               | Hook definitions - tells Claude Code when to call Larvling  |
+| `larvling/scripts/db.py`                  | Database helpers, schema creation, and version management   |
+| `larvling/scripts/transcript.py`          | Transcript parsing utilities for hook scripts               |
+| `larvling/scripts/preflight.py`           | Schema bootstrap — ensures DB and tables exist              |
+| `larvling/scripts/hooks/session_start.py` | Injects session context, checks for updates                 |
+| `larvling/scripts/hooks/prompt.py`        | Logs user prompts and injects context hints                 |
+| `larvling/scripts/hooks/stop.py`          | Logs responses and computes quality signals                 |
+| `larvling/scripts/hooks/failure.py`       | Records tool failures as quality signals                    |
+| `larvling/scripts/hooks/session_end.py`   | Finalizes session timing and exchange count                 |
+| `larvling/scripts/extract.py`             | Unified extraction - facts, sentiment, topics, action items |
+| `larvling/scripts/precompact.py`          | Injects critical context before compaction                  |
+| `larvling/scripts/dashboard.py`           | Builds the HTML dashboard from the database                 |
+| `dashboard.html.template`                 | HTML/CSS/JS template for the dashboard                      |
+| `larvling/scripts/summarize.py`           | Fetches conversation pairs and stores session summaries     |
+| `larvling/scripts/export.py`              | Exports a session conversation to markdown                  |
+| `larvling/scripts/query.py`               | Runs arbitrary SQL against larvling.db                      |
+| `larvling/skills/*.md`                    | Skill definitions (remember, recall, forget, etc.)          |
+| `larvling/CLAUDE.md`                      | Instructions for the agent                                  |
 
 ## Uninstall
 
@@ -179,12 +183,12 @@ claude plugin marketplace remove athrael-soju
 To also remove stored data, delete the Larvling files from your project's `.claude/` directory:
 
 ```bash
-rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/dashboard.html .claude/larvling-revision .claude/larvling-errors.log
+rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/dashboard.html
 ```
 
 ## Data
 
-All data stays local in the project's `.claude/` directory:
+All data is stored locally in the project's `.claude/` directory:
 
 - `larvling.db` - SQLite database (WAL mode) with sessions, messages, and facts
 - `dashboard.html` - static HTML dashboard, generated on-demand via `/generate-dashboard`

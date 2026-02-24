@@ -336,81 +336,65 @@ def build_message_pairs(rows):
     return pairs
 
 
-async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=None):
-    """Call the LLM via Agent SDK and return the response.
+def accumulate_quality_signals(conn, session_id, new_signals):
+    """Merge new quality signals into a session's quality_signals JSON field.
 
-    Returns structured_output (dict) when output_format is set,
-    otherwise returns response text (str).
-    Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
+    Each key in new_signals is added (numerically) to the existing value.
+    Nested dicts (e.g. failures_by_tool) are merged one level deep.
     """
-    from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-    from claude_agent_sdk._internal.message_parser import parse_message  # noqa: PLC2701
-    from claude_agent_sdk._errors import MessageParseError  # noqa: PLC2701
-    import claude_agent_sdk._internal.client as _sdk_client  # noqa: PLC2701
-
-    # Patch parse_message to skip unknown message types instead of crashing.
-    # The SDK (as of 0.1.39) doesn't handle rate_limit_event and other CLI
-    # message types, which kills the async generator mid-stream and loses
-    # all subsequent messages including the ResultMessage with structured_output.
-    # Note: not concurrent-safe — callers use asyncio.run() (one loop at a time).
-    def _tolerant_parse(data):
+    sess = conn.execute(
+        "SELECT quality_signals FROM sessions WHERE id = ?",
+        (session_id,),
+    ).fetchone()
+    if not sess:
+        return
+    existing = {}
+    if sess["quality_signals"]:
         try:
-            return parse_message(data)
-        except MessageParseError:
-            return None
+            existing = json.loads(sess["quality_signals"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    for key, val in new_signals.items():
+        if isinstance(val, dict):
+            nested = existing.get(key, {})
+            for k, v in val.items():
+                nested[k] = nested.get(k, 0) + v
+            existing[key] = nested
+        else:
+            existing[key] = existing.get(key, 0) + val
+    conn.execute(
+        "UPDATE sessions SET quality_signals = ? WHERE id = ?",
+        (json.dumps(existing), session_id),
+    )
 
-    opts = {"model": "claude-sonnet-4-6", "allowed_tools": allowed_tools or []}
-    if max_turns is not None:
-        opts["max_turns"] = max_turns
-    if output_format:
-        opts["output_format"] = output_format
-    options = ClaudeAgentOptions(**opts)
 
-    os.environ["LARVLING_INTERNAL"] = "1"
-    # Remove CLAUDECODE to prevent "nested session" guard in the subprocess
-    saved_claudecode = os.environ.pop("CLAUDECODE", None)
-    setattr(_sdk_client, "parse_message", _tolerant_parse)
+def read_hook_payload():
+    """Read and parse a JSON hook payload from stdin.
 
-    response_text = ""
-    structured = None
-    result_subtype = None
+    Handles LARVLING_INTERNAL guard, stdout reconfiguration, and
+    standard error logging. Returns parsed dict or None on failure.
+    """
+    if os.environ.get("LARVLING_INTERNAL"):
+        sys.exit(0)
+    reconfigure_stdout()
     try:
-        async for msg in query(prompt=prompt, options=options):
-            if msg is None:
-                continue
-            if isinstance(msg, ResultMessage):
-                result_subtype = getattr(msg, "subtype", None)
-                if msg.structured_output:
-                    structured = msg.structured_output
-                continue
-            content = getattr(msg, "content", None)
-            if not content:
-                continue
-            for block in content:
-                text = getattr(block, "text", None)
-                if text:
-                    response_text += text
-    finally:
-        os.environ.pop("LARVLING_INTERNAL", None)
-        if saved_claudecode is not None:
-            os.environ["CLAUDECODE"] = saved_claudecode
-        setattr(_sdk_client, "parse_message", parse_message)
-
-    if structured is not None:
-        return structured
-
-    if output_format:
-        raise RuntimeError(
-            f"Structured output not returned (subtype={result_subtype})"
-        )
-
-    return response_text.strip()
-
-
-def _log(msg):
-    """Append a message to .claude/larvling-errors.log for debugging."""
+        raw = sys.stdin.buffer.read().decode("utf-8")
+    except Exception as e:
+        log(f"stdin read failed: {e}")
+        sys.exit(0)
+    if not raw.strip():
+        sys.exit(0)
     try:
-        log_path = os.path.join(os.getcwd(), ".claude", "larvling-errors.log")
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        log(f"JSON parse failed ({len(raw)} bytes): {e}")
+        sys.exit(0)
+
+
+def log(msg):
+    """Append a message to .claude/larvling.log for debugging."""
+    try:
+        log_path = os.path.join(os.getcwd(), ".claude", "larvling.log")
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
     except Exception:
