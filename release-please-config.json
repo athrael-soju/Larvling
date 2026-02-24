@@ -4,7 +4,7 @@
   "packages": {
     ".": {
       "release-type": "simple",
-      "changelog-header": "<p align=\"center\">\n  <img src=\"https://raw.githubusercontent.com/athrael-soju/Larvling/main/larvling.png\" alt=\"Larvling logo\" width=\"350\" />\n</p>\n",
+      "changelog-header": "<p align=\"center\">\n  <img src=\"https://github.com/athrael-soju/Larvling/blob/main/larvling.png?raw=true\" alt=\"Larvling logo\" width=\"350\" />\n</p>\n",
       "extra-files": [
         {
           "type": "json",
@@ -13,16 +13,46 @@
         }
       ],
       "changelog-sections": [
-        { "type": "feat", "section": "Features" },
-        { "type": "fix", "section": "Bug Fixes" },
-        { "type": "perf", "section": "Performance" },
-        { "type": "refactor", "section": "Refactoring" },
-        { "type": "docs", "section": "Documentation" },
-        { "type": "style", "hidden": true },
-        { "type": "test", "hidden": true },
-        { "type": "build", "hidden": true },
-        { "type": "ci", "hidden": true },
-        { "type": "chore", "hidden": true }
+        {
+          "type": "feat",
+          "section": "Features"
+        },
+        {
+          "type": "fix",
+          "section": "Bug Fixes"
+        },
+        {
+          "type": "perf",
+          "section": "Performance"
+        },
+        {
+          "type": "refactor",
+          "section": "Refactoring"
+        },
+        {
+          "type": "docs",
+          "section": "Documentation"
+        },
+        {
+          "type": "style",
+          "hidden": true
+        },
+        {
+          "type": "test",
+          "hidden": true
+        },
+        {
+          "type": "build",
+          "hidden": true
+        },
+        {
+          "type": "ci",
+          "hidden": true
+        },
+        {
+          "type": "chore",
+          "hidden": true
+        }
       ]
     }
   },
