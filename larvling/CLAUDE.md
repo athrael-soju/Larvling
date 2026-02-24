@@ -61,9 +61,12 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 
 **Stop → Quality signals (no SDK call):** `hooks/stop.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
 
-**PostToolUseFailure → Tool failure tracking:** `hooks/failure.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.
+**Stop → Token usage tracking:** `hooks/stop.py` captures token usage from two sources:
+- **Main agent** — `message.usage` from the transcript's last assistant entry → stored in `messages.metadata.usage` on the assistant row (includes sub-agent costs like fact-manager)
+- **User messages** — estimated via ~4 chars/token heuristic (no API call needed) → stored in `messages.metadata.usage.input_tokens_estimate` on the user row
+- **Extraction** — `ResultMessage.usage` from the Agent SDK call in `extract.py` → stored as a `role='system'` message row with usage in metadata (token counts only, no cost)
 
-**PreCompact → Context preservation:** `precompact.py` injects critical session context (current topics, recent facts, skill reminders) before compaction so it survives context summarization.
+**PostToolUseFailure → Tool failure tracking:** `hooks/failure.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.
 
 **Manual skills** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
 

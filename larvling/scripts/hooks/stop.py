@@ -1,5 +1,6 @@
-"""Stop hook — logs the agent's last response and computes quality signals."""
+"""Stop hook — logs the agent's last response, computes quality signals, and tracks token usage."""
 
+import json
 import os
 import sys
 
@@ -7,13 +8,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from db import (
     open_db,
+    parse_meta,
     ensure_session,
     record_message,
     accumulate_quality_signals,
     read_hook_payload,
     log,
 )
-from transcript import parse_last_turn, wait_for_transcript_stable
+from transcript import parse_last_turn, parse_last_user_text, wait_for_transcript_stable
 
 
 def compute_quality_signals(response_text, tools):
@@ -39,6 +41,45 @@ def compute_quality_signals(response_text, tools):
     return signals
 
 
+def estimate_user_tokens(user_text):
+    """Estimate token count for user message text.
+
+    Uses the ~4 characters per token heuristic. This is an approximation —
+    actual tokenization varies by content (code, URLs, non-English text
+    may differ). Sufficient for relative comparisons across exchanges.
+
+    Returns estimated token count (int) or None if no text.
+    """
+    if not user_text:
+        return None
+    return max(1, len(user_text) // 4)
+
+
+def store_usage_on_message(conn, session_id, role, usage_data, expected_content=None):
+    """Store usage data in the metadata of the last message with the given role."""
+    if not usage_data:
+        return
+
+    row = conn.execute(
+        "SELECT id, content, metadata FROM messages "
+        "WHERE session_id = ? AND role = ? "
+        "ORDER BY id DESC LIMIT 1",
+        (session_id, role),
+    ).fetchone()
+    if not row:
+        return
+
+    if expected_content and row["content"] != expected_content:
+        return
+
+    meta = parse_meta(row["metadata"])
+    meta["usage"] = usage_data
+    conn.execute(
+        "UPDATE messages SET metadata = ? WHERE id = ?",
+        (json.dumps(meta), row["id"]),
+    )
+
+
 def handle(data):
     session_id = data.get("session_id")
     if not session_id:
@@ -48,7 +89,8 @@ def handle(data):
 
     wait_for_transcript_stable(transcript_path)
 
-    response, tools = parse_last_turn(transcript_path)
+    response, tools, usage = parse_last_turn(transcript_path)
+    user_text = parse_last_user_text(transcript_path)
 
     with open_db() as conn:
         ensure_session(conn, session_id)
@@ -64,8 +106,21 @@ def handle(data):
             ).fetchone()
             is_dup = bool(row and row[0] == response)
             if not is_dup:
-                meta = {"tool_calls": tools} if tools else None
-                record_message(conn, session_id, "assistant", response, meta)
+                meta = {"tool_calls": tools} if tools else {}
+                if usage:
+                    meta["usage"] = usage
+                record_message(conn, session_id, "assistant", response, meta or None)
+            elif usage:
+                # Response was a dup (already stored), but still attach usage
+                store_usage_on_message(conn, session_id, "assistant", usage, expected_content=response)
+
+        # Store estimated user message token count (~4 chars/token heuristic)
+        user_tokens = estimate_user_tokens(user_text)
+        if user_tokens is not None:
+            store_usage_on_message(
+                conn, session_id, "user",
+                {"input_tokens_estimate": user_tokens},
+            )
 
         # Accumulate quality signals
         signals = compute_quality_signals(response, tools)
@@ -88,6 +143,15 @@ def handle(data):
         parts.append(f"errors={signals['error_count']}")
     if signals.get("retry_count"):
         parts.append(f"retries={signals['retry_count']}")
+
+    # Log token usage
+    if usage:
+        in_tok = usage.get("input_tokens", 0) + usage.get("cache_read_input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)
+        out_tok = usage.get("output_tokens", 0)
+        parts.append(f"tokens={in_tok}in/{out_tok}out")
+    if user_tokens is not None:
+        parts.append(f"user_tokens=~{user_tokens}")
+
     log(f"Stop: {', '.join(parts)}")
 
 

@@ -31,8 +31,12 @@ from transcript import parse_last_user_text, parse_last_turn, wait_for_transcrip
 async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=None):
     """Call the LLM via Agent SDK and return the response.
 
-    Returns structured_output (dict) when output_format is set,
-    otherwise returns response text (str).
+    Returns (result, usage_info) tuple where:
+    - result is structured_output (dict) when output_format is set,
+      otherwise response text (str).
+    - usage_info is the usage dict from ResultMessage, or None if
+      not available.
+
     Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
     """
     from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
@@ -66,6 +70,7 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
     response_text = ""
     structured = None
     result_subtype = None
+    usage_info = None
     try:
         async for msg in query(prompt=prompt, options=options):
             if msg is None:
@@ -74,6 +79,10 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
                 result_subtype = getattr(msg, "subtype", None)
                 if msg.structured_output:
                     structured = msg.structured_output
+                # Capture usage from ResultMessage
+                msg_usage = getattr(msg, "usage", None)
+                if msg_usage:
+                    usage_info = msg_usage
                 continue
             content = getattr(msg, "content", None)
             if not content:
@@ -89,14 +98,14 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
         setattr(_sdk_client, "parse_message", parse_message)
 
     if structured is not None:
-        return structured
+        return structured, usage_info
 
     if output_format:
         raise RuntimeError(
             f"Structured output not returned (subtype={result_subtype})"
         )
 
-    return response_text.strip()
+    return response_text.strip(), usage_info
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +417,7 @@ def main():
 
     # Get user text and agent text
     user_text = parse_last_user_text(transcript_path)
-    agent_text, _ = parse_last_turn(transcript_path)
+    agent_text, _, _ = parse_last_turn(transcript_path)
 
     if not user_text and not agent_text:
         log(f"Extraction skipped: session={session_id[:8] if session_id else '?'}, no text found")
@@ -425,7 +434,7 @@ def main():
 
     try:
         prompt = build_extraction_prompt(user_text, agent_text, existing_topics)
-        result = asyncio.run(
+        result, usage_info = asyncio.run(
             call_model(
                 prompt,
                 allowed_tools=["Bash"],
@@ -464,6 +473,21 @@ def main():
         if session_id and isinstance(action_items, list) and action_items:
             store_message_metadata(conn, session_id, "action_items", action_items, expected_content=agent_text)
 
+        # Record extraction as a system message with usage metadata
+        if session_id:
+            fact_parts = []
+            if inserted:
+                fact_parts.append(f"{inserted} inserted")
+            if updated:
+                fact_parts.append(f"{updated} updated")
+            if deleted:
+                fact_parts.append(f"{deleted} deleted")
+            fact_summary = ", ".join(fact_parts) if fact_parts else "no changes"
+
+            sys_content = f"Extraction: facts={fact_summary}"
+            sys_meta = {"usage": usage_info} if usage_info else None
+            record_message(conn, session_id, "system", sys_content, sys_meta)
+
         conn.commit()
 
     if inserted or updated or deleted:
@@ -483,6 +507,13 @@ def main():
         extras.append(f"topics={result['topics']}")
     if result.get("action_items"):
         extras.append(f"actions={len(result['action_items'])}")
+
+    # Log token usage for extraction
+    if usage_info and isinstance(usage_info, dict):
+        in_tok = usage_info.get("input_tokens", 0)
+        out_tok = usage_info.get("output_tokens", 0)
+        extras.append(f"tokens={in_tok}in/{out_tok}out")
+
     if extras:
         log(f"Extraction: {', '.join(extras)}")
 

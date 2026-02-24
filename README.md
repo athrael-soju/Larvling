@@ -154,11 +154,10 @@ The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessi
 | `larvling/scripts/preflight.py`           | Schema bootstrap — ensures DB and tables exist              |
 | `larvling/scripts/hooks/session_start.py` | Injects session context, checks for updates                 |
 | `larvling/scripts/hooks/prompt.py`        | Logs user prompts and injects context hints                 |
-| `larvling/scripts/hooks/stop.py`          | Logs responses and computes quality signals                 |
+| `larvling/scripts/hooks/stop.py`          | Logs responses, computes quality signals, tracks token usage|
 | `larvling/scripts/hooks/failure.py`       | Records tool failures as quality signals                    |
 | `larvling/scripts/hooks/session_end.py`   | Finalizes session timing and exchange count                 |
-| `larvling/scripts/extract.py`             | Unified extraction - facts, sentiment, topics, action items |
-| `larvling/scripts/precompact.py`          | Injects critical context before compaction                  |
+| `larvling/scripts/extract.py`             | Unified extraction - facts, sentiment, topics, action items, token usage |
 | `larvling/scripts/dashboard.py`           | Builds the HTML dashboard from the database                 |
 | `dashboard.html.template`                 | HTML/CSS/JS template for the dashboard                      |
 | `larvling/scripts/summarize.py`           | Fetches conversation pairs and stores session summaries     |

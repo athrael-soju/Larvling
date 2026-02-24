@@ -24,17 +24,18 @@ def is_real_user_message(entry):
 
 
 def parse_last_turn(transcript_path):
-    """Extract text and tool call counts from the last assistant turn.
+    """Extract text, tool call counts, and usage from the last assistant turn.
 
     Reads the transcript once, finds the boundary after the last real user
-    message, and collects both text blocks and tool_use counts from that
-    point forward.
+    message, and collects text blocks, tool_use counts, and token usage
+    from that point forward.
 
-    Returns (text, tool_counts) where text is the concatenated assistant
-    response and tool_counts is a dict of {tool_name: count}.
+    Returns (text, tool_counts, usage) where text is the concatenated
+    assistant response, tool_counts is a dict of {tool_name: count}, and
+    usage is the message.usage dict from the last assistant entry (or None).
     """
     if not transcript_path or not os.path.exists(transcript_path):
-        return None, {}
+        return None, {}, None
 
     lines = []
     with open(transcript_path, "r", encoding="utf-8") as f:
@@ -54,9 +55,10 @@ def parse_last_turn(transcript_path):
             turn_start = i + 1
             break
 
-    # Collect text and tool counts from the last turn only
+    # Collect text, tool counts, and usage from the last turn only
     all_text = []
     tools = {}
+    usage = None
     for line in lines[turn_start:]:
         try:
             entry = json.loads(line)
@@ -65,6 +67,11 @@ def parse_last_turn(transcript_path):
         if entry.get("type") != "assistant":
             continue
         msg = entry.get("message", {})
+        if isinstance(msg, dict):
+            # Keep the usage from the last assistant entry (most recent API call)
+            msg_usage = msg.get("usage")
+            if msg_usage:
+                usage = msg_usage
         content = msg.get("content", "") if isinstance(msg, dict) else ""
         if isinstance(content, list):
             parts = []
@@ -85,7 +92,7 @@ def parse_last_turn(transcript_path):
             all_text.append(str(content))
 
     text = "\n\n".join(all_text) if all_text else None
-    return text, tools
+    return text, tools, usage
 
 
 def parse_last_user_text(transcript_path):

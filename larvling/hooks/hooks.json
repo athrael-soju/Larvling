@@ -5,7 +5,7 @@
       {
         "hooks": [
           {
-            "type": "command",
+            "type": "intercept",
             "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session_start.py\"",
             "timeout": 10
           }
@@ -16,7 +16,7 @@
       {
         "hooks": [
           {
-            "type": "command",
+            "type": "intercept",
             "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/prompt.py\"",
             "timeout": 15
           }
@@ -29,17 +29,6 @@
           {
             "type": "command",
             "command": "_TMP=$(mktemp) && cat >\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/stop.py\" <\"$_TMP\" && python \"${CLAUDE_PLUGIN_ROOT}/scripts/extract.py\" <\"$_TMP\"; rm -f \"$_TMP\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/precompact.py\"",
             "timeout": 5
           }
         ]
