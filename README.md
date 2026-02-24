@@ -184,7 +184,7 @@ claude plugin marketplace remove athrael-soju
 To also remove stored data, delete the Larvling files from your project's `.claude/` directory:
 
 ```bash
-rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/dashboard.html .claude/larvling-revision .claude/larvling-errors.log
+rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/dashboard.html .claude/larvling-errors.log
 ```
 
 ## Data
