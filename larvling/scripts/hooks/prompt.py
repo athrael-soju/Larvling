@@ -29,17 +29,23 @@ def strip_ide_tags(text):
 
 def inject_context(conn, session_id):
     """Print context hints (fact lookup, summary staleness) for the agent."""
+    injected = []
+    total_chars = 0
+
     if has_table(conn, "facts"):
         fact_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
         scripts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
         query_script = os.path.normpath(os.path.join(
             scripts_dir, "query.py"
         )).replace("\\", "/")
-        print(f'\n## Fact Context\n{fact_count} stored fact(s). '
-              f'query: python "{query_script}" "<SQL>"\n'
-              f'Search for facts relevant to this prompt '
-              f'(e.g. WHERE claim LIKE \'%topic%\') and weave '
-              f'them into your response naturally.')
+        text = (f'\n## Fact Context\n{fact_count} stored fact(s). '
+                f'query: python "{query_script}" "<SQL>"\n'
+                f'Search for facts relevant to this prompt '
+                f'(e.g. WHERE claim LIKE \'%topic%\') and weave '
+                f'them into your response naturally.')
+        print(text)
+        total_chars += len(text)
+        injected.append(f"{fact_count} facts")
 
     session = conn.execute(
         "SELECT summary_msg_count, agent_summary FROM sessions WHERE id = ?",
@@ -54,12 +60,22 @@ def inject_context(conn, session_id):
         summarized = session["summary_msg_count"] or 0
 
         if not session["agent_summary"] and msg_count >= 10:
-            print(f'\n## Summary\nNo summary yet ({msg_count} messages). '
-                  f'Offer /summarize via AskUserQuestion.')
+            text = (f'\n## Summary\nNo summary yet ({msg_count} messages). '
+                    f'Offer /summarize via AskUserQuestion.')
+            print(text)
+            total_chars += len(text)
+            injected.append("summary hint")
         elif session["agent_summary"] and msg_count > summarized + 4:
-            print(f'\n## Summary\nStale summary '
-                  f'(covers {summarized}/{msg_count} messages). '
-                  f'Offer /summarize via AskUserQuestion.')
+            text = (f'\n## Summary\nStale summary '
+                    f'(covers {summarized}/{msg_count} messages). '
+                    f'Offer /summarize via AskUserQuestion.')
+            print(text)
+            total_chars += len(text)
+            injected.append("stale summary hint")
+
+    if injected:
+        tokens = max(1, total_chars // 4)
+        log(f"Context | {' | '.join(injected)} | ~{tokens:,} tokens", session_id)
 
 
 def handle(data):

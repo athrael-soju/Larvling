@@ -516,7 +516,7 @@ def main():
         out_tok = usage_info.get("output_tokens", 0)
         extras.append(f"{in_tok:,} → {out_tok:,} tokens")
 
-    log(f"Extraction | {' | '.join(extras)}", session_id)
+    log(f"Analysis | {' | '.join(extras)}", session_id)
 
 
 

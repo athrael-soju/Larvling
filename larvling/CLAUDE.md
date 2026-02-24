@@ -47,7 +47,7 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 /query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
 ```
 
-### Facts & Unified Extraction
+### Facts & Unified Analysis
 
 Larvling stores persistent facts in the `facts` table. Multiple mechanisms handle data extraction:
 
@@ -64,15 +64,16 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 **Token usage tracking:** Two hooks capture token usage:
 - **Prompt** — `hooks/prompt.py` estimates user tokens (`~4 chars/token` heuristic), stored in `messages.metadata.usage` on user row
 - **Response** — `hooks/stop.py` extracts API usage from transcript. Output tokens summed from `speed` entries (real API responses); falls back to `~4 chars/token` estimate for text-only turns (flagged with `output_tokens_estimated`). Stored in `messages.metadata.usage` on assistant row.
-- **Extraction** — SDK call usage stored as `role='system'` message with usage in metadata.
+- **Analysis** — SDK call usage stored as `role='system'` message with usage in metadata.
 
 **Log format** — human-readable, pipe-separated, session ID in prefix:
 ```
 [ts] [6801adcc] Prompt #1 | ~1 tokens
+[ts] [6801adcc] Context | 9 facts | stale summary hint
 [ts] [6801adcc] Response | 20 chars | 27,953 cached + 9,142 new → ~5 out
 [ts] [6801adcc] Skill | /larvling:status | ~85 tokens
 [ts] [6801adcc] Facts | 7 inserted
-[ts] [6801adcc] Extraction | curious | topics: greeting | 1,234 → 567 tokens
+[ts] [6801adcc] Analysis | curious | topics: greeting | 1,234 → 567 tokens
 [ts] [6801adcc] Tool failure | Bash
 [ts] [6801adcc] Session end | 1 exchange, 0.2 min
 ```
