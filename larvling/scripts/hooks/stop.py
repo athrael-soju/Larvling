@@ -1,5 +1,6 @@
-"""Stop hook — logs the agent's last response and computes quality signals."""
+"""Stop hook — logs the agent's last response, computes quality signals, and tracks token usage."""
 
+import json
 import os
 import sys
 
@@ -7,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from db import (
     open_db,
+    parse_meta,
     ensure_session,
     record_message,
     accumulate_quality_signals,
@@ -39,6 +41,31 @@ def compute_quality_signals(response_text, tools):
     return signals
 
 
+def store_usage_on_message(conn, session_id, role, usage_data, expected_content=None):
+    """Store usage data in the metadata of the last message with the given role."""
+    if not usage_data:
+        return
+
+    row = conn.execute(
+        "SELECT id, content, metadata FROM messages "
+        "WHERE session_id = ? AND role = ? "
+        "ORDER BY id DESC LIMIT 1",
+        (session_id, role),
+    ).fetchone()
+    if not row:
+        return
+
+    if expected_content and row["content"] != expected_content:
+        return
+
+    meta = parse_meta(row["metadata"])
+    meta["usage"] = usage_data
+    conn.execute(
+        "UPDATE messages SET metadata = ? WHERE id = ?",
+        (json.dumps(meta), row["id"]),
+    )
+
+
 def handle(data):
     session_id = data.get("session_id")
     if not session_id:
@@ -48,7 +75,7 @@ def handle(data):
 
     wait_for_transcript_stable(transcript_path)
 
-    response, tools = parse_last_turn(transcript_path)
+    response, tools, usage = parse_last_turn(transcript_path)
 
     with open_db() as conn:
         ensure_session(conn, session_id)
@@ -64,8 +91,13 @@ def handle(data):
             ).fetchone()
             is_dup = bool(row and row[0] == response)
             if not is_dup:
-                meta = {"tool_calls": tools} if tools else None
-                record_message(conn, session_id, "assistant", response, meta)
+                meta = {"tool_calls": tools} if tools else {}
+                if usage:
+                    meta["usage"] = usage
+                record_message(conn, session_id, "assistant", response, meta or None)
+            elif usage:
+                # Response was a dup (already stored), but still attach usage
+                store_usage_on_message(conn, session_id, "assistant", usage, expected_content=response)
 
         # Accumulate quality signals
         signals = compute_quality_signals(response, tools)
@@ -74,21 +106,28 @@ def handle(data):
 
         conn.commit()
 
-    # Log stop details
-    parts = [f"session={session_id[:8]}"]
-    if response:
-        parts.append(f"response={len(response)} chars")
-        parts.append(f"dup={is_dup}")
-    else:
-        parts.append("response=none")
+    # Log response details as JSONL
+    resp_data = {"chars": len(response) if response else 0, "is_dup": is_dup}
     if tools:
-        total = sum(tools.values())
-        parts.append(f"tools={total}")
+        resp_data["tools"] = sum(tools.values())
     if signals.get("error_count"):
-        parts.append(f"errors={signals['error_count']}")
+        resp_data["errors"] = signals["error_count"]
     if signals.get("retry_count"):
-        parts.append(f"retries={signals['retry_count']}")
-    log(f"Stop: {', '.join(parts)}")
+        resp_data["retries"] = signals["retry_count"]
+    if usage:
+        cached = usage.get("cache_read_input_tokens", 0)
+        if cached:
+            resp_data["cache_read"] = cached
+        new_in = usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)
+        if new_in:
+            resp_data["input_new"] = new_in
+        agent_out = usage.get("output_tokens", 0)
+        if agent_out:
+            resp_data["output"] = agent_out
+        if usage.get("output_tokens_estimated"):
+            resp_data["output_estimated"] = True
+
+    log("response", session_id, **resp_data)
 
 
 if __name__ == "__main__":

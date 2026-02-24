@@ -8,13 +8,14 @@ argument-hint: "[session-id or --list or all]"
 
 Run via:
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <args>
+python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" --list
+python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --pairs
+python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --get
+python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --store "SUMMARY"
 ```
-
-Available flags: `--list`, `--get`, `--pairs`, `--store "SUMMARY"`
 
 ## Approach
 
 Check for an existing summary first (`--get`). If one exists, display it and use AskUserQuestion to confirm before regenerating.
 
-To summarize: read the conversation pairs (`--pairs`), write a summary that covers accomplishments, key decisions, and unresolved items. Scale detail to conversation length. Store with `--store` and display the result.
+If no summary exists, or the user confirms regeneration: read the conversation pairs (`--pairs`), write a summary that covers accomplishments, key decisions, and unresolved items. Scale detail to conversation length. Store with `--store` and display the result.

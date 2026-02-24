@@ -29,7 +29,7 @@ def handle(data):
         })
         conn.commit()
 
-    log(f"ToolFailure: session={session_id[:8]}, tool={tool_name}")
+    log("tool_failure", session_id, tool=tool_name)
 
 
 if __name__ == "__main__":

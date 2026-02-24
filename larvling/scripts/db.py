@@ -380,22 +380,26 @@ def read_hook_payload():
     try:
         raw = sys.stdin.buffer.read().decode("utf-8")
     except Exception as e:
-        log(f"stdin read failed: {e}")
+        log("stdin_error", error=str(e))
         sys.exit(0)
     if not raw.strip():
         sys.exit(0)
     try:
         return json.loads(raw)
     except json.JSONDecodeError as e:
-        log(f"JSON parse failed ({len(raw)} bytes): {e}")
+        log("payload_error", size=len(raw), error=str(e))
         sys.exit(0)
 
 
-def log(msg):
-    """Append a message to .claude/larvling.log for debugging."""
+def log(event, session_id=None, **data):
+    """Append a JSONL entry to .claude/larvling.jsonl for debugging."""
     try:
-        log_path = os.path.join(os.getcwd(), ".claude", "larvling.log")
+        log_path = os.path.join(os.getcwd(), ".claude", "larvling.jsonl")
+        entry = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "event": event}
+        if session_id:
+            entry["sid"] = session_id[:8]
+        entry.update(data)
         with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+            f.write(json.dumps(entry, separators=(",", ":")) + "\n")
     except Exception:
         pass

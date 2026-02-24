@@ -122,11 +122,7 @@ def main():
         if summary:
             print(summary)
         else:
-            print(
-                f"No session summary found for session matching '{session_id}'",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+            print(f"No session summary found for session matching '{session_id}'")
 
     elif "--store" in sys.argv:
         idx = sys.argv.index("--store")

@@ -19,6 +19,7 @@ from db import (
     parse_meta,
     reconfigure_stdout,
     ensure_session,
+    record_message,
     log,
 )
 from transcript import parse_last_user_text, parse_last_turn, wait_for_transcript_stable
@@ -31,8 +32,12 @@ from transcript import parse_last_user_text, parse_last_turn, wait_for_transcrip
 async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=None):
     """Call the LLM via Agent SDK and return the response.
 
-    Returns structured_output (dict) when output_format is set,
-    otherwise returns response text (str).
+    Returns (result, usage_info) tuple where:
+    - result is structured_output (dict) when output_format is set,
+      otherwise response text (str).
+    - usage_info is the usage dict from ResultMessage, or None if
+      not available.
+
     Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
     """
     from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
@@ -66,6 +71,7 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
     response_text = ""
     structured = None
     result_subtype = None
+    usage_info = None
     try:
         async for msg in query(prompt=prompt, options=options):
             if msg is None:
@@ -74,6 +80,10 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
                 result_subtype = getattr(msg, "subtype", None)
                 if msg.structured_output:
                     structured = msg.structured_output
+                # Capture usage from ResultMessage
+                msg_usage = getattr(msg, "usage", None)
+                if msg_usage:
+                    usage_info = msg_usage
                 continue
             content = getattr(msg, "content", None)
             if not content:
@@ -89,14 +99,14 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
         setattr(_sdk_client, "parse_message", parse_message)
 
     if structured is not None:
-        return structured
+        return structured, usage_info
 
     if output_format:
         raise RuntimeError(
             f"Structured output not returned (subtype={result_subtype})"
         )
 
-    return response_text.strip()
+    return response_text.strip(), usage_info
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +390,7 @@ def main():
         try:
             raw = sys.stdin.buffer.read().decode("utf-8")
         except Exception as e:
-            log(f"stdin read failed: {e}")
+            log("stdin_error", error=str(e))
             return
 
         if not raw.strip():
@@ -408,10 +418,10 @@ def main():
 
     # Get user text and agent text
     user_text = parse_last_user_text(transcript_path)
-    agent_text, _ = parse_last_turn(transcript_path)
+    agent_text, _, _ = parse_last_turn(transcript_path)
 
     if not user_text and not agent_text:
-        log(f"Extraction skipped: session={session_id[:8] if session_id else '?'}, no text found")
+        log("extraction_skipped", session_id, reason="no text found")
         return
 
     # Read existing topics before the SDK call (brief read-only access)
@@ -421,11 +431,11 @@ def main():
             with open_db() as conn:
                 existing_topics = fetch_existing_topics(conn, session_id)
         except Exception as e:
-            log(f"Topic fetch failed: {e}")
+            log("extraction_error", session_id, context="topic fetch", error=str(e))
 
     try:
         prompt = build_extraction_prompt(user_text, agent_text, existing_topics)
-        result = asyncio.run(
+        result, usage_info = asyncio.run(
             call_model(
                 prompt,
                 allowed_tools=["Bash"],
@@ -433,11 +443,11 @@ def main():
             )
         )
     except Exception as e:
-        log(f"SDK call failed: {e}")
+        log("extraction_error", session_id, context="SDK call", error=str(e))
         return
 
     if not isinstance(result, dict):
-        log(f"Unexpected result type: {type(result)}")
+        log("extraction_error", session_id, context="unexpected type", error=str(type(result)))
         return
 
     with open_db() as conn:
@@ -464,27 +474,46 @@ def main():
         if session_id and isinstance(action_items, list) and action_items:
             store_message_metadata(conn, session_id, "action_items", action_items, expected_content=agent_text)
 
+        # Record extraction as a system message with usage metadata
+        if session_id:
+            fact_parts = []
+            if inserted:
+                fact_parts.append(f"{inserted} inserted")
+            if updated:
+                fact_parts.append(f"{updated} updated")
+            if deleted:
+                fact_parts.append(f"{deleted} deleted")
+            fact_summary = ", ".join(fact_parts) if fact_parts else "no changes"
+
+            sys_content = f"Extraction: facts={fact_summary}"
+            sys_meta = {"usage": usage_info} if usage_info else None
+            record_message(conn, session_id, "system", sys_content, sys_meta)
+
         conn.commit()
 
     if inserted or updated or deleted:
-        parts = []
+        fact_data = {}
         if inserted:
-            parts.append(f"inserted {inserted}")
+            fact_data["inserted"] = inserted
         if updated:
-            parts.append(f"updated {updated}")
+            fact_data["updated"] = updated
         if deleted:
-            parts.append(f"deleted {deleted}")
-        log(f"Facts: {', '.join(parts)}")
+            fact_data["deleted"] = deleted
+        log("facts", session_id, **fact_data)
 
-    extras = []
+    analysis_data = {}
     if result.get("sentiment"):
-        extras.append(f"sentiment={result['sentiment']}")
+        analysis_data["sentiment"] = result["sentiment"]
     if result.get("topics"):
-        extras.append(f"topics={result['topics']}")
+        topics = result["topics"]
+        analysis_data["topics"] = topics if isinstance(topics, list) else [topics]
     if result.get("action_items"):
-        extras.append(f"actions={len(result['action_items'])}")
-    if extras:
-        log(f"Extraction: {', '.join(extras)}")
+        analysis_data["actions"] = len(result["action_items"])
+    if usage_info and isinstance(usage_info, dict):
+        analysis_data["input_tokens"] = usage_info.get("input_tokens", 0)
+        analysis_data["output_tokens"] = usage_info.get("output_tokens", 0)
+
+    log("analysis", session_id, **analysis_data)
 
 
 

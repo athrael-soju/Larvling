@@ -211,7 +211,7 @@ def get_template():
             f.write(template)
         return template
     except (URLError, OSError, TimeoutError) as e:
-        log(f"Template fetch failed, using cache: {e}")
+        log("template_error", error=str(e))
 
     if os.path.exists(TEMPLATE_CACHE):
         with open(TEMPLATE_CACHE, "r", encoding="utf-8") as f:

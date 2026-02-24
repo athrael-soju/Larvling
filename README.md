@@ -154,11 +154,10 @@ The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessi
 | `larvling/scripts/preflight.py`           | Schema bootstrap — ensures DB and tables exist              |
 | `larvling/scripts/hooks/session_start.py` | Injects session context, checks for updates                 |
 | `larvling/scripts/hooks/prompt.py`        | Logs user prompts and injects context hints                 |
-| `larvling/scripts/hooks/stop.py`          | Logs responses and computes quality signals                 |
+| `larvling/scripts/hooks/stop.py`          | Logs responses, computes quality signals, tracks token usage|
 | `larvling/scripts/hooks/failure.py`       | Records tool failures as quality signals                    |
 | `larvling/scripts/hooks/session_end.py`   | Finalizes session timing and exchange count                 |
-| `larvling/scripts/extract.py`             | Unified extraction - facts, sentiment, topics, action items |
-| `larvling/scripts/precompact.py`          | Injects critical context before compaction                  |
+| `larvling/scripts/extract.py`             | Unified extraction - facts, sentiment, topics, action items, token usage |
 | `larvling/scripts/dashboard.py`           | Builds the HTML dashboard from the database                 |
 | `dashboard.html.template`                 | HTML/CSS/JS template for the dashboard                      |
 | `larvling/scripts/summarize.py`           | Fetches conversation pairs and stores session summaries     |
@@ -183,7 +182,7 @@ claude plugin marketplace remove athrael-soju
 To also remove stored data, delete the Larvling files from your project's `.claude/` directory:
 
 ```bash
-rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/dashboard.html
+rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/larvling.jsonl .claude/dashboard.html
 ```
 
 ## Data
@@ -191,6 +190,7 @@ rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/d
 All data is stored locally in the project's `.claude/` directory:
 
 - `larvling.db` - SQLite database (WAL mode) with sessions, messages, and facts
+- `larvling.jsonl` - structured JSONL debug log (one JSON object per line, machine-parseable)
 - `dashboard.html` - static HTML dashboard, generated on-demand via `/generate-dashboard`
 
 When the plugin updates with schema changes, Larvling automatically backs up your database and guides the agent through the migration - your data is preserved.

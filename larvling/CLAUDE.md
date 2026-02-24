@@ -47,7 +47,7 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 /query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
 ```
 
-### Facts & Unified Extraction
+### Facts & Unified Analysis
 
 Larvling stores persistent facts in the `facts` table. Multiple mechanisms handle data extraction:
 
@@ -61,9 +61,24 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 
 **Stop → Quality signals (no SDK call):** `hooks/stop.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
 
-**PostToolUseFailure → Tool failure tracking:** `hooks/failure.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.
+**Token usage tracking:** Two hooks capture token usage:
+- **Prompt** — `hooks/prompt.py` estimates user tokens (`~4 chars/token` heuristic), stored in `messages.metadata.usage` on user row
+- **Response** — `hooks/stop.py` extracts API usage from transcript. Output tokens summed from `speed` entries (real API responses); falls back to `~4 chars/token` estimate for text-only turns (flagged with `output_tokens_estimated`). Stored in `messages.metadata.usage` on assistant row.
+- **Analysis** — SDK call usage stored as `role='system'` message with usage in metadata.
 
-**PreCompact → Context preservation:** `precompact.py` injects critical session context (current topics, recent facts, skill reminders) before compaction so it survives context summarization.
+**Log format** — JSONL (one JSON object per line) in `.claude/larvling.jsonl`:
+```jsonl
+{"ts":"2026-02-24T16:16:35","event":"prompt","sid":"6801adcc","n":1,"input_tokens_est":1}
+{"ts":"...","event":"context","sid":"6801adcc","injected":["9 facts","stale summary hint"],"tokens_est":42}
+{"ts":"...","event":"response","sid":"6801adcc","chars":20,"is_dup":false,"cache_read":27953,"input_new":9142,"output":5,"output_estimated":true}
+{"ts":"...","event":"skill","sid":"6801adcc","name":"/larvling:status","input_tokens_est":85}
+{"ts":"...","event":"facts","sid":"6801adcc","inserted":7}
+{"ts":"...","event":"analysis","sid":"6801adcc","sentiment":"curious","topics":["greeting"],"input_tokens":1234,"output_tokens":567}
+{"ts":"...","event":"tool_failure","sid":"6801adcc","tool":"Bash"}
+{"ts":"...","event":"session_end","sid":"6801adcc","exchanges":1,"duration":0.2}
+```
+
+**PostToolUseFailure → Tool failure tracking:** `hooks/failure.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.
 
 **Manual skills** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
 
