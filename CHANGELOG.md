@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.1.4](https://github.com/athrael-soju/Larvling/compare/v0.1.3...v0.1.4) (2026-02-24)
+
+
+### Features
+
+* Add graph refresh functionality and update dashboard generation modes ([a095891](https://github.com/athrael-soju/Larvling/commit/a095891f51ac99a749a741a7f5a3439fa6a84fa8))
+* Enhance dashboard with graph statistics, curved edges, and improved node interactions ([628e803](https://github.com/athrael-soju/Larvling/commit/628e8038d0e0e42189ed622271e89dccfea144bf))
+* Enhance quality signal management and refactor hook payload handling ([b0aeb58](https://github.com/athrael-soju/Larvling/commit/b0aeb587f151f74d4222dbcef5e9086966340d63))
+* Implement template fetching and caching for dashboard rendering ([f950714](https://github.com/athrael-soju/Larvling/commit/f950714aa0ec4f9afd4d2a227f8863ee6613f726))
+* Introduce Fact Graph agent and update dashboard to reflect changes ([8f9c27d](https://github.com/athrael-soju/Larvling/commit/8f9c27d52e6116be16a7a5ed0997d25418dfbfb2))
+* modernize plugin structure ([eb52869](https://github.com/athrael-soju/Larvling/commit/eb5286902cccd3f889f9ed1d84dd4bbfdb459d6b))
+* modernize plugin structure with skills, agents, hooks, and output styles ([b2490bc](https://github.com/athrael-soju/Larvling/commit/b2490bc44d39e7d76b525f2e3ca4cb50ddb16e0a))
+* Refactor dashboard rendering logic and remove unused graph data handling ([6130f40](https://github.com/athrael-soju/Larvling/commit/6130f408528a8f8a39436fa48c8637a7db4abb3c))
+* Remove auto-summarization script and update session end hook command ([52bc00d](https://github.com/athrael-soju/Larvling/commit/52bc00d51dff1e8116c2852fdabc62d02ccda866))
+* Remove Fact Graph agent and related functionality from dashboard generation ([d77c11b](https://github.com/athrael-soju/Larvling/commit/d77c11bf2f91d814001c441485b6b1368b29e822))
+* Update Larvling dashboard with Knowledge Graph and improve hooks ([26945f7](https://github.com/athrael-soju/Larvling/commit/26945f75562a8d5856f80c972291d6bea489dda8))
+* Update README to reflect changes in command terminology and enhance dashboard description ([08d3614](https://github.com/athrael-soju/Larvling/commit/08d3614e9d1bac2726b8188be0ee5a5baa90886d))
+* Update README to reflect on-demand dashboard generation and script modifications ([0a6c678](https://github.com/athrael-soju/Larvling/commit/0a6c6789996c43b15107e475af3e77439d0fe07a))
+* Update terminology from 'commands' to 'skills' in documentation and precompact script ([47ef3f8](https://github.com/athrael-soju/Larvling/commit/47ef3f8dc8c921873740817841ef5e225bc84b7c))
+
+
+### Bug Fixes
+
+* add explicit AskUserQuestion usage to remember skill and fact-manager agent ([00553f6](https://github.com/athrael-soju/Larvling/commit/00553f6dde565cd50a107afa821092f330b74aca))
+* Correct removal command in README for Larvling data files ([e34c049](https://github.com/athrael-soju/Larvling/commit/e34c049b99519ab962ef0fd89c3b4580bffddd1d))
+* make PostToolUseFailure hook synchronous for reliable stdin delivery ([199cb76](https://github.com/athrael-soju/Larvling/commit/199cb76ba7ce31d8163009fd921441f1e1b7aec5))
+* Revert version number to 0.1.3 and update changelog header image URL ([47fbd40](https://github.com/athrael-soju/Larvling/commit/47fbd4090e9cf5c4147bdf404ac9027a9f1c745e))
+
+
+### Refactoring
+
+* Improve clarity in README by updating descriptions and correcting image alt text ([85602d4](https://github.com/athrael-soju/Larvling/commit/85602d4663a37d12c256c392ef9fbdb693a10486))
+* Update preflight script for schema bootstrap and enhance session start hook integration ([ef67ea5](https://github.com/athrael-soju/Larvling/commit/ef67ea544b8f5c7bedd9d9493f507a95756cb7e0))
+* Update README to improve clarity and organization of principles and skills ([c67c079](https://github.com/athrael-soju/Larvling/commit/c67c079f37ca50d846d39283b44ca2628bdbdeb3))
+
 ## [0.1.4](https://github.com/athrael-soju/Larvling/compare/v0.1.3...v0.1.4) (2026-02-23)
 
 
