@@ -116,7 +116,7 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 - `${CLAUDE_PLUGIN_ROOT}` in hooks and skills points to the cache, not the repo
 - Committing + updating the plugin via `plugin install` also refreshes the cache
 
-## How It Works
+## Larvling's core skills
 
 <p align="center">
   <img src="diagram.png" alt="Larvling capabilities diagram" width="100%" />
