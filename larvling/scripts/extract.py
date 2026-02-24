@@ -21,7 +21,7 @@ from db import (
     ensure_session,
     log,
 )
-from transcript import is_real_user_message, parse_last_turn, wait_for_transcript_stable
+from transcript import parse_last_user_text, parse_last_turn, wait_for_transcript_stable
 
 # ---------------------------------------------------------------------------
 # Agent SDK call
@@ -97,44 +97,6 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
         )
 
     return response_text.strip()
-
-
-# ---------------------------------------------------------------------------
-# Transcript parsing — extract user text from the last exchange
-# ---------------------------------------------------------------------------
-
-
-def parse_last_user_text(transcript_path):
-    """Return the last real user message text from the transcript."""
-    if not transcript_path or not os.path.exists(transcript_path):
-        return None
-
-    lines = []
-    with open(transcript_path, "r", encoding="utf-8") as f:
-        for raw in f:
-            raw = raw.strip()
-            if raw:
-                lines.append(raw)
-
-    for i in range(len(lines) - 1, -1, -1):
-        try:
-            entry = json.loads(lines[i])
-        except json.JSONDecodeError:
-            continue
-        if is_real_user_message(entry):
-            msg = entry.get("message", {})
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                return content
-            if isinstance(content, list):
-                parts = [
-                    b.get("text", "") if isinstance(b, dict) else str(b)
-                    for b in content
-                    if not (isinstance(b, dict) and b.get("type") == "tool_result")
-                ]
-                return " ".join(p for p in parts if p).strip()
-
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -458,8 +420,8 @@ def main():
         try:
             with open_db() as conn:
                 existing_topics = fetch_existing_topics(conn, session_id)
-        except Exception:
-            pass
+        except Exception as e:
+            log(f"Topic fetch failed: {e}")
 
     try:
         prompt = build_extraction_prompt(user_text, agent_text, existing_topics)

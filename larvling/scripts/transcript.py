@@ -88,6 +88,39 @@ def parse_last_turn(transcript_path):
     return text, tools
 
 
+def parse_last_user_text(transcript_path):
+    """Return the last real user message text from the transcript."""
+    if not transcript_path or not os.path.exists(transcript_path):
+        return None
+
+    lines = []
+    with open(transcript_path, "r", encoding="utf-8") as f:
+        for raw in f:
+            raw = raw.strip()
+            if raw:
+                lines.append(raw)
+
+    for i in range(len(lines) - 1, -1, -1):
+        try:
+            entry = json.loads(lines[i])
+        except json.JSONDecodeError:
+            continue
+        if is_real_user_message(entry):
+            msg = entry.get("message", {})
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                parts = [
+                    b.get("text", "") if isinstance(b, dict) else str(b)
+                    for b in content
+                    if not (isinstance(b, dict) and b.get("type") == "tool_result")
+                ]
+                return " ".join(p for p in parts if p).strip()
+
+    return None
+
+
 def wait_for_transcript_stable(transcript_path, interval=0.1, max_wait=2):
     """Wait until the transcript file stops being written to."""
     if not transcript_path or not os.path.exists(transcript_path):

@@ -336,6 +336,61 @@ def build_message_pairs(rows):
     return pairs
 
 
+def accumulate_quality_signals(conn, session_id, new_signals):
+    """Merge new quality signals into a session's quality_signals JSON field.
+
+    Each key in new_signals is added (numerically) to the existing value.
+    Nested dicts (e.g. failures_by_tool) are merged one level deep.
+    """
+    sess = conn.execute(
+        "SELECT quality_signals FROM sessions WHERE id = ?",
+        (session_id,),
+    ).fetchone()
+    if not sess:
+        return
+    existing = {}
+    if sess["quality_signals"]:
+        try:
+            existing = json.loads(sess["quality_signals"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    for key, val in new_signals.items():
+        if isinstance(val, dict):
+            nested = existing.get(key, {})
+            for k, v in val.items():
+                nested[k] = nested.get(k, 0) + v
+            existing[key] = nested
+        else:
+            existing[key] = existing.get(key, 0) + val
+    conn.execute(
+        "UPDATE sessions SET quality_signals = ? WHERE id = ?",
+        (json.dumps(existing), session_id),
+    )
+
+
+def read_hook_payload():
+    """Read and parse a JSON hook payload from stdin.
+
+    Handles LARVLING_INTERNAL guard, stdout reconfiguration, and
+    standard error logging. Returns parsed dict or None on failure.
+    """
+    if os.environ.get("LARVLING_INTERNAL"):
+        sys.exit(0)
+    reconfigure_stdout()
+    try:
+        raw = sys.stdin.buffer.read().decode("utf-8")
+    except Exception as e:
+        log(f"stdin read failed: {e}")
+        sys.exit(0)
+    if not raw.strip():
+        sys.exit(0)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        log(f"JSON parse failed ({len(raw)} bytes): {e}")
+        sys.exit(0)
+
+
 def log(msg):
     """Append a message to .claude/larvling.log for debugging."""
     try:

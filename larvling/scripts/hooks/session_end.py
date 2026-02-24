@@ -1,6 +1,5 @@
 """SessionEnd hook — finalizes session timing and records exchange count."""
 
-import json
 import os
 import sys
 
@@ -8,10 +7,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from db import (
     open_db,
-    reconfigure_stdout,
     ensure_session,
     finalize_session,
     record_summary,
+    read_hook_payload,
     log,
 )
 
@@ -46,19 +45,5 @@ def handle(data):
 
 
 if __name__ == "__main__":
-    if os.environ.get("LARVLING_INTERNAL"):
-        sys.exit(0)
-    reconfigure_stdout()
-    try:
-        raw = sys.stdin.buffer.read().decode("utf-8")
-    except Exception as e:
-        log(f"stdin read failed: {e}")
-        sys.exit(0)
-    if not raw.strip():
-        sys.exit(0)
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as e:
-        log(f"JSON parse failed ({len(raw)} bytes): {e}")
-        sys.exit(0)
+    data = read_hook_payload()
     handle(data)

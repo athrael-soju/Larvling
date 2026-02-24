@@ -1,6 +1,5 @@
 """UserPromptSubmit hook — logs the user's prompt and injects context hints."""
 
-import json
 import os
 import re
 import sys
@@ -10,10 +9,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from db import (
     open_db,
     has_table,
-    reconfigure_stdout,
     ensure_session,
     record_message,
     record_summary,
+    read_hook_payload,
     log,
 )
 
@@ -32,10 +31,10 @@ def inject_context(conn, session_id):
     """Print context hints (fact lookup, summary staleness) for the agent."""
     if has_table(conn, "facts"):
         fact_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
-        scripts_dir = os.path.dirname(os.path.abspath(__file__))
-        query_script = os.path.join(
+        scripts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        query_script = os.path.normpath(os.path.join(
             scripts_dir, "query.py"
-        ).replace("\\", "/")
+        )).replace("\\", "/")
         print(f'\n## Fact Context\n{fact_count} stored fact(s). '
               f'query: python "{query_script}" "<SQL>"\n'
               f'Search for facts relevant to this prompt '
@@ -96,19 +95,5 @@ def handle(data):
 
 
 if __name__ == "__main__":
-    if os.environ.get("LARVLING_INTERNAL"):
-        sys.exit(0)
-    reconfigure_stdout()
-    try:
-        raw = sys.stdin.buffer.read().decode("utf-8")
-    except Exception as e:
-        log(f"stdin read failed: {e}")
-        sys.exit(0)
-    if not raw.strip():
-        sys.exit(0)
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as e:
-        log(f"JSON parse failed ({len(raw)} bytes): {e}")
-        sys.exit(0)
+    data = read_hook_payload()
     handle(data)

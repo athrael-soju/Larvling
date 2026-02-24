@@ -77,7 +77,7 @@ When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer br
 
 ### Fact Manager Agent
 
-The `fact-manager` agent is a Haiku-powered subagent for autonomous fact management. Claude can delegate to it proactively when the conversation reveals a preference, convention, decision, or knowledge worth persisting. It handles deduplication, consolidation, and domain classification autonomously — searching existing facts before deciding whether to insert, update, or skip.
+The `fact-manager` is a subagent for autonomous fact management. Claude can delegate to it proactively when the conversation reveals a preference, convention, decision, or knowledge worth persisting. It handles deduplication, consolidation, and domain classification autonomously — searching existing facts before deciding whether to insert, update, or skip.
 
 ## Interaction Protocol
 

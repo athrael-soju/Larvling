@@ -1,6 +1,5 @@
 """Stop hook — logs the agent's last response and computes quality signals."""
 
-import json
 import os
 import sys
 
@@ -8,9 +7,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from db import (
     open_db,
-    reconfigure_stdout,
     ensure_session,
     record_message,
+    accumulate_quality_signals,
+    read_hook_payload,
     log,
 )
 from transcript import parse_last_turn, wait_for_transcript_stable
@@ -70,23 +70,7 @@ def handle(data):
         # Accumulate quality signals
         signals = compute_quality_signals(response, tools)
         if signals:
-            sess = conn.execute(
-                "SELECT quality_signals FROM sessions WHERE id = ?",
-                (session_id,),
-            ).fetchone()
-            if sess:
-                existing = {}
-                if sess["quality_signals"]:
-                    try:
-                        existing = json.loads(sess["quality_signals"])
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                for key, val in signals.items():
-                    existing[key] = existing.get(key, 0) + val
-                conn.execute(
-                    "UPDATE sessions SET quality_signals = ? WHERE id = ?",
-                    (json.dumps(existing), session_id),
-                )
+            accumulate_quality_signals(conn, session_id, signals)
 
         conn.commit()
 
@@ -108,19 +92,5 @@ def handle(data):
 
 
 if __name__ == "__main__":
-    if os.environ.get("LARVLING_INTERNAL"):
-        sys.exit(0)
-    reconfigure_stdout()
-    try:
-        raw = sys.stdin.buffer.read().decode("utf-8")
-    except Exception as e:
-        log(f"stdin read failed: {e}")
-        sys.exit(0)
-    if not raw.strip():
-        sys.exit(0)
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as e:
-        log(f"JSON parse failed ({len(raw)} bytes): {e}")
-        sys.exit(0)
+    data = read_hook_payload()
     handle(data)
