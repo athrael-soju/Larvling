@@ -61,10 +61,21 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 
 **Stop → Quality signals (no SDK call):** `hooks/stop.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
 
-**Stop → Token usage tracking:** `hooks/stop.py` captures token usage from two sources:
-- **Main agent** — `message.usage` from the transcript's last assistant entry → stored in `messages.metadata.usage` on the assistant row (includes sub-agent costs like fact-manager)
-- **User messages** — estimated via ~4 chars/token heuristic (no API call needed) → stored in `messages.metadata.usage.input_tokens_estimate` on the user row
-- **Extraction** — `ResultMessage.usage` from the Agent SDK call in `extract.py` → stored as a `role='system'` message row with usage in metadata (token counts only, no cost)
+**Token usage tracking:** Two hooks capture token usage:
+- **Prompt** — `hooks/prompt.py` estimates user tokens (`~4 chars/token` heuristic), stored in `messages.metadata.usage` on user row
+- **Response** — `hooks/stop.py` extracts API usage from transcript. Output tokens summed from `speed` entries (real API responses); falls back to `~4 chars/token` estimate for text-only turns (flagged with `output_tokens_estimated`). Stored in `messages.metadata.usage` on assistant row.
+- **Extraction** — SDK call usage stored as `role='system'` message with usage in metadata.
+
+**Log format** — human-readable, pipe-separated, session ID in prefix:
+```
+[ts] [6801adcc] Prompt #1 | ~1 tokens
+[ts] [6801adcc] Response | 20 chars | 27,953 cached + 9,142 new → ~5 out
+[ts] [6801adcc] Skill | /larvling:status | ~85 tokens
+[ts] [6801adcc] Facts | 7 inserted
+[ts] [6801adcc] Extraction | curious | topics: greeting | 1,234 → 567 tokens
+[ts] [6801adcc] Tool failure | Bash
+[ts] [6801adcc] Session end | 1 exchange, 0.2 min
+```
 
 **PostToolUseFailure → Tool failure tracking:** `hooks/failure.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.
 

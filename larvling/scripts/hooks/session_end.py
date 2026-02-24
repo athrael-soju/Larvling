@@ -40,8 +40,8 @@ def handle(data):
             "SELECT duration_min FROM sessions WHERE id = ?",
             (session_id,),
         ).fetchone()
-        dur = f"{row['duration_min']:.1f}m" if row and row["duration_min"] else "?"
-        log(f"SessionEnd: session={session_id[:8]}, exchanges={exchange_count}, duration={dur}")
+        dur = f"{row['duration_min']:.1f} min" if row and row["duration_min"] else "?"
+        log(f"Session end | {exchange_count} exchanges, {dur}", session_id)
 
 
 if __name__ == "__main__":

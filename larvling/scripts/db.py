@@ -391,11 +391,13 @@ def read_hook_payload():
         sys.exit(0)
 
 
-def log(msg):
+def log(msg, session_id=None):
     """Append a message to .claude/larvling.log for debugging."""
     try:
         log_path = os.path.join(os.getcwd(), ".claude", "larvling.log")
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        sid = f" [{session_id[:8]}]" if session_id else ""
         with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+            f.write(f"[{ts}]{sid} {msg}\n")
     except Exception:
         pass

@@ -71,7 +71,12 @@ def handle(data):
     if not prompt:
         return
 
-    meta = {"cwd": data.get("cwd"), "permission_mode": data.get("permission_mode")}
+    user_tokens = max(1, len(prompt) // 4)
+    meta = {
+        "cwd": data.get("cwd"),
+        "permission_mode": data.get("permission_mode"),
+        "usage": {"input_tokens_estimate": user_tokens},
+    }
 
     with open_db() as conn:
         ensure_session(conn, session_id)
@@ -86,7 +91,18 @@ def handle(data):
 
         conn.commit()
 
-        log(f"UserPromptSubmit: session={session_id[:8]}, exchange={count}")
+        # Detect skill/command invocations:
+        # - Raw slash command: "/generate-dashboard", "/status"
+        # - XML tags: <command-message>plugin:skill</command-message>
+        cmd_match = re.search(
+            r"<command-(?:message|name)>\s*/?(.+?)\s*</command-(?:message|name)>", prompt
+        )
+        if not cmd_match and re.fullmatch(r"/[\w:/-]+", prompt.strip()):
+            cmd_match = re.fullmatch(r"/([\w:/-]+)", prompt.strip())
+        if cmd_match:
+            log(f"Skill | /{cmd_match.group(1)} | ~{user_tokens:,} tokens", session_id)
+        else:
+            log(f"Prompt #{count} | ~{user_tokens:,} tokens", session_id)
 
         try:
             inject_context(conn, session_id)

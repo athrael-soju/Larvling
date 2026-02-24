@@ -19,6 +19,7 @@ from db import (
     parse_meta,
     reconfigure_stdout,
     ensure_session,
+    record_message,
     log,
 )
 from transcript import parse_last_user_text, parse_last_turn, wait_for_transcript_stable
@@ -420,7 +421,7 @@ def main():
     agent_text, _, _ = parse_last_turn(transcript_path)
 
     if not user_text and not agent_text:
-        log(f"Extraction skipped: session={session_id[:8] if session_id else '?'}, no text found")
+        log("Extraction skipped | no text found", session_id)
         return
 
     # Read existing topics before the SDK call (brief read-only access)
@@ -430,7 +431,7 @@ def main():
             with open_db() as conn:
                 existing_topics = fetch_existing_topics(conn, session_id)
         except Exception as e:
-            log(f"Topic fetch failed: {e}")
+            log(f"Extraction error | topic fetch: {e}", session_id)
 
     try:
         prompt = build_extraction_prompt(user_text, agent_text, existing_topics)
@@ -442,11 +443,11 @@ def main():
             )
         )
     except Exception as e:
-        log(f"SDK call failed: {e}")
+        log(f"Extraction error | SDK call: {e}", session_id)
         return
 
     if not isinstance(result, dict):
-        log(f"Unexpected result type: {type(result)}")
+        log(f"Extraction error | unexpected type: {type(result)}", session_id)
         return
 
     with open_db() as conn:
@@ -493,29 +494,29 @@ def main():
     if inserted or updated or deleted:
         parts = []
         if inserted:
-            parts.append(f"inserted {inserted}")
+            parts.append(f"{inserted} inserted")
         if updated:
-            parts.append(f"updated {updated}")
+            parts.append(f"{updated} updated")
         if deleted:
-            parts.append(f"deleted {deleted}")
-        log(f"Facts: {', '.join(parts)}")
+            parts.append(f"{deleted} deleted")
+        log(f"Facts | {', '.join(parts)}", session_id)
 
     extras = []
     if result.get("sentiment"):
-        extras.append(f"sentiment={result['sentiment']}")
+        extras.append(result["sentiment"])
     if result.get("topics"):
-        extras.append(f"topics={result['topics']}")
+        topics = result["topics"]
+        if isinstance(topics, list):
+            topics = ", ".join(topics)
+        extras.append(f"topics: {topics}")
     if result.get("action_items"):
-        extras.append(f"actions={len(result['action_items'])}")
-
-    # Log token usage for extraction
+        extras.append(f"{len(result['action_items'])} actions")
     if usage_info and isinstance(usage_info, dict):
         in_tok = usage_info.get("input_tokens", 0)
         out_tok = usage_info.get("output_tokens", 0)
-        extras.append(f"tokens={in_tok}in/{out_tok}out")
+        extras.append(f"{in_tok:,} → {out_tok:,} tokens")
 
-    if extras:
-        log(f"Extraction: {', '.join(extras)}")
+    log(f"Extraction | {' | '.join(extras)}", session_id)
 
 
 

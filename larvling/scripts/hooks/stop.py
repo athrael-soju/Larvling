@@ -15,7 +15,7 @@ from db import (
     read_hook_payload,
     log,
 )
-from transcript import parse_last_turn, parse_last_user_text, wait_for_transcript_stable
+from transcript import parse_last_turn, wait_for_transcript_stable
 
 
 def compute_quality_signals(response_text, tools):
@@ -39,20 +39,6 @@ def compute_quality_signals(response_text, tools):
     if tools:
         signals["total_tool_calls"] = sum(tools.values())
     return signals
-
-
-def estimate_user_tokens(user_text):
-    """Estimate token count for user message text.
-
-    Uses the ~4 characters per token heuristic. This is an approximation —
-    actual tokenization varies by content (code, URLs, non-English text
-    may differ). Sufficient for relative comparisons across exchanges.
-
-    Returns estimated token count (int) or None if no text.
-    """
-    if not user_text:
-        return None
-    return max(1, len(user_text) // 4)
 
 
 def store_usage_on_message(conn, session_id, role, usage_data, expected_content=None):
@@ -90,7 +76,6 @@ def handle(data):
     wait_for_transcript_stable(transcript_path)
 
     response, tools, usage = parse_last_turn(transcript_path)
-    user_text = parse_last_user_text(transcript_path)
 
     with open_db() as conn:
         ensure_session(conn, session_id)
@@ -114,14 +99,6 @@ def handle(data):
                 # Response was a dup (already stored), but still attach usage
                 store_usage_on_message(conn, session_id, "assistant", usage, expected_content=response)
 
-        # Store estimated user message token count (~4 chars/token heuristic)
-        user_tokens = estimate_user_tokens(user_text)
-        if user_tokens is not None:
-            store_usage_on_message(
-                conn, session_id, "user",
-                {"input_tokens_estimate": user_tokens},
-            )
-
         # Accumulate quality signals
         signals = compute_quality_signals(response, tools)
         if signals:
@@ -129,30 +106,35 @@ def handle(data):
 
         conn.commit()
 
-    # Log stop details
-    parts = [f"session={session_id[:8]}"]
+    # Log response details
+    parts = []
     if response:
-        parts.append(f"response={len(response)} chars")
-        parts.append(f"dup={is_dup}")
+        p = f"{len(response)} chars"
+        if is_dup:
+            p += " (dup)"
+        parts.append(p)
     else:
-        parts.append("response=none")
+        parts.append("empty")
     if tools:
-        total = sum(tools.values())
-        parts.append(f"tools={total}")
+        parts.append(f"{sum(tools.values())} tools")
     if signals.get("error_count"):
-        parts.append(f"errors={signals['error_count']}")
+        parts.append(f"{signals['error_count']} errors")
     if signals.get("retry_count"):
-        parts.append(f"retries={signals['retry_count']}")
+        parts.append(f"{signals['retry_count']} retries")
 
-    # Log token usage
+    # Token usage: cached + new → agent out
     if usage:
-        in_tok = usage.get("input_tokens", 0) + usage.get("cache_read_input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)
-        out_tok = usage.get("output_tokens", 0)
-        parts.append(f"tokens={in_tok}in/{out_tok}out")
-    if user_tokens is not None:
-        parts.append(f"user_tokens=~{user_tokens}")
+        cached = usage.get("cache_read_input_tokens", 0)
+        new_in = usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)
+        agent_out = usage.get("output_tokens", 0)
+        estimated = usage.get("output_tokens_estimated", False)
+        tok = f"{cached:,} cached + {new_in:,} new"
+        if agent_out:
+            prefix = "~" if estimated else ""
+            tok += f" → {prefix}{agent_out:,} out"
+        parts.append(tok)
 
-    log(f"Stop: {', '.join(parts)}")
+    log(f"Response | {' | '.join(parts)}", session_id)
 
 
 if __name__ == "__main__":
