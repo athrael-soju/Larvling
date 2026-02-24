@@ -66,16 +66,16 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 - **Response** — `hooks/stop.py` extracts API usage from transcript. Output tokens summed from `speed` entries (real API responses); falls back to `~4 chars/token` estimate for text-only turns (flagged with `output_tokens_estimated`). Stored in `messages.metadata.usage` on assistant row.
 - **Analysis** — SDK call usage stored as `role='system'` message with usage in metadata.
 
-**Log format** — human-readable, pipe-separated, session ID in prefix:
-```
-[ts] [6801adcc] Prompt #1 | ~1 tokens
-[ts] [6801adcc] Context | 9 facts | stale summary hint
-[ts] [6801adcc] Response | 20 chars | 27,953 cached + 9,142 new → ~5 out
-[ts] [6801adcc] Skill | /larvling:status | ~85 tokens
-[ts] [6801adcc] Facts | 7 inserted
-[ts] [6801adcc] Analysis | curious | topics: greeting | 1,234 → 567 tokens
-[ts] [6801adcc] Tool failure | Bash
-[ts] [6801adcc] Session end | 1 exchange, 0.2 min
+**Log format** — JSONL (one JSON object per line) in `.claude/larvling.jsonl`:
+```jsonl
+{"ts":"2026-02-24T16:16:35","event":"prompt","sid":"6801adcc","n":1,"input_tokens_est":1}
+{"ts":"...","event":"context","sid":"6801adcc","injected":["9 facts","stale summary hint"],"tokens_est":42}
+{"ts":"...","event":"response","sid":"6801adcc","chars":20,"is_dup":false,"cache_read":27953,"input_new":9142,"output":5,"output_estimated":true}
+{"ts":"...","event":"skill","sid":"6801adcc","name":"/larvling:status","input_tokens_est":85}
+{"ts":"...","event":"facts","sid":"6801adcc","inserted":7}
+{"ts":"...","event":"analysis","sid":"6801adcc","sentiment":"curious","topics":["greeting"],"input_tokens":1234,"output_tokens":567}
+{"ts":"...","event":"tool_failure","sid":"6801adcc","tool":"Bash"}
+{"ts":"...","event":"session_end","sid":"6801adcc","exchanges":1,"duration":0.2}
 ```
 
 **PostToolUseFailure → Tool failure tracking:** `hooks/failure.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.

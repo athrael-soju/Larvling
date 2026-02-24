@@ -390,7 +390,7 @@ def main():
         try:
             raw = sys.stdin.buffer.read().decode("utf-8")
         except Exception as e:
-            log(f"stdin read failed: {e}")
+            log("stdin_error", error=str(e))
             return
 
         if not raw.strip():
@@ -421,7 +421,7 @@ def main():
     agent_text, _, _ = parse_last_turn(transcript_path)
 
     if not user_text and not agent_text:
-        log("Extraction skipped | no text found", session_id)
+        log("extraction_skipped", session_id, reason="no text found")
         return
 
     # Read existing topics before the SDK call (brief read-only access)
@@ -431,7 +431,7 @@ def main():
             with open_db() as conn:
                 existing_topics = fetch_existing_topics(conn, session_id)
         except Exception as e:
-            log(f"Extraction error | topic fetch: {e}", session_id)
+            log("extraction_error", session_id, context="topic fetch", error=str(e))
 
     try:
         prompt = build_extraction_prompt(user_text, agent_text, existing_topics)
@@ -443,11 +443,11 @@ def main():
             )
         )
     except Exception as e:
-        log(f"Extraction error | SDK call: {e}", session_id)
+        log("extraction_error", session_id, context="SDK call", error=str(e))
         return
 
     if not isinstance(result, dict):
-        log(f"Extraction error | unexpected type: {type(result)}", session_id)
+        log("extraction_error", session_id, context="unexpected type", error=str(type(result)))
         return
 
     with open_db() as conn:
@@ -499,24 +499,28 @@ def main():
             parts.append(f"{updated} updated")
         if deleted:
             parts.append(f"{deleted} deleted")
-        log(f"Facts | {', '.join(parts)}", session_id)
+        fact_data = {}
+        if inserted:
+            fact_data["inserted"] = inserted
+        if updated:
+            fact_data["updated"] = updated
+        if deleted:
+            fact_data["deleted"] = deleted
+        log("facts", session_id, **fact_data)
 
-    extras = []
+    analysis_data = {}
     if result.get("sentiment"):
-        extras.append(result["sentiment"])
+        analysis_data["sentiment"] = result["sentiment"]
     if result.get("topics"):
         topics = result["topics"]
-        if isinstance(topics, list):
-            topics = ", ".join(topics)
-        extras.append(f"topics: {topics}")
+        analysis_data["topics"] = topics if isinstance(topics, list) else [topics]
     if result.get("action_items"):
-        extras.append(f"{len(result['action_items'])} actions")
+        analysis_data["actions"] = len(result["action_items"])
     if usage_info and isinstance(usage_info, dict):
-        in_tok = usage_info.get("input_tokens", 0)
-        out_tok = usage_info.get("output_tokens", 0)
-        extras.append(f"{in_tok:,} → {out_tok:,} tokens")
+        analysis_data["input_tokens"] = usage_info.get("input_tokens", 0)
+        analysis_data["output_tokens"] = usage_info.get("output_tokens", 0)
 
-    log(f"Analysis | {' | '.join(extras)}", session_id)
+    log("analysis", session_id, **analysis_data)
 
 
 

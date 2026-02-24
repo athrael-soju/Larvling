@@ -75,7 +75,7 @@ def inject_context(conn, session_id):
 
     if injected:
         tokens = max(1, total_chars // 4)
-        log(f"Context | {' | '.join(injected)} | ~{tokens:,} tokens", session_id)
+        log("context", session_id, injected=injected, tokens_est=tokens)
 
 
 def handle(data):
@@ -116,9 +116,9 @@ def handle(data):
         if not cmd_match and re.fullmatch(r"/[\w:/-]+", prompt.strip()):
             cmd_match = re.fullmatch(r"/([\w:/-]+)", prompt.strip())
         if cmd_match:
-            log(f"Skill | /{cmd_match.group(1)} | ~{user_tokens:,} tokens", session_id)
+            log("skill", session_id, name=f"/{cmd_match.group(1)}", input_tokens_est=user_tokens)
         else:
-            log(f"Prompt #{count} | ~{user_tokens:,} tokens", session_id)
+            log("prompt", session_id, n=count, input_tokens_est=user_tokens)
 
         try:
             inject_context(conn, session_id)

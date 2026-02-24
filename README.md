@@ -182,7 +182,7 @@ claude plugin marketplace remove athrael-soju
 To also remove stored data, delete the Larvling files from your project's `.claude/` directory:
 
 ```bash
-rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/dashboard.html
+rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/larvling.jsonl .claude/dashboard.html
 ```
 
 ## Data
@@ -190,6 +190,7 @@ rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/d
 All data is stored locally in the project's `.claude/` directory:
 
 - `larvling.db` - SQLite database (WAL mode) with sessions, messages, and facts
+- `larvling.jsonl` - structured JSONL debug log (one JSON object per line, machine-parseable)
 - `dashboard.html` - static HTML dashboard, generated on-demand via `/generate-dashboard`
 
 When the plugin updates with schema changes, Larvling automatically backs up your database and guides the agent through the migration - your data is preserved.

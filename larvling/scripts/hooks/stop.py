@@ -106,35 +106,28 @@ def handle(data):
 
         conn.commit()
 
-    # Log response details
-    parts = []
-    if response:
-        p = f"{len(response)} chars"
-        if is_dup:
-            p += " (dup)"
-        parts.append(p)
-    else:
-        parts.append("empty")
+    # Log response details as JSONL
+    resp_data = {"chars": len(response) if response else 0, "is_dup": is_dup}
     if tools:
-        parts.append(f"{sum(tools.values())} tools")
+        resp_data["tools"] = sum(tools.values())
     if signals.get("error_count"):
-        parts.append(f"{signals['error_count']} errors")
+        resp_data["errors"] = signals["error_count"]
     if signals.get("retry_count"):
-        parts.append(f"{signals['retry_count']} retries")
-
-    # Token usage: cached + new → agent out
+        resp_data["retries"] = signals["retry_count"]
     if usage:
         cached = usage.get("cache_read_input_tokens", 0)
+        if cached:
+            resp_data["cache_read"] = cached
         new_in = usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)
+        if new_in:
+            resp_data["input_new"] = new_in
         agent_out = usage.get("output_tokens", 0)
-        estimated = usage.get("output_tokens_estimated", False)
-        tok = f"{cached:,} cached + {new_in:,} new"
         if agent_out:
-            prefix = "~" if estimated else ""
-            tok += f" → {prefix}{agent_out:,} out"
-        parts.append(tok)
+            resp_data["output"] = agent_out
+        if usage.get("output_tokens_estimated"):
+            resp_data["output_estimated"] = True
 
-    log(f"Response | {' | '.join(parts)}", session_id)
+    log("response", session_id, **resp_data)
 
 
 if __name__ == "__main__":
