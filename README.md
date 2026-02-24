@@ -4,7 +4,7 @@
 
 # Larvling
 
-Your friendly memory companion for Claude Code. Larvling quietly records every conversation - prompts, responses, tool usage - and keeps it all in a searchable dashboard. No config needed, just install and go.
+Your friendly memory companion for Claude Code. Larvling quietly records every conversation - prompts, responses, tool usage - and keeps it all searchable. No config needed, just install and go.
 
 ## Built to be
 
@@ -139,7 +139,7 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 ## Dashboard
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/63f94432-e1be-4ef8-b56b-8934bb37358d" alt="Larvling capabilities diagram" width="100%" />
+  <img src="https://github.com/user-attachments/assets/63f94432-e1be-4ef8-b56b-8934bb37358d" alt="Larvling dashboard" width="100%" />
 </p>
 The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessions with search, sorting, filtering, topic chips, sentiment indicators, and expandable messages. Generated on-demand via `/generate-dashboard`.
 
@@ -183,12 +183,12 @@ claude plugin marketplace remove athrael-soju
 To also remove stored data, delete the Larvling files from your project's `.claude/` directory:
 
 ```bash
-rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/dashboard.html .claude/larvling-errors.log
+rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/dashboard.html
 ```
 
 ## Data
 
-All data stays local in the project's `.claude/` directory:
+All data is stored locally in the project's `.claude/` directory:
 
 - `larvling.db` - SQLite database (WAL mode) with sessions, messages, and facts
 - `dashboard.html` - static HTML dashboard, generated on-demand via `/generate-dashboard`
