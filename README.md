@@ -152,7 +152,8 @@ The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessi
 | `larvling/hooks/hooks.json`                | Hook definitions - tells Claude Code when to call Larvling       |
 | `larvling/scripts/db.py`                   | Database helpers, schema creation, and version management         |
 | `larvling/scripts/transcript.py`           | Transcript parsing utilities for hook scripts                    |
-| `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context     |
+| `larvling/scripts/preflight.py`            | Schema bootstrap — ensures DB and tables exist                   |
+| `larvling/scripts/hooks/session_start.py`  | Injects session context, checks for updates                      |
 | `larvling/scripts/hooks/prompt.py`         | Logs user prompts and injects context hints                      |
 | `larvling/scripts/hooks/stop.py`           | Logs responses and computes quality signals                      |
 | `larvling/scripts/hooks/failure.py`        | Records tool failures as quality signals                         |
