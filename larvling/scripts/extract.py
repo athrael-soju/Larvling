@@ -492,13 +492,6 @@ def main():
         conn.commit()
 
     if inserted or updated or deleted:
-        parts = []
-        if inserted:
-            parts.append(f"{inserted} inserted")
-        if updated:
-            parts.append(f"{updated} updated")
-        if deleted:
-            parts.append(f"{deleted} deleted")
         fact_data = {}
         if inserted:
             fact_data["inserted"] = inserted
