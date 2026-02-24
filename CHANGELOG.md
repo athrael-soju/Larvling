@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.5](https://github.com/athrael-soju/Larvling/compare/v0.1.4...v0.1.5) (2026-02-24)
+
+
+### Features
+
+* enhance logging and data structure for improved token tracking and analysis ([ed649fd](https://github.com/athrael-soju/Larvling/commit/ed649fd4b356d30879357248acdb7c071733af7b))
+* enhance token tracking and logging across hooks and scripts ([1aca07c](https://github.com/athrael-soju/Larvling/commit/1aca07c9315c792a66b879a7e9bfc8d0e7fd2ec9))
+* enhance token tracking and usage metrics across hooks and scripts ([e3640b4](https://github.com/athrael-soju/Larvling/commit/e3640b4f39dfc22ab1260bf7577594bd3fdaa967))
+* update context injection and logging for improved token analysis ([d4f4da2](https://github.com/athrael-soju/Larvling/commit/d4f4da2b2d8cee8f47e1423a40e93a41a541e613))
+
+
+### Bug Fixes
+
+* change hook type from intercept to command for session start and user prompt submit ([d3febc0](https://github.com/athrael-soju/Larvling/commit/d3febc0ae5293d4c056e27f8904ca39c7dbcce4a))
+
+
+### Refactoring
+
+* remove redundant logging for database changes in extraction process ([998d0cb](https://github.com/athrael-soju/Larvling/commit/998d0cb7796df823e2420e202aa12f3832fd3499))
+
 ## [0.1.4](https://github.com/athrael-soju/Larvling/compare/v0.1.3...v0.1.4) (2026-02-24)
 
 
