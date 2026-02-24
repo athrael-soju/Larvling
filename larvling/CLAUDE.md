@@ -53,15 +53,15 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 
 **UserPromptSubmit → Fact Context (read):** The `## Fact Context` directive prints on every exchange with the `query.py` path and fact count. Search for relevant facts and weave them into your response naturally.
 
-**Stop → Unified extraction (write):** `extract.py` runs as a command hook after every response. A single Agent SDK call extracts multiple data types from the last exchange:
+**Stop → Unified extraction (write):** `extract.py` runs as a command hook after every response. It contains `call_model()` (Agent SDK integration) and uses `transcript.py` for parsing. A single Agent SDK call extracts multiple data types from the last exchange:
 - **Facts** → `facts` table (unchanged)
 - **Sentiment** (focused/curious/frustrated/satisfied/neutral) → `messages.metadata` JSON on the last assistant message
 - **Topics** → `sessions.topics` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)
 - **Action items** → `messages.metadata` JSON on the last assistant message
 
-**Stop → Quality signals (no SDK call):** `hooks.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
+**Stop → Quality signals (no SDK call):** `hooks/stop.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
 
-**PostToolUseFailure → Tool failure tracking:** `hooks.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.
+**PostToolUseFailure → Tool failure tracking:** `hooks/failure.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.
 
 **PreCompact → Context preservation:** `precompact.py` injects critical session context (current topics, recent facts, skill reminders) before compaction so it survives context summarization.
 

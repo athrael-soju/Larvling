@@ -336,81 +336,10 @@ def build_message_pairs(rows):
     return pairs
 
 
-async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=None):
-    """Call the LLM via Agent SDK and return the response.
-
-    Returns structured_output (dict) when output_format is set,
-    otherwise returns response text (str).
-    Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
-    """
-    from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-    from claude_agent_sdk._internal.message_parser import parse_message  # noqa: PLC2701
-    from claude_agent_sdk._errors import MessageParseError  # noqa: PLC2701
-    import claude_agent_sdk._internal.client as _sdk_client  # noqa: PLC2701
-
-    # Patch parse_message to skip unknown message types instead of crashing.
-    # The SDK (as of 0.1.39) doesn't handle rate_limit_event and other CLI
-    # message types, which kills the async generator mid-stream and loses
-    # all subsequent messages including the ResultMessage with structured_output.
-    # Note: not concurrent-safe — callers use asyncio.run() (one loop at a time).
-    def _tolerant_parse(data):
-        try:
-            return parse_message(data)
-        except MessageParseError:
-            return None
-
-    opts = {"model": "claude-sonnet-4-6", "allowed_tools": allowed_tools or []}
-    if max_turns is not None:
-        opts["max_turns"] = max_turns
-    if output_format:
-        opts["output_format"] = output_format
-    options = ClaudeAgentOptions(**opts)
-
-    os.environ["LARVLING_INTERNAL"] = "1"
-    # Remove CLAUDECODE to prevent "nested session" guard in the subprocess
-    saved_claudecode = os.environ.pop("CLAUDECODE", None)
-    setattr(_sdk_client, "parse_message", _tolerant_parse)
-
-    response_text = ""
-    structured = None
-    result_subtype = None
+def log(msg):
+    """Append a message to .claude/larvling.log for debugging."""
     try:
-        async for msg in query(prompt=prompt, options=options):
-            if msg is None:
-                continue
-            if isinstance(msg, ResultMessage):
-                result_subtype = getattr(msg, "subtype", None)
-                if msg.structured_output:
-                    structured = msg.structured_output
-                continue
-            content = getattr(msg, "content", None)
-            if not content:
-                continue
-            for block in content:
-                text = getattr(block, "text", None)
-                if text:
-                    response_text += text
-    finally:
-        os.environ.pop("LARVLING_INTERNAL", None)
-        if saved_claudecode is not None:
-            os.environ["CLAUDECODE"] = saved_claudecode
-        setattr(_sdk_client, "parse_message", parse_message)
-
-    if structured is not None:
-        return structured
-
-    if output_format:
-        raise RuntimeError(
-            f"Structured output not returned (subtype={result_subtype})"
-        )
-
-    return response_text.strip()
-
-
-def _log(msg):
-    """Append a message to .claude/larvling-errors.log for debugging."""
-    try:
-        log_path = os.path.join(os.getcwd(), ".claude", "larvling-errors.log")
+        log_path = os.path.join(os.getcwd(), ".claude", "larvling.log")
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
     except Exception:

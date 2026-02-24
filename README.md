@@ -150,15 +150,19 @@ The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessi
 | ------------------------------------------ | ---------------------------------------------------------------- |
 | `larvling/.claude-plugin/plugin.json`      | Plugin manifest - name and description                           |
 | `larvling/hooks/hooks.json`                | Hook definitions - tells Claude Code when to call Larvling       |
-| `larvling/scripts/db.py`                   | Shared database helpers, schema creation, and version management |
+| `larvling/scripts/db.py`                   | Database helpers, schema creation, and version management         |
+| `larvling/scripts/transcript.py`           | Transcript parsing utilities for hook scripts                    |
 | `larvling/scripts/preflight.py`            | Wakes up on session start, creates the DB or recalls context     |
-| `larvling/scripts/hooks.py`                | Handles prompt logging, response capture, and session end        |
+| `larvling/scripts/hooks/prompt.py`         | Logs user prompts and injects context hints                      |
+| `larvling/scripts/hooks/stop.py`           | Logs responses and computes quality signals                      |
+| `larvling/scripts/hooks/failure.py`        | Records tool failures as quality signals                         |
+| `larvling/scripts/hooks/session_end.py`    | Finalizes session timing and exchange count                      |
 | `larvling/scripts/extract.py`              | Unified extraction - facts, sentiment, topics, action items      |
 | `larvling/scripts/precompact.py`           | Injects critical context before compaction                       |
 | `larvling/scripts/dashboard.py`            | Builds the HTML dashboard from the database                      |
 | `dashboard.html.template`                  | HTML/CSS/JS template for the dashboard                           |
 | `larvling/scripts/summarize.py`            | Fetches conversation pairs and stores session summaries          |
-| `larvling/scripts/export.py`               | Exports a session conversation to markdown                       |
+| `larvling/scripts/export.py`              | Exports a session conversation to markdown                       |
 | `larvling/scripts/query.py`                | Runs arbitrary SQL against larvling.db                           |
 | `larvling/skills/*.md`                     | Skill definitions (remember, recall, forget, etc.)               |
 | `larvling/CLAUDE.md`                       | Instructions for the agent                                       |

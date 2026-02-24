@@ -6,7 +6,7 @@ from html import escape
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-from db import DB_PATH, get_plugin_version, open_db, has_table, parse_meta, require_db, reconfigure_stdout, _log
+from db import DB_PATH, get_plugin_version, open_db, has_table, parse_meta, require_db, reconfigure_stdout, log
 
 TEMPLATE_URL = "https://raw.githubusercontent.com/athrael-soju/Larvling/main/dashboard.html.template"
 TEMPLATE_CACHE = os.path.join(os.path.dirname(DB_PATH), "dashboard.html.template")
@@ -211,7 +211,7 @@ def get_template():
             f.write(template)
         return template
     except (URLError, OSError, TimeoutError) as e:
-        _log(f"Template fetch failed, using cache: {e}")
+        log(f"Template fetch failed, using cache: {e}")
 
     if os.path.exists(TEMPLATE_CACHE):
         with open(TEMPLATE_CACHE, "r", encoding="utf-8") as f:
