@@ -10,11 +10,11 @@
     {
       "name": "larvling",
       "source": "./larvling",
-      "description": "Automatic conversation tracking, session context, and a searchable dashboard",
+      "description": "Automatic conversation tracking, session context, and persistent knowledge",
       "keywords": [
         "memory",
         "auditing",
-        "dashboard",
+        "knowledge",
         "session-tracking"
       ],
       "repository": "https://github.com/athrael-soju/Larvling"

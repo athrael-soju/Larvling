@@ -220,7 +220,7 @@ def ensure_session(conn, session_id):
     """Create or touch a session row.
 
     On first call creates the session. On subsequent calls (e.g. resume)
-    updates ended_at so the session sorts to the top in the dashboard.
+    updates ended_at so the session sorts to the top in session listings.
     """
     conn.execute(
         "INSERT INTO sessions (id, started_at) "

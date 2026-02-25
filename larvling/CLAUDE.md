@@ -2,15 +2,14 @@
 
 > Your friendly memory companion. Every conversation is remembered.
 
-Everything lives in `.claude/larvling.db` (SQLite, WAL mode). The dashboard at `.claude/dashboard.html` is generated on-demand via `/generate-dashboard`.
+Everything lives in `.claude/larvling.db` (SQLite, WAL mode).
 
 ## First Run
 
 When the SessionStart context contains "Larvling - First Run", this is the very first time Larvling has been installed. You MUST welcome the user before doing anything else. Keep it warm, brief, and conversational - something like a friendly companion introducing itself. Include:
 - That Larvling is now installed and will quietly remember their sessions
-- A mention of the dashboard at `.claude/dashboard.html` for browsing past conversations
 - That everything is automatic - no setup or extra effort needed
-- Mention the available skills naturally: `/remember` to store knowledge, `/recall` to search it, `/forget` to remove it, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/query` for direct SQL access, `/generate-dashboard` to build the visual dashboard
+- Mention the available skills naturally: `/remember` to store knowledge, `/recall` to search it, `/forget` to remove it, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/query` for direct SQL access
 - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 
 ## Update Notice

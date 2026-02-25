@@ -109,7 +109,7 @@ def handle(data):
         conn.commit()
 
         # Detect skill/command invocations:
-        # - Raw slash command: "/generate-dashboard", "/status"
+        # - Raw slash command: "/status", "/recall"
         # - XML tags: <command-message>plugin:skill</command-message>
         cmd_match = re.search(
             r"<command-(?:message|name)>\s*/?(.+?)\s*</command-(?:message|name)>", prompt
