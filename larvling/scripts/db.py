@@ -156,7 +156,7 @@ def create_schema(conn):
             title TEXT NOT NULL,
             domain TEXT NOT NULL,
             tags TEXT NOT NULL,
-            created TEXT NOT NULL DEFAULT (date('now')),
+            created TEXT NOT NULL DEFAULT (datetime('now')),
             updated TEXT
         )
     """
@@ -167,7 +167,7 @@ def create_schema(conn):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             topic_id INTEGER NOT NULL REFERENCES topics(id),
             claim TEXT NOT NULL,
-            created TEXT NOT NULL DEFAULT (date('now')),
+            created TEXT NOT NULL DEFAULT (datetime('now')),
             updated TEXT
         )
     """
@@ -182,7 +182,7 @@ def create_schema(conn):
             priority TEXT NOT NULL DEFAULT 'medium',
             horizon TEXT NOT NULL DEFAULT 'later',
             metadata TEXT,
-            created TEXT NOT NULL DEFAULT (date('now'))
+            created TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """
     )

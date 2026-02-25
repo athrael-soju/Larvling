@@ -134,15 +134,14 @@ Example queries:
 - `SELECT t.id, t.title, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE '%keyword%'`
 - `SELECT id, title, domain FROM topics WHERE title LIKE '%keyword%'`
 
-Use this to avoid duplicates, consolidate related knowledge, and clean up \
-stale or outdated entries. For each knowledge item, set action to:
-- **insert**: genuinely new topic+statement pair with no existing overlap
+Use this to avoid duplicates and consolidate related knowledge. \
+For each knowledge item, set action to:
+- **add_topic**: create a new topic with its first statement (no existing overlap)
 - **add_statement**: add a new statement to an existing topic (include "topic_id")
 - **update_statement**: refine an existing statement (include "statement_id")
-- **delete_statement**: remove a stale/duplicate statement (include "statement_id")
 - **update_topic**: update title/domain/tags of an existing topic (include "topic_id")
-- **delete_topic**: remove a topic and all its statements (include "topic_id")
 - **skip**: knowledge already exists unchanged — do NOT include it
+Never delete data. To retire knowledge, update the statement or topic instead.
 
 ## Extraction
 
@@ -151,7 +150,7 @@ stale or outdated entries. For each knowledge item, set action to:
 (asking about ANY topic = an interest), decisions, opinions, workflow habits
    - From AGENT: key domain knowledge shared with the user (science, history, \
 concepts) — NOT code-level implementation details
-   - Each item: {{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "insert|add_statement|update_statement|...", "topic_id": N, "statement_id": N}}
+   - Each item: {{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "add_topic|add_statement|update_statement|...", "topic_id": N, "statement_id": N}}
    - Domains: personal, professional, preferences, interests, knowledge, technical
    - Tags: short topic label (e.g. "octopuses", "physics", "python")
    - **SKIP** (do NOT extract): bug reports, code fixes, line numbers, function \
@@ -177,7 +176,7 @@ changelog entries, or anything that will go stale when the code changes.
 
 Return JSON:
 {{
-  "knowledge": [{{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "insert"}}],
+  "knowledge": [{{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "add_topic"}}],
   "sentiment": "focused",
   "session_tags": ["python", "deployment"],
   "tasks": [{{"title": "refactor auth module", "domain": "technical", "priority": "medium", "horizon": "soon"}}]
@@ -244,50 +243,20 @@ def build_extraction_prompt(user_text, agent_text, existing_tags=""):
 def process_knowledge(conn, knowledge_list):
     """Process extracted knowledge into topics+statements tables.
 
-    Handles 6 actions: insert, add_statement, update_statement,
-    delete_statement, update_topic, delete_topic.
-    Returns (topics_inserted, stmts_inserted, stmts_updated, deleted).
+    Handles 4 actions: add_topic, add_statement, update_statement, update_topic.
+    Never deletes data — retirement is done via updates, not removal.
+    Returns (topics_inserted, stmts_inserted, stmts_updated).
     """
     if not knowledge_list or not has_table(conn, "topics"):
-        return 0, 0, 0, 0
+        return 0, 0, 0
 
     topics_inserted = 0
     stmts_inserted = 0
     stmts_updated = 0
-    deleted = 0
 
     for item in knowledge_list:
-        action = item.get("action", "insert").strip().lower()
-        if action == "skip":
-            continue
-
-        if action == "delete_topic":
-            topic_id = item.get("topic_id")
-            if topic_id is None:
-                continue
-            try:
-                topic_id = int(topic_id)
-            except (ValueError, TypeError):
-                continue
-            if not conn.execute("SELECT 1 FROM topics WHERE id = ?", (topic_id,)).fetchone():
-                continue
-            conn.execute("DELETE FROM statements WHERE topic_id = ?", (topic_id,))
-            conn.execute("DELETE FROM topics WHERE id = ?", (topic_id,))
-            deleted += 1
-            continue
-
-        if action == "delete_statement":
-            stmt_id = item.get("statement_id")
-            if stmt_id is None:
-                continue
-            try:
-                stmt_id = int(stmt_id)
-            except (ValueError, TypeError):
-                continue
-            if not conn.execute("SELECT 1 FROM statements WHERE id = ?", (stmt_id,)).fetchone():
-                continue
-            conn.execute("DELETE FROM statements WHERE id = ?", (stmt_id,))
-            deleted += 1
+        action = item.get("action", "").strip().lower()
+        if action not in ("add_topic", "add_statement", "update_statement", "update_topic"):
             continue
 
         if action == "update_topic":
@@ -306,7 +275,7 @@ def process_knowledge(conn, knowledge_list):
             if title:
                 conn.execute(
                     "UPDATE topics SET title = ?, domain = COALESCE(?, domain), "
-                    "tags = COALESCE(?, tags), updated = date('now') WHERE id = ?",
+                    "tags = COALESCE(?, tags), updated = datetime('now') WHERE id = ?",
                     (title, domain or None, tags or None, topic_id),
                 )
                 stmts_updated += 1
@@ -326,7 +295,7 @@ def process_knowledge(conn, knowledge_list):
             if not conn.execute("SELECT 1 FROM statements WHERE id = ?", (stmt_id,)).fetchone():
                 continue
             conn.execute(
-                "UPDATE statements SET claim = ?, updated = date('now') WHERE id = ?",
+                "UPDATE statements SET claim = ?, updated = datetime('now') WHERE id = ?",
                 (claim, stmt_id),
             )
             stmts_updated += 1
@@ -358,7 +327,7 @@ def process_knowledge(conn, knowledge_list):
             stmts_inserted += 1
             continue
 
-        # Default: insert (new topic + first statement)
+        # add_topic: new topic + first statement
         claim = item.get("claim", "").strip()
         if not claim:
             continue
@@ -386,7 +355,7 @@ def process_knowledge(conn, knowledge_list):
         topics_inserted += 1
         stmts_inserted += 1
 
-    return topics_inserted, stmts_inserted, stmts_updated, deleted
+    return topics_inserted, stmts_inserted, stmts_updated
 
 
 VALID_STATUS = {"open", "done", "dropped"}
@@ -595,7 +564,7 @@ def main():
 
         # Knowledge (topics + statements)
         knowledge = result.get("knowledge", [])
-        topics_ins, stmts_ins, stmts_upd, k_deleted = process_knowledge(conn, knowledge)
+        topics_ins, stmts_ins, stmts_upd = process_knowledge(conn, knowledge)
 
         # Tasks
         tasks_list = result.get("tasks", [])
@@ -620,8 +589,6 @@ def main():
                 k_parts.append(f"{stmts_ins} statements")
             if stmts_upd:
                 k_parts.append(f"{stmts_upd} updated")
-            if k_deleted:
-                k_parts.append(f"{k_deleted} deleted")
             k_summary = ", ".join(k_parts) if k_parts else "no changes"
 
             t_summary = f"{tasks_ins} tasks" if tasks_ins else "no tasks"
@@ -632,7 +599,7 @@ def main():
 
         conn.commit()
 
-    if topics_ins or stmts_ins or stmts_upd or k_deleted:
+    if topics_ins or stmts_ins or stmts_upd:
         k_data = {}
         if topics_ins:
             k_data["topics_inserted"] = topics_ins
@@ -640,8 +607,6 @@ def main():
             k_data["stmts_inserted"] = stmts_ins
         if stmts_upd:
             k_data["stmts_updated"] = stmts_upd
-        if k_deleted:
-            k_data["deleted"] = k_deleted
         log("knowledge", session_id, **k_data)
 
     if tasks_ins:

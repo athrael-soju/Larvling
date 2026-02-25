@@ -95,7 +95,7 @@ When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer br
 
 ### Knowledge Manager Agent
 
-The `knowledge-manager` is a subagent for autonomous knowledge management. Claude can delegate to it proactively when the conversation reveals a preference, convention, decision, or knowledge worth persisting. It handles deduplication, consolidation, and domain classification autonomously — searching existing topics and statements before deciding whether to insert, update, or skip.
+The `knowledge-manager` is a subagent for autonomous knowledge management. Claude can delegate to it proactively when the conversation reveals a preference, convention, decision, or knowledge worth persisting. It handles deduplication, consolidation, and domain classification autonomously — searching existing topics and statements before deciding whether to add, update, or skip.
 
 ## Interaction Protocol
 
@@ -107,7 +107,7 @@ Use **AskUserQuestion** tool for structured input gathering:
 | Decision      | Multiple valid approaches exist                |
 | Approval      | Stage work complete, need sign-off             |
 | Summary       | Session summary is stale, offer update         |
-| Knowledge     | About to save, update, or delete knowledge     |
+| Knowledge     | About to save or update knowledge               |
 
 Menu format:
 - 2-4 options per question

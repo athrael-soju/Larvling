@@ -28,7 +28,7 @@ def strip_ide_tags(text):
 
 
 def inject_context(conn, session_id):
-    """Print context hints (fact lookup, summary staleness) for the agent."""
+    """Print context hints (knowledge lookup, summary staleness) for the agent."""
     injected = []
     total_chars = 0
 

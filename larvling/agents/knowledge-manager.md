@@ -33,7 +33,7 @@ Classify knowledge into one of: `knowledge`, `preferences`, `technical`, `intere
    ```
    SELECT t.id, t.title, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE '%keyword%' OR t.title LIKE '%keyword%'
    ```
-2. **Decide**: insert new topic+statement (new knowledge), add statement to existing topic (extends knowledge), update statement (refines existing), or skip (already covered)
+2. **Decide**: add new topic+statement (new knowledge), add statement to existing topic (extends knowledge), update statement (refines existing), or skip (already covered)
 3. **If adding to existing topic**, use the topic_id from the search
 4. **If inserting new**, pick the right domain and comma-separated tags for the topic
 
@@ -42,13 +42,13 @@ Classify knowledge into one of: `knowledge`, `preferences`, `technical`, `intere
 If asked to consolidate or clean up knowledge:
 1. Query all topics with statements: `SELECT t.id, t.title, t.domain, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id ORDER BY t.domain, t.created`
 2. Identify duplicate or near-duplicate statements across topics
-3. Merge by moving statements to the better topic and deleting the empty one
-4. Report what was merged or removed
+3. Merge by updating statements to point to the better topic, then update the empty topic's title to indicate it's retired
+4. Report what was merged or updated
 
 ## Guidelines
 
-- Use AskUserQuestion to confirm before inserting, updating, or deleting any knowledge
+- Use AskUserQuestion to confirm before inserting or updating any knowledge
+- Never delete data — retire outdated knowledge by updating claims or topic titles instead
 - Keep claims concise and self-contained — each should make sense without context
 - Tags should be lowercase, comma-separated, 2-5 per topic
-- Never delete knowledge without being asked to consolidate or explicitly told to remove
 - When in doubt about whether something is worth storing, store it — knowledge is cheap

@@ -1,14 +1,14 @@
 ---
 name: remember
 description: Store knowledge that Larvling will remember across sessions
-argument-hint: "[fact to remember]"
+argument-hint: "[knowledge to remember]"
 ---
 
 **Schema:**
 - `topics (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT, updated TEXT)`
 - `statements (id INTEGER PK AUTO, topic_id INTEGER FK→topics(id), claim TEXT NOT NULL, created TEXT, updated TEXT)`
 
-Store the given knowledge, or identify what's worth persisting from available context. Find or create a topic, then insert a statement under it.
+Store the given knowledge, or identify what's worth persisting from available context. Find or create a topic, then add a statement under it.
 
 Run SQL via:
 ```
