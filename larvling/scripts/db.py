@@ -1,6 +1,6 @@
 """Shared database helpers for Larvling hook scripts.
 
-Schema: sessions, messages, facts
+Schema: sessions, messages, topics, statements, tasks, updates
 """
 
 import json
@@ -86,7 +86,7 @@ def has_table(conn, name):
 # Schema creation and versioning
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 def get_schema_version(conn):
@@ -132,7 +132,7 @@ def create_schema(conn):
             exchange_count INTEGER,
             summary_at TEXT,
             summary_msg_count INTEGER,
-            topics TEXT,
+            tags TEXT,
             quality_signals TEXT
         )
     """
@@ -151,9 +151,9 @@ def create_schema(conn):
     )
     conn.execute(
         """
-        CREATE TABLE IF NOT EXISTS facts (
+        CREATE TABLE IF NOT EXISTS topics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            claim TEXT NOT NULL,
+            title TEXT NOT NULL,
             domain TEXT NOT NULL,
             tags TEXT NOT NULL,
             created TEXT NOT NULL DEFAULT (date('now')),
@@ -162,7 +162,51 @@ def create_schema(conn):
     """
     )
     conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS statements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            topic_id INTEGER NOT NULL REFERENCES topics(id),
+            claim TEXT NOT NULL,
+            created TEXT NOT NULL DEFAULT (date('now')),
+            updated TEXT
+        )
+    """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            domain TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            priority TEXT NOT NULL DEFAULT 'medium',
+            horizon TEXT NOT NULL DEFAULT 'later',
+            metadata TEXT,
+            created TEXT NOT NULL DEFAULT (date('now'))
+        )
+    """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS updates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL REFERENCES tasks(id),
+            content TEXT NOT NULL,
+            timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """
+    )
+    conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_statements_topic ON statements(topic_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_updates_task ON updates(task_id)"
     )
     conn.commit()
 

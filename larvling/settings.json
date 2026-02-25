@@ -1,6 +1,6 @@
 {
   "agent": {
-    "fact-manager": {
+    "knowledge-manager": {
       "model": "sonnet"
     }
   }

@@ -10,7 +10,7 @@ When the SessionStart context contains "Larvling - First Run", this is the very 
 - That Larvling is now installed and will quietly remember their sessions
 - A mention of the dashboard at `.claude/dashboard.html` for browsing past conversations
 - That everything is automatic - no setup or extra effort needed
-- Mention the available skills naturally: `/remember` to store a fact, `/recall` to search them, `/forget` to remove one, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/query` for direct SQL access, `/generate-dashboard` to build the visual dashboard
+- Mention the available skills naturally: `/remember` to store knowledge, `/recall` to search it, `/forget` to remove it, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/query` for direct SQL access, `/generate-dashboard` to build the visual dashboard
 - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 
 ## Update Notice
@@ -32,32 +32,34 @@ Review the context Larvling injects at session start - it's your memory of what 
 Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on conversation context.
 
 **Schema:**
-- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, topics TEXT, quality_signals TEXT)`
+- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, tags TEXT, quality_signals TEXT)`
 - `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT, content TEXT, metadata TEXT)`
-- `facts (id INTEGER PK AUTO, claim TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT NOT NULL DEFAULT date('now'), updated TEXT)`
+- `topics (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT, updated TEXT)`
+- `statements (id INTEGER PK AUTO, topic_id INTEGER FK→topics(id), claim TEXT NOT NULL, created TEXT, updated TEXT)`
+- `tasks (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, status TEXT DEFAULT 'open', priority TEXT DEFAULT 'medium', horizon TEXT DEFAULT 'later', metadata TEXT, created TEXT)`
+- `updates (id INTEGER PK AUTO, task_id INTEGER FK→tasks(id), content TEXT NOT NULL, timestamp TEXT)`
 
 **Examples:**
 
 ```
-/query "SELECT * FROM facts"
-/query "SELECT * FROM facts WHERE claim LIKE '%deploy%' OR tags LIKE '%ci%'"
+/query "SELECT t.id, t.title, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id"
+/query "SELECT t.id, t.title, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE '%deploy%' OR t.tags LIKE '%ci%'"
 /query "SELECT id, title, agent_summary FROM sessions WHERE agent_summary IS NOT NULL ORDER BY started_at DESC LIMIT 5"
-/query "INSERT INTO facts (claim, domain, tags) VALUES ('test fact', 'technical', 'testing')"
-/query "DELETE FROM facts WHERE id = 1"
+/query "SELECT * FROM tasks WHERE status = 'open' ORDER BY priority"
 /query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
 ```
 
-### Facts & Unified Analysis
+### Knowledge, Tasks & Unified Analysis
 
-Larvling stores persistent facts in the `facts` table. Multiple mechanisms handle data extraction:
+Larvling stores persistent knowledge in the `topics` + `statements` tables, and action items in the `tasks` + `updates` tables. Multiple mechanisms handle data extraction:
 
-**UserPromptSubmit → Fact Context (read):** The `## Fact Context` directive prints on every exchange with the `query.py` path and fact count. Search for relevant facts and weave them into your response naturally.
+**UserPromptSubmit → Knowledge Context (read):** The `## Knowledge Context` directive prints on every exchange with the `query.py` path and topic/statement counts. Search for relevant knowledge and weave it into your response naturally.
 
 **Stop → Unified extraction (write):** `extract.py` runs as a command hook after every response. It contains `call_model()` (Agent SDK integration) and uses `transcript.py` for parsing. A single Agent SDK call extracts multiple data types from the last exchange:
-- **Facts** → `facts` table (unchanged)
+- **Knowledge** → `topics` + `statements` tables (hierarchical: topic groups related statements)
 - **Sentiment** (focused/curious/frustrated/satisfied/neutral) → `messages.metadata` JSON on the last assistant message
-- **Topics** → `sessions.topics` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)
-- **Action items** → `messages.metadata` JSON on the last assistant message
+- **Session tags** → `sessions.tags` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)
+- **Tasks** → `tasks` table with native columns for status, priority, horizon
 
 **Stop → Quality signals (no SDK call):** `hooks/stop.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
 
@@ -69,18 +71,19 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 **Log format** — JSONL (one JSON object per line) in `.claude/larvling.jsonl`:
 ```jsonl
 {"ts":"2026-02-24T16:16:35","event":"prompt","sid":"6801adcc","n":1,"input_tokens_est":1}
-{"ts":"...","event":"context","sid":"6801adcc","injected":["9 facts","stale summary hint"],"tokens_est":42}
+{"ts":"...","event":"context","sid":"6801adcc","injected":["5 topics, 11 statements","stale summary hint"],"tokens_est":42}
 {"ts":"...","event":"response","sid":"6801adcc","chars":20,"is_dup":false,"cache_read":27953,"input_new":9142,"output":5,"output_estimated":true}
 {"ts":"...","event":"skill","sid":"6801adcc","name":"/larvling:status","input_tokens_est":85}
-{"ts":"...","event":"facts","sid":"6801adcc","inserted":7}
-{"ts":"...","event":"analysis","sid":"6801adcc","sentiment":"curious","topics":["greeting"],"input_tokens":1234,"output_tokens":567}
+{"ts":"...","event":"knowledge","sid":"6801adcc","topics_inserted":1,"stmts_inserted":2}
+{"ts":"...","event":"tasks","sid":"6801adcc","inserted":1}
+{"ts":"...","event":"analysis","sid":"6801adcc","sentiment":"curious","session_tags":["greeting"],"input_tokens":1234,"output_tokens":567}
 {"ts":"...","event":"tool_failure","sid":"6801adcc","tool":"Bash"}
 {"ts":"...","event":"session_end","sid":"6801adcc","exchanges":1,"duration":0.2}
 ```
 
 **PostToolUseFailure → Tool failure tracking:** `hooks/failure.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.
 
-**Manual skills** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated fact management.
+**Manual skills** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated knowledge management.
 
 ### Session Summaries
 
@@ -90,21 +93,21 @@ Larvling stores persistent facts in the `facts` table. Multiple mechanisms handl
 
 When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines.
 
-### Fact Manager Agent
+### Knowledge Manager Agent
 
-The `fact-manager` is a subagent for autonomous fact management. Claude can delegate to it proactively when the conversation reveals a preference, convention, decision, or knowledge worth persisting. It handles deduplication, consolidation, and domain classification autonomously — searching existing facts before deciding whether to insert, update, or skip.
+The `knowledge-manager` is a subagent for autonomous knowledge management. Claude can delegate to it proactively when the conversation reveals a preference, convention, decision, or knowledge worth persisting. It handles deduplication, consolidation, and domain classification autonomously — searching existing topics and statements before deciding whether to insert, update, or skip.
 
 ## Interaction Protocol
 
 Use **AskUserQuestion** tool for structured input gathering:
 
-| Type          | When to use                             |
-| ------------- | --------------------------------------- |
-| Clarification | Inputs missing or ambiguous             |
-| Decision      | Multiple valid approaches exist         |
-| Approval      | Stage work complete, need sign-off      |
-| Summary       | Session summary is stale, offer update  |
-| Fact mgmt     | About to save, update, or delete a fact |
+| Type          | When to use                                    |
+| ------------- | ---------------------------------------------- |
+| Clarification | Inputs missing or ambiguous                    |
+| Decision      | Multiple valid approaches exist                |
+| Approval      | Stage work complete, need sign-off             |
+| Summary       | Session summary is stale, offer update         |
+| Knowledge     | About to save, update, or delete knowledge     |
 
 Menu format:
 - 2-4 options per question

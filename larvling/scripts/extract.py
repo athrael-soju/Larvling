@@ -2,8 +2,8 @@
 Unified extraction via Claude Agent SDK.
 
 Called as a Stop command hook. Reads the transcript, extracts the last
-exchange, calls Sonnet to identify facts, sentiment, topics, and action
-items in a single SDK call, then writes results to SQLite.
+exchange, calls Sonnet to identify knowledge, sentiment, session tags,
+and tasks in a single SDK call, then writes results to SQLite.
 """
 
 import asyncio
@@ -120,56 +120,67 @@ USER said: {user_text}
 
 AGENT responded: {agent_text}
 
-## Fact-awareness
+## Knowledge-awareness
 
-You can query the facts database to check for duplicates or stale facts:
+You can query the knowledge database to check for duplicates or related topics:
 
 python "{query_script}" "<SQL>"
 
-The `facts` table has columns: id (INTEGER PK), claim, domain, tags, created, updated.
+Two tables store knowledge:
+- `topics` (id INTEGER PK, title, domain, tags, created, updated)
+- `statements` (id INTEGER PK, topic_id INTEGER FK→topics(id), claim, created, updated)
 
-Use this to avoid duplicates, consolidate related facts, and clean up stale \
-or outdated entries. When a new fact overlaps with an existing one, **update** \
-the existing row to be more comprehensive rather than inserting alongside it. \
-For each fact, set action to:
-- **insert**: genuinely new fact with no existing overlap
-- **update**: existing fact should be consolidated or refined (include "id")
-- **delete**: existing fact is stale, outdated, or duplicated (include "id")
-- **skip**: fact already exists unchanged — do NOT include it
+Example queries:
+- `SELECT t.id, t.title, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE '%keyword%'`
+- `SELECT id, title, domain FROM topics WHERE title LIKE '%keyword%'`
+
+Use this to avoid duplicates, consolidate related knowledge, and clean up \
+stale or outdated entries. For each knowledge item, set action to:
+- **insert**: genuinely new topic+statement pair with no existing overlap
+- **add_statement**: add a new statement to an existing topic (include "topic_id")
+- **update_statement**: refine an existing statement (include "statement_id")
+- **delete_statement**: remove a stale/duplicate statement (include "statement_id")
+- **update_topic**: update title/domain/tags of an existing topic (include "topic_id")
+- **delete_topic**: remove a topic and all its statements (include "topic_id")
+- **skip**: knowledge already exists unchanged — do NOT include it
 
 ## Extraction
 
-1. **facts** - Durable facts worth remembering across sessions:
+1. **knowledge** - Durable knowledge worth remembering across sessions:
    - From USER: personal info, professional info, preferences, interests \
 (asking about ANY topic = an interest), decisions, opinions, workflow habits
    - From AGENT: key domain knowledge shared with the user (science, history, \
 concepts) — NOT code-level implementation details
-   - Each fact: {{"claim": "...", "domain": "...", "tags": "...", "action": "insert|update", "id": N (update only)}}
+   - Each item: {{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "insert|add_statement|update_statement|...", "topic_id": N, "statement_id": N}}
    - Domains: personal, professional, preferences, interests, knowledge, technical
    - Tags: short topic label (e.g. "octopuses", "physics", "python")
    - **SKIP** (do NOT extract): bug reports, code fixes, line numbers, function \
 signatures, file paths, refactoring notes, schema changes, documentation edits, \
 changelog entries, or anything that will go stale when the code changes.
-   - When in doubt, ask: "Would this fact still be useful in 30 days?" If not, skip it.
-   - Prefer fewer, higher-quality facts over many low-value ones.
+   - When in doubt, ask: "Would this still be useful in 30 days?" If not, skip it.
+   - Prefer fewer, higher-quality items over many low-value ones.
 
 2. **sentiment** - Single word for the user's mood in this exchange:
    - One of: focused, curious, frustrated, satisfied, neutral
 
-3. **topics** - Updated session topic list (1-4 words each, max ~8 topics).
-   Current session topics: {existing_topics}
-   Return the FULL updated list — merge similar topics, drop topics no longer
-   relevant, and add new topics from this exchange.
-   If current topics is empty, just return new topics from this exchange.
+3. **session_tags** - Updated session tag list (1-4 words each, max ~8 tags).
+   Current session tags: {existing_tags}
+   Return the FULL updated list — merge similar tags, drop tags no longer
+   relevant, and add new tags from this exchange.
+   If current tags is empty, just return new tags from this exchange.
 
-4. **action_items** - Commitments or TODOs mentioned by either party
+4. **tasks** - Commitments or TODOs mentioned by either party:
+   - Each task: {{"title": "...", "domain": "...", "priority": "low|medium|high", "horizon": "now|soon|later"}}
+   - domain: same as knowledge domains
+   - priority: how important (low/medium/high)
+   - horizon: when to act (now/soon/later)
 
 Return JSON:
 {{
-  "facts": [{{"claim": "...", "domain": "...", "tags": "...", "action": "insert"}}],
+  "knowledge": [{{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "insert"}}],
   "sentiment": "focused",
-  "topics": ["python", "deployment"],
-  "action_items": ["refactor auth module"]
+  "session_tags": ["python", "deployment"],
+  "tasks": [{{"title": "refactor auth module", "domain": "technical", "priority": "medium", "horizon": "soon"}}]
 }}
 
 If nothing to extract for a section, use empty list/string."""
@@ -178,35 +189,49 @@ If nothing to extract for a section, use empty list/string."""
 EXTRACTION_SCHEMA = {
     "type": "object",
     "properties": {
-        "facts": {
+        "knowledge": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
+                    "topic_title": {"type": "string"},
                     "claim": {"type": "string"},
                     "domain": {"type": "string"},
                     "tags": {"type": "string"},
                     "action": {"type": "string"},
-                    "id": {"type": "integer"},
+                    "topic_id": {"type": "integer"},
+                    "statement_id": {"type": "integer"},
                 },
                 "required": ["claim", "domain", "tags", "action"],
             },
         },
         "sentiment": {"type": "string"},
-        "topics": {"type": "array", "items": {"type": "string"}},
-        "action_items": {"type": "array", "items": {"type": "string"}},
+        "session_tags": {"type": "array", "items": {"type": "string"}},
+        "tasks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "domain": {"type": "string"},
+                    "priority": {"type": "string"},
+                    "horizon": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
     },
-    "required": ["facts", "sentiment", "topics", "action_items"],
+    "required": ["knowledge", "sentiment", "session_tags", "tasks"],
 }
 
 
-def build_extraction_prompt(user_text, agent_text, existing_topics=""):
+def build_extraction_prompt(user_text, agent_text, existing_tags=""):
     """Format the extraction prompt with the exchange text."""
     query_script = os.path.join(os.path.dirname(__file__), "query.py")
     return EXTRACTION_PROMPT.format(
         user_text=user_text or "(no user text)",
         agent_text=agent_text or "(no agent text)",
-        existing_topics=existing_topics or "(none)",
+        existing_tags=existing_tags or "(none)",
         query_script=query_script.replace("\\", "/"),
     )
 
@@ -216,80 +241,193 @@ def build_extraction_prompt(user_text, agent_text, existing_topics=""):
 # ---------------------------------------------------------------------------
 
 
-def process_facts(conn, facts_list):
-    """Insert or update extracted facts. Returns count stored/updated."""
-    if not facts_list or not has_table(conn, "facts"):
-        return 0, 0, 0
+def process_knowledge(conn, knowledge_list):
+    """Process extracted knowledge into topics+statements tables.
 
-    inserted = 0
-    updated = 0
+    Handles 6 actions: insert, add_statement, update_statement,
+    delete_statement, update_topic, delete_topic.
+    Returns (topics_inserted, stmts_inserted, stmts_updated, deleted).
+    """
+    if not knowledge_list or not has_table(conn, "topics"):
+        return 0, 0, 0, 0
+
+    topics_inserted = 0
+    stmts_inserted = 0
+    stmts_updated = 0
     deleted = 0
 
-    for fact in facts_list:
-        action = fact.get("action", "insert").strip().lower()
+    for item in knowledge_list:
+        action = item.get("action", "insert").strip().lower()
         if action == "skip":
             continue
 
-        if action == "delete":
-            existing_id = fact.get("id")
-            if existing_id is None:
+        if action == "delete_topic":
+            topic_id = item.get("topic_id")
+            if topic_id is None:
                 continue
             try:
-                existing_id = int(existing_id)
+                topic_id = int(topic_id)
             except (ValueError, TypeError):
                 continue
-            row = conn.execute(
-                "SELECT 1 FROM facts WHERE id = ?", (existing_id,)
-            ).fetchone()
-            if not row:
+            if not conn.execute("SELECT 1 FROM topics WHERE id = ?", (topic_id,)).fetchone():
                 continue
-            conn.execute("DELETE FROM facts WHERE id = ?", (existing_id,))
+            conn.execute("DELETE FROM statements WHERE topic_id = ?", (topic_id,))
+            conn.execute("DELETE FROM topics WHERE id = ?", (topic_id,))
             deleted += 1
             continue
 
-        claim = fact.get("claim", "").strip()
+        if action == "delete_statement":
+            stmt_id = item.get("statement_id")
+            if stmt_id is None:
+                continue
+            try:
+                stmt_id = int(stmt_id)
+            except (ValueError, TypeError):
+                continue
+            if not conn.execute("SELECT 1 FROM statements WHERE id = ?", (stmt_id,)).fetchone():
+                continue
+            conn.execute("DELETE FROM statements WHERE id = ?", (stmt_id,))
+            deleted += 1
+            continue
+
+        if action == "update_topic":
+            topic_id = item.get("topic_id")
+            if topic_id is None:
+                continue
+            try:
+                topic_id = int(topic_id)
+            except (ValueError, TypeError):
+                continue
+            if not conn.execute("SELECT 1 FROM topics WHERE id = ?", (topic_id,)).fetchone():
+                continue
+            title = item.get("topic_title", "").strip()
+            domain = item.get("domain", "").strip()
+            tags = item.get("tags", "").strip()
+            if title:
+                conn.execute(
+                    "UPDATE topics SET title = ?, domain = COALESCE(?, domain), "
+                    "tags = COALESCE(?, tags), updated = date('now') WHERE id = ?",
+                    (title, domain or None, tags or None, topic_id),
+                )
+                stmts_updated += 1
+            continue
+
+        if action == "update_statement":
+            stmt_id = item.get("statement_id")
+            if stmt_id is None:
+                continue
+            try:
+                stmt_id = int(stmt_id)
+            except (ValueError, TypeError):
+                continue
+            claim = item.get("claim", "").strip()
+            if not claim:
+                continue
+            if not conn.execute("SELECT 1 FROM statements WHERE id = ?", (stmt_id,)).fetchone():
+                continue
+            conn.execute(
+                "UPDATE statements SET claim = ?, updated = date('now') WHERE id = ?",
+                (claim, stmt_id),
+            )
+            stmts_updated += 1
+            continue
+
+        if action == "add_statement":
+            topic_id = item.get("topic_id")
+            if topic_id is None:
+                continue
+            try:
+                topic_id = int(topic_id)
+            except (ValueError, TypeError):
+                continue
+            claim = item.get("claim", "").strip()
+            if not claim:
+                continue
+            if not conn.execute("SELECT 1 FROM topics WHERE id = ?", (topic_id,)).fetchone():
+                continue
+            # Exact-match dedup safety net
+            if conn.execute(
+                "SELECT 1 FROM statements WHERE topic_id = ? AND claim = ?",
+                (topic_id, claim),
+            ).fetchone():
+                continue
+            conn.execute(
+                "INSERT INTO statements (topic_id, claim) VALUES (?, ?)",
+                (topic_id, claim),
+            )
+            stmts_inserted += 1
+            continue
+
+        # Default: insert (new topic + first statement)
+        claim = item.get("claim", "").strip()
         if not claim:
             continue
-        domain = fact.get("domain", "knowledge").strip()
-        tags = fact.get("tags", "").strip()
-
+        topic_title = item.get("topic_title", "").strip() or claim[:80]
+        domain = item.get("domain", "knowledge").strip()
+        tags = item.get("tags", "").strip()
         if not domain or not tags:
             continue
 
-        if action == "update":
-            existing_id = fact.get("id")
-            if existing_id is None:
-                continue
-            try:
-                existing_id = int(existing_id)
-            except (ValueError, TypeError):
-                continue
-            row = conn.execute(
-                "SELECT 1 FROM facts WHERE id = ?", (existing_id,)
-            ).fetchone()
-            if not row:
-                continue
-            conn.execute(
-                "UPDATE facts SET claim = ?, domain = ?, tags = ?, "
-                "updated = date('now') WHERE id = ?",
-                (claim, domain, tags, existing_id),
-            )
-            updated += 1
-        else:
-            # Insert — keep exact-match dedup as safety net
-            existing = conn.execute(
-                "SELECT 1 FROM facts WHERE claim = ?", (claim,)
-            ).fetchone()
-            if existing:
-                continue
+        # Exact-match dedup on claim
+        if conn.execute(
+            "SELECT 1 FROM statements WHERE claim = ?", (claim,)
+        ).fetchone():
+            continue
 
-            conn.execute(
-                "INSERT INTO facts (claim, domain, tags) VALUES (?, ?, ?)",
-                (claim, domain, tags),
-            )
-            inserted += 1
+        conn.execute(
+            "INSERT INTO topics (title, domain, tags) VALUES (?, ?, ?)",
+            (topic_title, domain, tags),
+        )
+        topic_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            "INSERT INTO statements (topic_id, claim) VALUES (?, ?)",
+            (topic_id, claim),
+        )
+        topics_inserted += 1
+        stmts_inserted += 1
 
-    return inserted, updated, deleted
+    return topics_inserted, stmts_inserted, stmts_updated, deleted
+
+
+VALID_STATUS = {"open", "done", "dropped"}
+VALID_PRIORITY = {"low", "medium", "high"}
+VALID_HORIZON = {"now", "soon", "later"}
+
+
+def process_tasks(conn, tasks_list):
+    """Insert extracted tasks. Returns count inserted."""
+    if not tasks_list or not has_table(conn, "tasks"):
+        return 0
+
+    inserted = 0
+    for task in tasks_list:
+        title = task.get("title", "").strip()
+        if not title:
+            continue
+        domain = task.get("domain", "technical").strip()
+        priority = task.get("priority", "medium").strip().lower()
+        horizon = task.get("horizon", "later").strip().lower()
+
+        # Validate enums, fallback to defaults
+        if priority not in VALID_PRIORITY:
+            priority = "medium"
+        if horizon not in VALID_HORIZON:
+            horizon = "later"
+
+        # Dedup: skip if open task with same title exists
+        if conn.execute(
+            "SELECT 1 FROM tasks WHERE title = ? AND status = 'open'",
+            (title,),
+        ).fetchone():
+            continue
+
+        conn.execute(
+            "INSERT INTO tasks (title, domain, priority, horizon) VALUES (?, ?, ?, ?)",
+            (title, domain, priority, horizon),
+        )
+        inserted += 1
+
+    return inserted
 
 
 def store_message_metadata(conn, session_id, field, value, expected_content=None):
@@ -318,25 +456,25 @@ def store_message_metadata(conn, session_id, field, value, expected_content=None
     )
 
 
-def fetch_existing_topics(conn, session_id):
-    """Read the current topics string for a session."""
+def fetch_existing_tags(conn, session_id):
+    """Read the current tags string for a session."""
     row = conn.execute(
-        "SELECT topics FROM sessions WHERE id = ?", (session_id,)
+        "SELECT tags FROM sessions WHERE id = ?", (session_id,)
     ).fetchone()
-    if row and row["topics"]:
-        return row["topics"]
+    if row and row["tags"]:
+        return row["tags"]
     return ""
 
 
-def store_topics(conn, session_id, topics):
-    """Replace session topics with the model's consolidated list (deduped)."""
-    if not topics:
-        return  # Empty model response -> keep existing topics
+def store_tags(conn, session_id, tags):
+    """Replace session tags with the model's consolidated list (deduped)."""
+    if not tags:
+        return  # Empty model response -> keep existing tags
 
     # Case-insensitive dedup, preserving model's ordering (most relevant first)
     seen = set()
     deduped = []
-    for t in topics:
+    for t in tags:
         t_clean = str(t).strip()
         if t_clean and t_clean.lower() not in seen:
             deduped.append(t_clean)
@@ -346,7 +484,7 @@ def store_topics(conn, session_id, topics):
         return
 
     conn.execute(
-        "UPDATE sessions SET topics = ? WHERE id = ?",
+        "UPDATE sessions SET tags = ? WHERE id = ?",
         (", ".join(deduped), session_id),
     )
 
@@ -424,17 +562,17 @@ def main():
         log("extraction_skipped", session_id, reason="no text found")
         return
 
-    # Read existing topics before the SDK call (brief read-only access)
-    existing_topics = ""
+    # Read existing tags before the SDK call (brief read-only access)
+    existing_tags = ""
     if session_id:
         try:
             with open_db() as conn:
-                existing_topics = fetch_existing_topics(conn, session_id)
+                existing_tags = fetch_existing_tags(conn, session_id)
         except Exception as e:
-            log("extraction_error", session_id, context="topic fetch", error=str(e))
+            log("extraction_error", session_id, context="tag fetch", error=str(e))
 
     try:
-        prompt = build_extraction_prompt(user_text, agent_text, existing_topics)
+        prompt = build_extraction_prompt(user_text, agent_text, existing_tags)
         result, usage_info = asyncio.run(
             call_model(
                 prompt,
@@ -455,60 +593,68 @@ def main():
         if session_id:
             ensure_session(conn, session_id)
 
-        # Facts
-        facts = result.get("facts", [])
-        inserted, updated, deleted = process_facts(conn, facts)
+        # Knowledge (topics + statements)
+        knowledge = result.get("knowledge", [])
+        topics_ins, stmts_ins, stmts_upd, k_deleted = process_knowledge(conn, knowledge)
+
+        # Tasks
+        tasks_list = result.get("tasks", [])
+        tasks_ins = process_tasks(conn, tasks_list)
 
         # Sentiment
         sentiment = result.get("sentiment")
         if session_id and isinstance(sentiment, str):
             store_message_metadata(conn, session_id, "sentiment", sentiment, expected_content=agent_text)
 
-        # Topics
-        topics = result.get("topics", [])
-        if session_id and isinstance(topics, list):
-            store_topics(conn, session_id, topics)
-
-        # Action items
-        action_items = result.get("action_items", [])
-        if session_id and isinstance(action_items, list) and action_items:
-            store_message_metadata(conn, session_id, "action_items", action_items, expected_content=agent_text)
+        # Session tags
+        session_tags = result.get("session_tags", [])
+        if session_id and isinstance(session_tags, list):
+            store_tags(conn, session_id, session_tags)
 
         # Record extraction as a system message with usage metadata
         if session_id:
-            fact_parts = []
-            if inserted:
-                fact_parts.append(f"{inserted} inserted")
-            if updated:
-                fact_parts.append(f"{updated} updated")
-            if deleted:
-                fact_parts.append(f"{deleted} deleted")
-            fact_summary = ", ".join(fact_parts) if fact_parts else "no changes"
+            k_parts = []
+            if topics_ins:
+                k_parts.append(f"{topics_ins} topics")
+            if stmts_ins:
+                k_parts.append(f"{stmts_ins} statements")
+            if stmts_upd:
+                k_parts.append(f"{stmts_upd} updated")
+            if k_deleted:
+                k_parts.append(f"{k_deleted} deleted")
+            k_summary = ", ".join(k_parts) if k_parts else "no changes"
 
-            sys_content = f"Extraction: facts={fact_summary}"
+            t_summary = f"{tasks_ins} tasks" if tasks_ins else "no tasks"
+
+            sys_content = f"Extraction: knowledge={k_summary}, {t_summary}"
             sys_meta = {"usage": usage_info} if usage_info else None
             record_message(conn, session_id, "system", sys_content, sys_meta)
 
         conn.commit()
 
-    if inserted or updated or deleted:
-        fact_data = {}
-        if inserted:
-            fact_data["inserted"] = inserted
-        if updated:
-            fact_data["updated"] = updated
-        if deleted:
-            fact_data["deleted"] = deleted
-        log("facts", session_id, **fact_data)
+    if topics_ins or stmts_ins or stmts_upd or k_deleted:
+        k_data = {}
+        if topics_ins:
+            k_data["topics_inserted"] = topics_ins
+        if stmts_ins:
+            k_data["stmts_inserted"] = stmts_ins
+        if stmts_upd:
+            k_data["stmts_updated"] = stmts_upd
+        if k_deleted:
+            k_data["deleted"] = k_deleted
+        log("knowledge", session_id, **k_data)
+
+    if tasks_ins:
+        log("tasks", session_id, inserted=tasks_ins)
 
     analysis_data = {}
     if result.get("sentiment"):
         analysis_data["sentiment"] = result["sentiment"]
-    if result.get("topics"):
-        topics = result["topics"]
-        analysis_data["topics"] = topics if isinstance(topics, list) else [topics]
-    if result.get("action_items"):
-        analysis_data["actions"] = len(result["action_items"])
+    if result.get("session_tags"):
+        tags = result["session_tags"]
+        analysis_data["session_tags"] = tags if isinstance(tags, list) else [tags]
+    if result.get("tasks"):
+        analysis_data["tasks"] = len(result["tasks"])
     if usage_info and isinstance(usage_info, dict):
         analysis_data["input_tokens"] = usage_info.get("input_tokens", 0)
         analysis_data["output_tokens"] = usage_info.get("output_tokens", 0)

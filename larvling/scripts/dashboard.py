@@ -16,13 +16,19 @@ HTML_PATH = os.path.join(os.path.dirname(DB_PATH), "dashboard.html")
 
 
 def get_revision(conn):
-    """Revision = MAX(messages.id) + COUNT(sessions) + COUNT(facts)."""
+    """Revision = MAX(messages.id) + COUNT(sessions) + COUNT(topics) + COUNT(statements) + COUNT(tasks)."""
     msg = conn.execute("SELECT MAX(id) FROM messages").fetchone()[0] or 0
     sess = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] or 0
-    facts = 0
-    if has_table(conn, "facts"):
-        facts = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0] or 0
-    return msg + sess + facts
+    topics = 0
+    if has_table(conn, "topics"):
+        topics = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0] or 0
+    stmts = 0
+    if has_table(conn, "statements"):
+        stmts = conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0] or 0
+    tasks = 0
+    if has_table(conn, "tasks"):
+        tasks = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] or 0
+    return msg + sess + topics + stmts + tasks
 
 
 def get_sessions(conn):
@@ -31,7 +37,7 @@ def get_sessions(conn):
         """
         SELECT id, started_at, ended_at, duration_min,
                title, agent_summary, exchange_count,
-               topics, quality_signals
+               tags, quality_signals
         FROM sessions
         ORDER BY started_at DESC
         """
@@ -60,7 +66,7 @@ def get_sessions(conn):
                     "duration_min": sess["duration_min"],
                     "title": sess["title"],
                     "agent_summary": sess["agent_summary"],
-                    "topics": sess["topics"],
+                    "tags": sess["tags"],
                     "quality_signals": sess["quality_signals"],
                 },
             }
@@ -139,7 +145,7 @@ def render_sidebar_item(session, index):
 
     ended = session["ended"] or started
 
-    topics = meta.get("topics") or ""
+    topics = meta.get("tags") or ""
     topics_html = ""
     if topics:
         topic_list = [t.strip() for t in topics.split(",") if t.strip()][:4]
@@ -178,7 +184,7 @@ def render_detail_panel(session):
     if duration_str:
         chips.append(f'<span class="chip">{duration_str}</span>')
 
-    topics = meta.get("topics") or ""
+    topics = meta.get("tags") or ""
     if topics:
         topic_list = [t.strip() for t in topics.split(",") if t.strip()][:6]
         for t in topic_list:

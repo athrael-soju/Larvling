@@ -202,24 +202,41 @@ def get_session_context():
                 lines.extend(relevant)
                 lines.append("")
 
-        # Fact awareness at session start
-        if has_table(conn, "facts"):
-            fact_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
-            if fact_count:
+        # Knowledge awareness at session start
+        if has_table(conn, "topics"):
+            topic_count = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0]
+            stmt_count = conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0] if has_table(conn, "statements") else 0
+            if topic_count:
                 domain_rows = conn.execute(
                     "SELECT COALESCE(domain, 'unset') as d, COUNT(*) as c "
-                    "FROM facts GROUP BY domain ORDER BY c DESC"
+                    "FROM topics GROUP BY domain ORDER BY c DESC"
                 ).fetchall()
                 domains = ", ".join(
                     f"{r['d']} ({r['c']})" for r in domain_rows
                 )
                 recent = conn.execute(
-                    "SELECT id, claim FROM facts ORDER BY created DESC LIMIT 3"
+                    "SELECT t.id, t.title, s.claim "
+                    "FROM topics t JOIN statements s ON s.topic_id = t.id "
+                    "ORDER BY s.created DESC LIMIT 3"
                 ).fetchall()
-                lines.append(f"## Stored Facts ({fact_count})")
+                lines.append(f"## Stored Knowledge ({topic_count} topics, {stmt_count} statements)")
                 lines.append(f"Domains: {domains}")
                 for r in recent:
                     lines.append(f"- {r['id']}: {r['claim']}")
+                lines.append("")
+
+        # Open tasks at session start
+        if has_table(conn, "tasks"):
+            open_tasks = conn.execute(
+                "SELECT id, title, priority, horizon FROM tasks "
+                "WHERE status = 'open' "
+                "ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END "
+                "LIMIT 3"
+            ).fetchall()
+            if open_tasks:
+                lines.append(f"## Open Tasks ({len(open_tasks)})")
+                for t in open_tasks:
+                    lines.append(f"- [{t['priority']}/{t['horizon']}] {t['title']}")
                 lines.append("")
 
         # Fallback: if no summaries, show recent data

@@ -32,20 +32,21 @@ def inject_context(conn, session_id):
     injected = []
     total_chars = 0
 
-    if has_table(conn, "facts"):
-        fact_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
+    if has_table(conn, "topics"):
+        topic_count = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0]
+        stmt_count = conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0] if has_table(conn, "statements") else 0
         scripts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
         query_script = os.path.normpath(os.path.join(
             scripts_dir, "query.py"
         )).replace("\\", "/")
-        text = (f'\n## Fact Context\n{fact_count} stored fact(s). '
+        text = (f'\n## Knowledge Context\n{topic_count} topic(s), {stmt_count} statement(s). '
                 f'query: python "{query_script}" "<SQL>"\n'
-                f'Search for facts relevant to this prompt '
-                f'(e.g. WHERE claim LIKE \'%topic%\') and weave '
-                f'them into your response naturally.')
+                f'Search for relevant knowledge '
+                f'(e.g. SELECT t.id, t.title, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE \'%topic%\') '
+                f'and weave it into your response naturally.')
         print(text)
         total_chars += len(text)
-        injected.append(f"{fact_count} facts")
+        injected.append(f"{topic_count} topics, {stmt_count} statements")
 
     session = conn.execute(
         "SELECT summary_msg_count, agent_summary FROM sessions WHERE id = ?",
