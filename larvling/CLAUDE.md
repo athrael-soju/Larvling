@@ -76,6 +76,7 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 {"ts":"...","event":"knowledge","sid":"6801adcc","topics_inserted":1,"stmts_inserted":2}
 {"ts":"...","event":"tasks","sid":"6801adcc","inserted":1}
 {"ts":"...","event":"analysis","sid":"6801adcc","sentiment":"curious","session_tags":["greeting"],"input_tokens":1234,"output_tokens":567}
+{"ts":"...","event":"auto_summary","sid":"6801adcc","trigger":"manual","pairs":12,"summary_len":450,"input_tokens":1234,"output_tokens":567}
 {"ts":"...","event":"tool_failure","sid":"6801adcc","tool":"Bash"}
 {"ts":"...","event":"session_end","sid":"6801adcc","exchanges":1,"duration":0.2}
 ```
@@ -85,6 +86,10 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 **Manual skills** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated knowledge management.
 
 ### Session Summaries
+
+**Auto-summarization:** The PreCompact hook auto-generates a session summary when compaction fires (manual `/compact` or auto). It runs as a detached background process — no latency impact on compaction. This covers the common case where sessions end without a manual summary.
+
+**Manual:** `/summarize` still works for on-demand summaries between compactions.
 
 `inject_context()` automatically prints a `## Summary` hint when a summary is needed. Thresholds:
 - **No summary yet:** shown when the session reaches 10+ messages
