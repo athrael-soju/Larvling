@@ -258,6 +258,16 @@ def get_session_context():
                     lines.append(f"- {r['id']}: {r['claim']}")
                 lines.append("")
 
+        # Maintenance hint for large knowledge bases
+        if has_table(conn, "topics") and has_table(conn, "statements"):
+            if topic_count >= 50 or stmt_count >= 100:
+                lines.append("## Maintenance")
+                lines.append(
+                    f"Knowledge base has grown ({topic_count} topics, {stmt_count} statements). "
+                    "Consider offering /maintain."
+                )
+                lines.append("")
+
         # Open tasks at session start
         if has_table(conn, "tasks"):
             open_tasks = conn.execute(

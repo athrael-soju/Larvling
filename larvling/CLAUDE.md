@@ -9,7 +9,7 @@ Everything lives in `.claude/larvling.db` (SQLite, WAL mode).
 When the SessionStart context contains "Larvling - First Run", this is the very first time Larvling has been installed. You MUST welcome the user before doing anything else. Keep it warm, brief, and conversational - something like a friendly companion introducing itself. Include:
 - That Larvling is now installed and will quietly remember their sessions
 - That everything is automatic - no setup or extra effort needed
-- Mention the available skills naturally: `/remember` to store knowledge, `/recall` to search it, `/forget` to remove it, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/query` for direct SQL access
+- Mention the available skills naturally: `/remember` to store knowledge, `/recall` to search it, `/forget` to remove it, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/maintain` to audit and consolidate knowledge, `/query` for direct SQL access
 - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 
 ## Update Notice
@@ -93,6 +93,8 @@ When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer br
 
 **`summary-manager`** — Session summarization. Delegated to when the user accepts a `/summarize` offer or when the summary hint fires. Reads conversation pairs, writes a concise summary, and stores it.
 
+**`knowledge-maintenance`** — Periodic knowledge base audit and consolidation. Delegated to when the user invokes `/maintain` or when the maintenance hint fires (50+ topics or 100+ statements). Identifies duplicate topics, redundant/stale statements, misclassified domains, and contradictions. Proposes changes via AskUserQuestion, applies only what the user approves. Never deletes — merges via statement reassignment and topic title updates.
+
 ## Interaction Protocol
 
 Use **AskUserQuestion** tool for structured input gathering:
@@ -103,6 +105,7 @@ Use **AskUserQuestion** tool for structured input gathering:
 | Decision      | Multiple valid approaches exist                |
 | Approval      | Stage work complete, need sign-off             |
 | Summary       | Session summary is stale, offer update         |
+| Maintenance   | Knowledge base is large, offer /maintain       |
 | Knowledge     | About to save or update knowledge               |
 
 Menu format:
