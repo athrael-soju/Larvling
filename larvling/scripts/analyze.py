@@ -7,9 +7,7 @@ SDK call, then writes results to SQLite.
 """
 
 import asyncio
-import json
 import os
-import sys
 
 from db import (
     open_db,
@@ -181,7 +179,9 @@ def process_knowledge(conn, knowledge_list):
             if not conn.execute("SELECT 1 FROM topics WHERE id = ?", (topic_id,)).fetchone():
                 continue
             title = item.get("topic_title", "").strip()
-            domain = item.get("domain", "").strip()
+            domain = item.get("domain", "").strip().lower()
+            if domain and domain not in VALID_DOMAINS:
+                domain = ""
             tags = item.get("tags", "").strip()
             if title:
                 conn.execute(
@@ -243,9 +243,11 @@ def process_knowledge(conn, knowledge_list):
         if not claim:
             continue
         topic_title = item.get("topic_title", "").strip() or claim[:80]
-        domain = item.get("domain", "knowledge").strip()
+        domain = item.get("domain", "knowledge").strip().lower()
+        if domain not in VALID_DOMAINS:
+            domain = "knowledge"
         tags = item.get("tags", "").strip()
-        if not domain or not tags:
+        if not tags:
             continue
 
         # Exact-match dedup on claim
@@ -269,6 +271,7 @@ def process_knowledge(conn, knowledge_list):
     return topics_inserted, stmts_inserted, stmts_updated, topics_updated
 
 
+VALID_DOMAINS = {"personal", "professional", "preferences", "interests", "knowledge", "technical", "workflow"}
 VALID_PRIORITY = {"low", "medium", "high"}
 VALID_HORIZON = {"now", "soon", "later"}
 
@@ -283,11 +286,13 @@ def process_tasks(conn, tasks_list):
         title = task.get("title", "").strip()
         if not title:
             continue
-        domain = task.get("domain", "technical").strip()
+        domain = task.get("domain", "technical").strip().lower()
         priority = task.get("priority", "medium").strip().lower()
         horizon = task.get("horizon", "later").strip().lower()
 
         # Validate enums, fallback to defaults
+        if domain not in VALID_DOMAINS:
+            domain = "technical"
         if priority not in VALID_PRIORITY:
             priority = "medium"
         if horizon not in VALID_HORIZON:

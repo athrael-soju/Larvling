@@ -427,11 +427,17 @@ def run_detached_or_inline(script_path, callback):
         try:
             with open(payload_path, "r", encoding="utf-8") as f:
                 raw = f.read()
-        finally:
+        except Exception as e:
+            log("payload_error", error=f"failed to read detached payload: {e}")
             try:
                 os.unlink(payload_path)
             except OSError:
                 pass
+            return
+        try:
+            os.unlink(payload_path)
+        except OSError:
+            pass
     else:
         try:
             raw = sys.stdin.buffer.read().decode("utf-8")

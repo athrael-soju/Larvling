@@ -236,6 +236,8 @@ def get_session_context():
                 lines.append("")
 
         # Knowledge awareness at session start
+        topic_count = 0
+        stmt_count = 0
         if has_table(conn, "topics"):
             topic_count = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0]
             stmt_count = conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0] if has_table(conn, "statements") else 0
@@ -248,28 +250,30 @@ def get_session_context():
                     f"{r['d']} ({r['c']})" for r in domain_rows
                 )
                 recent = conn.execute(
-                    "SELECT t.id, t.title, s.claim "
+                    "SELECT t.id, t.title, s.id as sid, s.claim "
                     "FROM topics t JOIN statements s ON s.topic_id = t.id "
                     "ORDER BY s.created DESC LIMIT 3"
                 ).fetchall()
                 lines.append(f"## Stored Knowledge ({topic_count} topics, {stmt_count} statements)")
                 lines.append(f"Domains: {domains}")
                 for r in recent:
-                    lines.append(f"- {r['id']}: {r['claim']}")
+                    lines.append(f"- {r['sid']}: {r['claim']}")
                 lines.append("")
 
         # Maintenance hint for large knowledge bases
-        if has_table(conn, "topics") and has_table(conn, "statements"):
-            if topic_count >= 50 or stmt_count >= 100:
-                lines.append("## Maintenance")
-                lines.append(
-                    f"Knowledge base has grown ({topic_count} topics, {stmt_count} statements). "
-                    "Consider offering /maintain."
-                )
-                lines.append("")
+        if topic_count >= 50 or stmt_count >= 100:
+            lines.append("## Maintenance")
+            lines.append(
+                f"Knowledge base has grown ({topic_count} topics, {stmt_count} statements). "
+                "Consider offering /maintain."
+            )
+            lines.append("")
 
         # Open tasks at session start
         if has_table(conn, "tasks"):
+            total_open = conn.execute(
+                "SELECT COUNT(*) FROM tasks WHERE status = 'open'"
+            ).fetchone()[0]
             open_tasks = conn.execute(
                 "SELECT id, title, priority, horizon FROM tasks "
                 "WHERE status = 'open' "
@@ -277,7 +281,7 @@ def get_session_context():
                 "LIMIT 3"
             ).fetchall()
             if open_tasks:
-                lines.append(f"## Open Tasks ({len(open_tasks)})")
+                lines.append(f"## Open Tasks ({total_open})")
                 for t in open_tasks:
                     lines.append(f"- [{t['priority']}/{t['horizon']}] {t['title']}")
                 lines.append("")

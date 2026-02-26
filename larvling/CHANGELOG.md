@@ -3,8 +3,8 @@
 ## [0.1.5] - 2026-02-26
 
 ### Added
-- `allowed-tools` frontmatter on all skills for tighter tool restrictions
 - `maxTurns: 10` on agents to prevent runaway execution
+- `knowledge-maintenance` agent and `/maintain` skill for periodic knowledge base audit and consolidation
 - `busy_timeout` PRAGMA for SQLite lock resilience
 - `stop_hook_active` check in Stop hook to prevent recursive firing
 - 24h file-based cache for geolocation and update check HTTP calls
