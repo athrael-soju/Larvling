@@ -147,6 +147,10 @@ def build_extraction_prompt(user_text, agent_text, existing_tags=""):
 # Storage functions
 # ---------------------------------------------------------------------------
 
+VALID_DOMAINS = {"personal", "professional", "preferences", "interests", "knowledge", "technical", "workflow"}
+VALID_PRIORITY = {"low", "medium", "high"}
+VALID_HORIZON = {"now", "soon", "later"}
+
 
 def process_knowledge(conn, knowledge_list):
     """Process extracted knowledge into topics+statements tables.
@@ -269,11 +273,6 @@ def process_knowledge(conn, knowledge_list):
         stmts_inserted += 1
 
     return topics_inserted, stmts_inserted, stmts_updated, topics_updated
-
-
-VALID_DOMAINS = {"personal", "professional", "preferences", "interests", "knowledge", "technical", "workflow"}
-VALID_PRIORITY = {"low", "medium", "high"}
-VALID_HORIZON = {"now", "soon", "later"}
 
 
 def process_tasks(conn, tasks_list):
