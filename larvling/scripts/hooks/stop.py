@@ -1,6 +1,5 @@
 """Stop hook — logs the agent's last response, computes quality signals, and tracks token usage."""
 
-import json
 import os
 import sys
 
@@ -8,9 +7,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from db import (
     open_db,
-    parse_meta,
     ensure_session,
     record_message,
+    store_message_metadata,
     accumulate_quality_signals,
     read_hook_payload,
     log,
@@ -39,31 +38,6 @@ def compute_quality_signals(response_text, tools):
     if tools:
         signals["total_tool_calls"] = sum(tools.values())
     return signals
-
-
-def store_usage_on_message(conn, session_id, role, usage_data, expected_content=None):
-    """Store usage data in the metadata of the last message with the given role."""
-    if not usage_data:
-        return
-
-    row = conn.execute(
-        "SELECT id, content, metadata FROM messages "
-        "WHERE session_id = ? AND role = ? "
-        "ORDER BY id DESC LIMIT 1",
-        (session_id, role),
-    ).fetchone()
-    if not row:
-        return
-
-    if expected_content and row["content"] != expected_content:
-        return
-
-    meta = parse_meta(row["metadata"])
-    meta["usage"] = usage_data
-    conn.execute(
-        "UPDATE messages SET metadata = ? WHERE id = ?",
-        (json.dumps(meta), row["id"]),
-    )
 
 
 def handle(data):
@@ -97,7 +71,7 @@ def handle(data):
                 record_message(conn, session_id, "assistant", response, meta or None)
             elif usage:
                 # Response was a dup (already stored), but still attach usage
-                store_usage_on_message(conn, session_id, "assistant", usage, expected_content=response)
+                store_message_metadata(conn, session_id, "assistant", "usage", usage, expected_content=response)
 
         # Accumulate quality signals
         signals = compute_quality_signals(response, tools)
@@ -132,4 +106,5 @@ def handle(data):
 
 if __name__ == "__main__":
     data = read_hook_payload()
-    handle(data)
+    if data:
+        handle(data)

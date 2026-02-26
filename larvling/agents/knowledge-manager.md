@@ -25,7 +25,7 @@ Append `--json` for JSON output.
 
 ## Domains
 
-Classify knowledge into one of: `knowledge`, `preferences`, `technical`, `interests`, `workflow`
+Classify knowledge into one of: `personal`, `professional`, `preferences`, `interests`, `knowledge`, `technical`, `workflow`
 
 ## When Storing New Knowledge
 

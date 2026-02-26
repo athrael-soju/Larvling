@@ -129,4 +129,5 @@ def handle(data):
 
 if __name__ == "__main__":
     data = read_hook_payload()
-    handle(data)
+    if data:
+        handle(data)

@@ -8,11 +8,8 @@ sessions.agent_summary.
 """
 
 import asyncio
-import json
 import os
-import subprocess
 import sys
-import tempfile
 import time
 
 from db import (
@@ -20,10 +17,11 @@ from db import (
     build_message_pairs,
     record_summary,
     ensure_session,
-    reconfigure_stdout,
+    fetch_session_tags,
+    run_detached_or_inline,
     log,
 )
-from extract import call_model
+from sdk import call_model
 
 # ---------------------------------------------------------------------------
 # Summarization
@@ -60,13 +58,6 @@ def fetch_pairs(conn, session_id):
     return build_message_pairs(rows)
 
 
-def fetch_tags(conn, session_id):
-    """Fetch existing session tags."""
-    row = conn.execute(
-        "SELECT tags FROM sessions WHERE id = ?", (session_id,)
-    ).fetchone()
-    return row["tags"] or "" if row else ""
-
 
 def run_summary(session_id, trigger):
     """Query pairs, call the model, store the summary."""
@@ -79,7 +70,7 @@ def run_summary(session_id, trigger):
             log("auto_summary", session_id, trigger=trigger, skipped="no pairs")
             return
 
-        tags = fetch_tags(conn, session_id)
+        tags = fetch_session_tags(conn, session_id)
 
     pairs_text = format_pairs(pairs)
     pair_count = len(pairs)
@@ -141,64 +132,12 @@ def run_summary(session_id, trigger):
 
 
 # ---------------------------------------------------------------------------
-# Detached process spawning (same pattern as extract.py)
+# Detached entry point
 # ---------------------------------------------------------------------------
 
 
-def _spawn_detached(payload_path):
-    """Spawn self as a detached process that outlives the parent."""
-    creation = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    subprocess.Popen(
-        [sys.executable, __file__, "--detached", payload_path],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=creation,
-        start_new_session=(os.name != "nt"),
-    )
-
-
-def main():
-    if os.environ.get("LARVLING_INTERNAL"):
-        return
-    reconfigure_stdout()
-
-    # --detached mode: read payload from temp file (spawned by parent)
-    if "--detached" in sys.argv:
-        payload_path = sys.argv[sys.argv.index("--detached") + 1]
-        try:
-            with open(payload_path, "r", encoding="utf-8") as f:
-                raw = f.read()
-        finally:
-            try:
-                os.unlink(payload_path)
-            except OSError:
-                pass
-    else:
-        # Normal mode: read stdin, spawn detached child, exit immediately
-        try:
-            raw = sys.stdin.buffer.read().decode("utf-8")
-        except Exception as e:
-            log("stdin_error", error=str(e))
-            return
-
-        if not raw.strip():
-            return
-
-        # Write payload to temp file and spawn detached child
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8"
-        )
-        tmp.write(raw)
-        tmp.close()
-        _spawn_detached(tmp.name)
-        return  # Parent exits immediately
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return
-
+def _run(data):
+    """Detached worker — called by run_detached_or_inline after payload parsing."""
     session_id = data.get("session_id")
     trigger = data.get("trigger", "unknown")
 
@@ -210,4 +149,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_detached_or_inline(__file__, _run)

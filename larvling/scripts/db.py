@@ -435,6 +435,119 @@ def read_hook_payload():
         sys.exit(0)
 
 
+def spawn_detached(script_path, payload_path):
+    """Spawn a script as a detached process that outlives the parent.
+
+    Used by hooks that need to run slow work (SDK calls) without adding
+    latency to the parent hook.  The child reads its payload from the
+    temp file at *payload_path*.
+    """
+    import subprocess
+
+    creation = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    subprocess.Popen(
+        [sys.executable, script_path, "--detached", payload_path],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=creation,
+        start_new_session=(os.name != "nt"),
+    )
+
+
+def run_detached_or_inline(script_path, callback):
+    """Handle the detached-process pattern used by slow hooks.
+
+    *script_path* is the caller's ``__file__`` — the script to re-invoke
+    as a detached child.
+
+    In normal mode (stdin): reads payload, writes it to a temp file,
+    spawns a detached child with ``--detached <path>``, and exits.
+
+    In ``--detached`` mode: reads payload from the temp file, cleans it
+    up, parses JSON, and calls *callback(data)*.
+
+    Handles LARVLING_INTERNAL guard, stdout reconfiguration, and errors.
+    """
+    import tempfile
+
+    if os.environ.get("LARVLING_INTERNAL"):
+        return
+    reconfigure_stdout()
+
+    if "--detached" in sys.argv:
+        idx = sys.argv.index("--detached")
+        if idx + 1 >= len(sys.argv):
+            log("payload_error", error="--detached missing path argument")
+            return
+        payload_path = sys.argv[idx + 1]
+        try:
+            with open(payload_path, "r", encoding="utf-8") as f:
+                raw = f.read()
+        finally:
+            try:
+                os.unlink(payload_path)
+            except OSError:
+                pass
+    else:
+        try:
+            raw = sys.stdin.buffer.read().decode("utf-8")
+        except Exception as e:
+            log("stdin_error", error=str(e))
+            return
+
+        if not raw.strip():
+            return
+
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        )
+        tmp.write(raw)
+        tmp.close()
+        spawn_detached(script_path, tmp.name)
+        return
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return
+
+    callback(data)
+
+
+def fetch_session_tags(conn, session_id):
+    """Fetch existing session tags for a session."""
+    row = conn.execute(
+        "SELECT tags FROM sessions WHERE id = ?", (session_id,)
+    ).fetchone()
+    return row["tags"] or "" if row else ""
+
+
+def store_message_metadata(conn, session_id, role, field, value, expected_content=None):
+    """Store a field in the metadata of the last message with the given role."""
+    if not value:
+        return
+
+    row = conn.execute(
+        "SELECT id, content, metadata FROM messages "
+        "WHERE session_id = ? AND role = ? "
+        "ORDER BY id DESC LIMIT 1",
+        (session_id, role),
+    ).fetchone()
+    if not row:
+        return
+
+    if expected_content and row["content"] != expected_content:
+        return
+
+    meta = parse_meta(row["metadata"])
+    meta[field] = value
+    conn.execute(
+        "UPDATE messages SET metadata = ? WHERE id = ?",
+        (json.dumps(meta), row["id"]),
+    )
+
+
 def log(event, session_id=None, **data):
     """Append a JSONL entry to .claude/larvling.jsonl for debugging."""
     try:

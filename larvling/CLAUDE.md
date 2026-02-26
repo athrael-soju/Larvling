@@ -32,7 +32,7 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 
 **Schema:**
 - `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, tags TEXT, quality_signals TEXT)`
-- `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT, content TEXT, metadata TEXT)`
+- `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT [user|assistant|system], content TEXT, metadata TEXT)`
 - `topics (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT, updated TEXT)`
 - `statements (id INTEGER PK AUTO, topic_id INTEGER FK→topics(id), claim TEXT NOT NULL, created TEXT, updated TEXT)`
 - `tasks (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, status TEXT DEFAULT 'open', priority TEXT DEFAULT 'medium', horizon TEXT DEFAULT 'later', metadata TEXT, created TEXT)`
@@ -54,7 +54,7 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 
 **UserPromptSubmit → Knowledge Context (read):** The `## Knowledge Context` directive prints on every exchange with the `query.py` path and topic/statement counts. Search for relevant knowledge and weave it into your response naturally.
 
-**Stop → Unified extraction (write):** `extract.py` runs as a command hook after every response. It contains `call_model()` (Agent SDK integration) and uses `transcript.py` for parsing. A single Agent SDK call extracts multiple data types from the last exchange:
+**Stop → Unified analysis (write):** `analyze.py` runs as a command hook after every response, calling `sdk.py` (`call_model()`) for Agent SDK integration. A single SDK call extracts multiple data types from the last exchange:
 - **Knowledge** → `topics` + `statements` tables (hierarchical: topic groups related statements)
 - **Sentiment** (focused/curious/frustrated/satisfied/neutral) → `messages.metadata` JSON on the last assistant message
 - **Session tags** → `sessions.tags` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)

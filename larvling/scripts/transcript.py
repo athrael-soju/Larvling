@@ -23,6 +23,17 @@ def is_real_user_message(entry):
     return False
 
 
+def _read_transcript_lines(transcript_path):
+    """Read non-empty stripped lines from a transcript file."""
+    lines = []
+    with open(transcript_path, "r", encoding="utf-8") as f:
+        for raw in f:
+            raw = raw.strip()
+            if raw:
+                lines.append(raw)
+    return lines
+
+
 def parse_last_turn(transcript_path):
     """Extract text, tool call counts, and usage from the last assistant turn.
 
@@ -44,12 +55,7 @@ def parse_last_turn(transcript_path):
     if not transcript_path or not os.path.exists(transcript_path):
         return None, {}, None
 
-    lines = []
-    with open(transcript_path, "r", encoding="utf-8") as f:
-        for raw_line in f:
-            raw_line = raw_line.strip()
-            if raw_line:
-                lines.append(raw_line)
+    lines = _read_transcript_lines(transcript_path)
 
     # Find where the last turn starts (after the last real user message)
     turn_start = 0
@@ -132,12 +138,7 @@ def parse_last_user_text(transcript_path):
     if not transcript_path or not os.path.exists(transcript_path):
         return None
 
-    lines = []
-    with open(transcript_path, "r", encoding="utf-8") as f:
-        for raw in f:
-            raw = raw.strip()
-            if raw:
-                lines.append(raw)
+    lines = _read_transcript_lines(transcript_path)
 
     for i in range(len(lines) - 1, -1, -1):
         try:

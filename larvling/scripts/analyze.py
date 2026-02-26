@@ -1,116 +1,32 @@
 """
-Unified extraction via Claude Agent SDK.
+Unified exchange analysis — Stop command hook.
 
-Called as a Stop command hook. Reads the transcript, extracts the last
-exchange, calls Sonnet to identify knowledge, sentiment, session tags,
-and tasks in a single SDK call, then writes results to SQLite.
+Reads the transcript, parses the last exchange, calls Sonnet (via sdk.py)
+to identify knowledge, sentiment, session tags, and tasks in a single
+SDK call, then writes results to SQLite.
 """
 
 import asyncio
 import json
 import os
-import subprocess
 import sys
-import tempfile
 
 from db import (
     open_db,
     has_table,
-    parse_meta,
-    reconfigure_stdout,
     ensure_session,
     record_message,
+    store_message_metadata,
+    fetch_session_tags,
+    run_detached_or_inline,
     log,
 )
+from sdk import call_model
 from transcript import parse_last_user_text, parse_last_turn, wait_for_transcript_stable
 
-# ---------------------------------------------------------------------------
-# Agent SDK call
-# ---------------------------------------------------------------------------
-
-
-async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=None):
-    """Call the LLM via Agent SDK and return the response.
-
-    Returns (result, usage_info) tuple where:
-    - result is structured_output (dict) when output_format is set,
-      otherwise response text (str).
-    - usage_info is the usage dict from ResultMessage, or None if
-      not available.
-
-    Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
-    """
-    from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-    from claude_agent_sdk._internal.message_parser import parse_message  # noqa: PLC2701
-    from claude_agent_sdk._errors import MessageParseError  # noqa: PLC2701
-    import claude_agent_sdk._internal.client as _sdk_client  # noqa: PLC2701
-
-    # Patch parse_message to skip unknown message types instead of crashing.
-    # The SDK (as of 0.1.39) doesn't handle rate_limit_event and other CLI
-    # message types, which kills the async generator mid-stream and loses
-    # all subsequent messages including the ResultMessage with structured_output.
-    # Note: not concurrent-safe — callers use asyncio.run() (one loop at a time).
-    def _tolerant_parse(data):
-        try:
-            return parse_message(data)
-        except MessageParseError:
-            return None
-
-    opts = {"model": "claude-sonnet-4-6", "allowed_tools": allowed_tools or []}
-    if max_turns is not None:
-        opts["max_turns"] = max_turns
-    if output_format:
-        opts["output_format"] = output_format
-    options = ClaudeAgentOptions(**opts)
-
-    os.environ["LARVLING_INTERNAL"] = "1"
-    # Remove CLAUDECODE to prevent "nested session" guard in the subprocess
-    saved_claudecode = os.environ.pop("CLAUDECODE", None)
-    setattr(_sdk_client, "parse_message", _tolerant_parse)
-
-    response_text = ""
-    structured = None
-    result_subtype = None
-    usage_info = None
-    try:
-        async for msg in query(prompt=prompt, options=options):
-            if msg is None:
-                continue
-            if isinstance(msg, ResultMessage):
-                result_subtype = getattr(msg, "subtype", None)
-                if msg.structured_output:
-                    structured = msg.structured_output
-                # Capture usage from ResultMessage
-                msg_usage = getattr(msg, "usage", None)
-                if msg_usage:
-                    usage_info = msg_usage
-                continue
-            content = getattr(msg, "content", None)
-            if not content:
-                continue
-            for block in content:
-                text = getattr(block, "text", None)
-                if text:
-                    response_text += text
-    finally:
-        os.environ.pop("LARVLING_INTERNAL", None)
-        if saved_claudecode is not None:
-            os.environ["CLAUDECODE"] = saved_claudecode
-        setattr(_sdk_client, "parse_message", parse_message)
-
-    if structured is not None:
-        return structured, usage_info
-
-    if output_format:
-        raise RuntimeError(
-            f"Structured output not returned (subtype={result_subtype})"
-        )
-
-    return response_text.strip(), usage_info
-
 
 # ---------------------------------------------------------------------------
-# Unified extraction via Agent SDK
+# Analysis prompt and schema
 # ---------------------------------------------------------------------------
 
 EXTRACTION_PROMPT = """\
@@ -151,7 +67,7 @@ Never delete data. To retire knowledge, update the statement or topic instead.
    - From AGENT: key domain knowledge shared with the user (science, history, \
 concepts) — NOT code-level implementation details
    - Each item: {{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "add_topic|add_statement|update_statement|...", "topic_id": N, "statement_id": N}}
-   - Domains: personal, professional, preferences, interests, knowledge, technical
+   - Domains: personal, professional, preferences, interests, knowledge, technical, workflow
    - Tags: short topic label (e.g. "octopuses", "physics", "python")
    - **SKIP** (do NOT extract): bug reports, code fixes, line numbers, function \
 signatures, file paths, refactoring notes, schema changes, documentation edits, \
@@ -245,14 +161,15 @@ def process_knowledge(conn, knowledge_list):
 
     Handles 4 actions: add_topic, add_statement, update_statement, update_topic.
     Never deletes data — retirement is done via updates, not removal.
-    Returns (topics_inserted, stmts_inserted, stmts_updated).
+    Returns (topics_inserted, stmts_inserted, stmts_updated, topics_updated).
     """
     if not knowledge_list or not has_table(conn, "topics"):
-        return 0, 0, 0
+        return 0, 0, 0, 0
 
     topics_inserted = 0
     stmts_inserted = 0
     stmts_updated = 0
+    topics_updated = 0
 
     for item in knowledge_list:
         action = item.get("action", "").strip().lower()
@@ -278,7 +195,7 @@ def process_knowledge(conn, knowledge_list):
                     "tags = COALESCE(?, tags), updated = datetime('now') WHERE id = ?",
                     (title, domain or None, tags or None, topic_id),
                 )
-                stmts_updated += 1
+                topics_updated += 1
             continue
 
         if action == "update_statement":
@@ -355,7 +272,7 @@ def process_knowledge(conn, knowledge_list):
         topics_inserted += 1
         stmts_inserted += 1
 
-    return topics_inserted, stmts_inserted, stmts_updated
+    return topics_inserted, stmts_inserted, stmts_updated, topics_updated
 
 
 VALID_STATUS = {"open", "done", "dropped"}
@@ -399,41 +316,6 @@ def process_tasks(conn, tasks_list):
     return inserted
 
 
-def store_message_metadata(conn, session_id, field, value, expected_content=None):
-    """Store a field in the metadata of the last assistant message."""
-    if not value:
-        return
-
-    row = conn.execute(
-        "SELECT id, content, metadata FROM messages "
-        "WHERE session_id = ? AND role = 'assistant' "
-        "ORDER BY id DESC LIMIT 1",
-        (session_id,),
-    ).fetchone()
-    if not row:
-        return
-
-    # Don't attach metadata to a message from a different turn
-    if expected_content and row["content"] != expected_content:
-        return
-
-    meta = parse_meta(row["metadata"])
-    meta[field] = value
-    conn.execute(
-        "UPDATE messages SET metadata = ? WHERE id = ?",
-        (json.dumps(meta), row["id"]),
-    )
-
-
-def fetch_existing_tags(conn, session_id):
-    """Read the current tags string for a session."""
-    row = conn.execute(
-        "SELECT tags FROM sessions WHERE id = ?", (session_id,)
-    ).fetchone()
-    if row and row["tags"]:
-        return row["tags"]
-    return ""
-
 
 def store_tags(conn, session_id, tags):
     """Replace session tags with the model's consolidated list (deduped)."""
@@ -463,60 +345,8 @@ def store_tags(conn, session_id, tags):
 # ---------------------------------------------------------------------------
 
 
-def _spawn_detached(payload_path):
-    """Spawn self as a detached process that outlives the parent."""
-    creation = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    subprocess.Popen(
-        [sys.executable, __file__, "--detached", payload_path],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=creation,
-        start_new_session=(os.name != "nt"),
-    )
-
-
-def main():
-    if os.environ.get("LARVLING_INTERNAL"):
-        return
-    reconfigure_stdout()
-
-    # --detached mode: read payload from temp file (spawned by parent)
-    if "--detached" in sys.argv:
-        payload_path = sys.argv[sys.argv.index("--detached") + 1]
-        try:
-            with open(payload_path, "r", encoding="utf-8") as f:
-                raw = f.read()
-        finally:
-            try:
-                os.unlink(payload_path)
-            except OSError:
-                pass
-    else:
-        # Normal mode: read stdin, spawn detached child, exit immediately
-        try:
-            raw = sys.stdin.buffer.read().decode("utf-8")
-        except Exception as e:
-            log("stdin_error", error=str(e))
-            return
-
-        if not raw.strip():
-            return
-
-        # Write payload to temp file and spawn detached child
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8"
-        )
-        tmp.write(raw)
-        tmp.close()
-        _spawn_detached(tmp.name)
-        return  # Parent exits immediately
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return
-
+def _run(data):
+    """Detached worker — called by run_detached_or_inline after payload parsing."""
     session_id = data.get("session_id")
     transcript_path = data.get("transcript_path")
 
@@ -536,7 +366,7 @@ def main():
     if session_id:
         try:
             with open_db() as conn:
-                existing_tags = fetch_existing_tags(conn, session_id)
+                existing_tags = fetch_session_tags(conn, session_id)
         except Exception as e:
             log("extraction_error", session_id, context="tag fetch", error=str(e))
 
@@ -564,7 +394,7 @@ def main():
 
         # Knowledge (topics + statements)
         knowledge = result.get("knowledge", [])
-        topics_ins, stmts_ins, stmts_upd = process_knowledge(conn, knowledge)
+        topics_ins, stmts_ins, stmts_upd, topics_upd = process_knowledge(conn, knowledge)
 
         # Tasks
         tasks_list = result.get("tasks", [])
@@ -573,7 +403,7 @@ def main():
         # Sentiment
         sentiment = result.get("sentiment")
         if session_id and isinstance(sentiment, str):
-            store_message_metadata(conn, session_id, "sentiment", sentiment, expected_content=agent_text)
+            store_message_metadata(conn, session_id, "assistant", "sentiment", sentiment, expected_content=agent_text)
 
         # Session tags
         session_tags = result.get("session_tags", [])
@@ -587,8 +417,8 @@ def main():
                 k_parts.append(f"{topics_ins} topics")
             if stmts_ins:
                 k_parts.append(f"{stmts_ins} statements")
-            if stmts_upd:
-                k_parts.append(f"{stmts_upd} updated")
+            if stmts_upd or topics_upd:
+                k_parts.append(f"{stmts_upd + topics_upd} updated")
             k_summary = ", ".join(k_parts) if k_parts else "no changes"
 
             t_summary = f"{tasks_ins} tasks" if tasks_ins else "no tasks"
@@ -599,7 +429,7 @@ def main():
 
         conn.commit()
 
-    if topics_ins or stmts_ins or stmts_upd:
+    if topics_ins or stmts_ins or stmts_upd or topics_upd:
         k_data = {}
         if topics_ins:
             k_data["topics_inserted"] = topics_ins
@@ -607,6 +437,8 @@ def main():
             k_data["stmts_inserted"] = stmts_ins
         if stmts_upd:
             k_data["stmts_updated"] = stmts_upd
+        if topics_upd:
+            k_data["topics_updated"] = topics_upd
         log("knowledge", session_id, **k_data)
 
     if tasks_ins:
@@ -629,4 +461,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_detached_or_inline(__file__, _run)
