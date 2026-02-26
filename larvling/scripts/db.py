@@ -86,7 +86,7 @@ def has_table(conn, name):
 # Schema creation and versioning
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 
 def get_schema_version(conn):
@@ -132,8 +132,7 @@ def create_schema(conn):
             exchange_count INTEGER,
             summary_at TEXT,
             summary_msg_count INTEGER,
-            tags TEXT,
-            quality_signals TEXT
+            tags TEXT
         )
     """
     )
@@ -379,37 +378,6 @@ def build_message_pairs(rows):
             i += 1
     return pairs
 
-
-def accumulate_quality_signals(conn, session_id, new_signals):
-    """Merge new quality signals into a session's quality_signals JSON field.
-
-    Each key in new_signals is added (numerically) to the existing value.
-    Nested dicts (e.g. failures_by_tool) are merged one level deep.
-    """
-    sess = conn.execute(
-        "SELECT quality_signals FROM sessions WHERE id = ?",
-        (session_id,),
-    ).fetchone()
-    if not sess:
-        return
-    existing = {}
-    if sess["quality_signals"]:
-        try:
-            existing = json.loads(sess["quality_signals"])
-        except (json.JSONDecodeError, TypeError):
-            pass
-    for key, val in new_signals.items():
-        if isinstance(val, dict):
-            nested = existing.get(key, {})
-            for k, v in val.items():
-                nested[k] = nested.get(k, 0) + v
-            existing[key] = nested
-        else:
-            existing[key] = existing.get(key, 0) + val
-    conn.execute(
-        "UPDATE sessions SET quality_signals = ? WHERE id = ?",
-        (json.dumps(existing), session_id),
-    )
 
 
 def read_hook_payload():

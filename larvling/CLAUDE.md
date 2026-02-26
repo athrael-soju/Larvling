@@ -31,7 +31,7 @@ Review the context Larvling injects at session start - it's your memory of what 
 Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on conversation context.
 
 **Schema:**
-- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, tags TEXT, quality_signals TEXT)`
+- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, tags TEXT)`
 - `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT [user|assistant|system], content TEXT, metadata TEXT)`
 - `topics (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT, updated TEXT)`
 - `statements (id INTEGER PK AUTO, topic_id INTEGER FK→topics(id), claim TEXT NOT NULL, created TEXT, updated TEXT)`
@@ -60,7 +60,6 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 - **Session tags** → `sessions.tags` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)
 - **Tasks** → `tasks` table with native columns for status, priority, horizon
 
-**Stop → Quality signals (no SDK call):** `hooks/stop.py` computes quality signals from the response text (error counts, retry patterns, tool call totals) and stores them in `sessions.quality_signals` as JSON. Pure Python, no latency cost.
 
 **Token usage tracking:** Two hooks capture token usage:
 - **Prompt** — `hooks/prompt.py` estimates user tokens (`~4 chars/token` heuristic), stored in `messages.metadata.usage` on user row
@@ -80,8 +79,6 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 {"ts":"...","event":"tool_failure","sid":"6801adcc","tool":"Bash"}
 {"ts":"...","event":"session_end","sid":"6801adcc","exchanges":1,"duration":0.2}
 ```
-
-**PostToolUseFailure → Tool failure tracking:** `hooks/failure.py` records Bash tool failures as quality signals (`tool_failures` count and `failures_by_tool` breakdown) in `sessions.quality_signals`.
 
 **Manual skills** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated knowledge management.
 
