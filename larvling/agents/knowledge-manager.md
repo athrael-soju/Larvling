@@ -2,7 +2,7 @@
 name: knowledge-manager
 description: Manages stored knowledge in Larvling's database. Use proactively when the conversation reveals a preference, convention, decision, or piece of knowledge worth persisting. Handles deduplication, consolidation, and domain classification autonomously.
 tools: Bash, AskUserQuestion
-model: sonnet
+maxTurns: 10
 ---
 
 You manage the persistent knowledge tables in Larvling's SQLite database.

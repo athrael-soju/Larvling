@@ -1,10 +1,5 @@
 """Stop hook — logs the agent's last response and tracks token usage."""
 
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from db import (
     open_db,
     ensure_session,
@@ -17,6 +12,9 @@ from transcript import parse_last_turn, wait_for_transcript_stable
 
 
 def handle(data):
+    if data.get("stop_hook_active"):
+        return  # Prevent recursive hook firing
+
     session_id = data.get("session_id")
     if not session_id:
         return
@@ -47,7 +45,14 @@ def handle(data):
                 record_message(conn, session_id, "assistant", response, meta or None)
             elif usage:
                 # Response was a dup (already stored), but still attach usage
-                store_message_metadata(conn, session_id, "assistant", "usage", usage, expected_content=response)
+                store_message_metadata(
+                    conn,
+                    session_id,
+                    "assistant",
+                    "usage",
+                    usage,
+                    expected_content=response,
+                )
 
         conn.commit()
 
@@ -59,7 +64,9 @@ def handle(data):
         cached = usage.get("cache_read_input_tokens", 0)
         if cached:
             resp_data["cache_read"] = cached
-        new_in = usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)
+        new_in = usage.get("input_tokens", 0) + usage.get(
+            "cache_creation_input_tokens", 0
+        )
         if new_in:
             resp_data["input_new"] = new_in
         agent_out = usage.get("output_tokens", 0)

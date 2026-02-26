@@ -116,6 +116,12 @@ Use **plain text** for:
 - Explaining rationale
 - Summarizing captured information
 
+## Dependencies
+
+- **Python 3.10+** — all scripts use standard library except `claude_agent_sdk`
+- **claude-agent-sdk** (`pip install claude-agent-sdk`) — required for unified analysis (knowledge extraction, session tags, tasks)
+- Install via: `pip install -r "${CLAUDE_PLUGIN_ROOT}/requirements.txt"`
+
 ## Run End
 
 - Session timing and exchange count are recorded automatically

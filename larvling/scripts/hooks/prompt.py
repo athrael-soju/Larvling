@@ -2,9 +2,6 @@
 
 import os
 import re
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from db import (
     open_db,
@@ -34,16 +31,22 @@ def inject_context(conn, session_id):
 
     if has_table(conn, "topics"):
         topic_count = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0]
-        stmt_count = conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0] if has_table(conn, "statements") else 0
+        stmt_count = (
+            conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0]
+            if has_table(conn, "statements")
+            else 0
+        )
         scripts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-        query_script = os.path.normpath(os.path.join(
-            scripts_dir, "query.py"
-        )).replace("\\", "/")
-        text = (f'\n## Knowledge Context\n{topic_count} topic(s), {stmt_count} statement(s). '
-                f'query: python "{query_script}" "<SQL>"\n'
-                f'Search for relevant knowledge '
-                f'(e.g. SELECT t.id, t.title, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE \'%topic%\') '
-                f'and weave it into your response naturally.')
+        query_script = os.path.normpath(os.path.join(scripts_dir, "query.py")).replace(
+            "\\", "/"
+        )
+        text = (
+            f"\n## Knowledge Context\n{topic_count} topic(s), {stmt_count} statement(s). "
+            f'query: python "{query_script}" "<SQL>"\n'
+            f"Search for relevant knowledge "
+            f"(e.g. SELECT t.id, t.title, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE '%topic%') "
+            f"and weave it into your response naturally."
+        )
         print(text)
         total_chars += len(text)
         injected.append(f"{topic_count} topics, {stmt_count} statements")
@@ -61,15 +64,19 @@ def inject_context(conn, session_id):
         summarized = session["summary_msg_count"] or 0
 
         if not session["agent_summary"] and msg_count >= 10:
-            text = (f'\n## Summary\nNo summary yet ({msg_count} messages). '
-                    f'Offer /summarize via AskUserQuestion.')
+            text = (
+                f"\n## Summary\nNo summary yet ({msg_count} messages). "
+                f"Offer /summarize via AskUserQuestion."
+            )
             print(text)
             total_chars += len(text)
             injected.append("summary hint")
         elif session["agent_summary"] and msg_count > summarized + 4:
-            text = (f'\n## Summary\nStale summary '
-                    f'(covers {summarized}/{msg_count} messages). '
-                    f'Offer /summarize via AskUserQuestion.')
+            text = (
+                f"\n## Summary\nStale summary "
+                f"(covers {summarized}/{msg_count} messages). "
+                f"Offer /summarize via AskUserQuestion."
+            )
             print(text)
             total_chars += len(text)
             injected.append("stale summary hint")
@@ -112,12 +119,18 @@ def handle(data):
         # - Raw slash command: "/status", "/recall"
         # - XML tags: <command-message>plugin:skill</command-message>
         cmd_match = re.search(
-            r"<command-(?:message|name)>\s*/?(.+?)\s*</command-(?:message|name)>", prompt
+            r"<command-(?:message|name)>\s*/?(.+?)\s*</command-(?:message|name)>",
+            prompt,
         )
         if not cmd_match and re.fullmatch(r"/[\w:/-]+", prompt.strip()):
             cmd_match = re.fullmatch(r"/([\w:/-]+)", prompt.strip())
         if cmd_match:
-            log("skill", session_id, name=f"/{cmd_match.group(1)}", input_tokens_est=user_tokens)
+            log(
+                "skill",
+                session_id,
+                name=f"/{cmd_match.group(1)}",
+                input_tokens_est=user_tokens,
+            )
         else:
             log("prompt", session_id, n=count, input_tokens_est=user_tokens)
 

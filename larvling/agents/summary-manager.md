@@ -2,7 +2,7 @@
 name: summary-manager
 description: Generates session summaries for Larvling. Use when the session summary hint appears and the user accepts, or when delegating a /summarize call.
 tools: Bash, AskUserQuestion
-model: sonnet
+maxTurns: 10
 ---
 
 You manage session summaries in Larvling's SQLite database.

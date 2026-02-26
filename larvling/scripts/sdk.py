@@ -19,10 +19,16 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
 
     Sets LARVLING_INTERNAL to prevent sub-agent from triggering hooks.
     """
-    from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-    from claude_agent_sdk._internal.message_parser import parse_message  # noqa: PLC2701
-    from claude_agent_sdk._errors import MessageParseError  # noqa: PLC2701
-    import claude_agent_sdk._internal.client as _sdk_client  # noqa: PLC2701
+    try:
+        from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
+        from claude_agent_sdk._internal.message_parser import parse_message  # noqa: PLC2701
+        from claude_agent_sdk._errors import MessageParseError  # noqa: PLC2701
+        import claude_agent_sdk._internal.client as _sdk_client  # noqa: PLC2701
+    except ImportError:
+        raise RuntimeError(
+            "claude_agent_sdk is required but not installed. "
+            "Install it with: pip install claude-agent-sdk"
+        )
 
     # Patch parse_message to skip unknown message types instead of crashing.
     # The SDK (as of 0.1.39) doesn't handle rate_limit_event and other CLI

@@ -340,6 +340,9 @@ def store_tags(conn, session_id, tags):
 
 def _run(data):
     """Detached worker — called by run_detached_or_inline after payload parsing."""
+    if data.get("stop_hook_active"):
+        return  # Prevent recursive hook firing
+
     session_id = data.get("session_id")
     transcript_path = data.get("transcript_path")
 
