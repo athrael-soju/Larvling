@@ -33,9 +33,9 @@ USER said: {user_text}
 
 AGENT responded: {agent_text}
 
-## Knowledge-awareness
+## Knowledge deduplication
 
-You can query the knowledge database to check for duplicates or related topics:
+Before finalizing knowledge items, query the database to check for existing topics:
 
 python "{query_script}" "<SQL>"
 
@@ -43,17 +43,14 @@ Two tables store knowledge:
 - `topics` (id INTEGER PK, title, domain, tags, created, updated)
 - `statements` (id INTEGER PK, topic_id INTEGER FK→topics(id), claim, created, updated)
 
-Example queries:
-- `SELECT t.id, t.title, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE '%keyword%'`
-- `SELECT id, title, domain FROM topics WHERE title LIKE '%keyword%'`
-
-Use this to avoid duplicates and consolidate related knowledge. \
-For each knowledge item, set action to:
-- **add_topic**: create a new topic with its first statement (no existing overlap)
-- **add_statement**: add a new statement to an existing topic (include "topic_id")
-- **update_statement**: refine an existing statement (include "statement_id")
-- **update_topic**: update title/domain/tags of an existing topic (include "topic_id")
-- **skip**: knowledge already exists unchanged — do NOT include it
+For each knowledge item you want to extract:
+1. Search for related topics/statements (e.g. `SELECT t.id, t.title, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE t.title LIKE '%keyword%' OR s.claim LIKE '%keyword%'`)
+2. Based on what you find, set the action:
+   - **add_topic**: no existing overlap — create a new topic with its first statement
+   - **add_statement**: related topic exists — add a new statement to it (include "topic_id")
+   - **update_statement**: existing statement needs refinement (include "statement_id")
+   - **update_topic**: existing topic title/domain/tags need updating (include "topic_id")
+   - **skip**: knowledge already exists unchanged — do NOT include it
 Never delete data. To retire knowledge, update the statement or topic instead.
 
 ## Extraction

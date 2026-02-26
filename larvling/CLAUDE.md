@@ -73,7 +73,7 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 
 **UserPromptSubmit → Knowledge Context (read):** The `## Knowledge Context` directive prints on every exchange with the `query.py` path and topic/statement counts. Search for relevant knowledge and weave it into your response naturally.
 
-**Stop → Unified analysis (write):** `analyze.py` runs as a command hook after every response, calling `sdk.py` (`call_model()`) for Agent SDK integration. A single SDK call extracts multiple data types from the last exchange:
+**Stop → Unified analysis (write):** `analyze.py` runs as a command hook after every response, calling `sdk.py` (`call_model()`) for Agent SDK integration. The extraction agent has Bash tool access to query the knowledge DB for dedup — it identifies candidate knowledge from the exchange, then queries existing topics before deciding the action. A single SDK call extracts multiple data types from the last exchange:
 - **Knowledge** → `topics` + `statements` tables (hierarchical: topic groups related statements)
 - **Session tags** → `sessions.tags` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)
 - **Tasks** → `tasks` table with native columns for status, priority, horizon
