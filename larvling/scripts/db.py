@@ -352,32 +352,6 @@ def print_sessions(**kwargs):
         list_sessions(conn, **kwargs)
 
 
-def build_message_pairs(rows):
-    """Build user/agent pairs from ordered message rows, skipping orphans.
-
-    Each pair: {"user": str, "agent": str, "timestamp": str or None}
-    Works with rows that include or omit the timestamp column.
-    """
-    pairs = []
-    i = 0
-    while i < len(rows):
-        if rows[i]["role"] == "user":
-            user_msg = rows[i]["content"] or ""
-            try:
-                ts = rows[i]["timestamp"]
-            except (IndexError, KeyError):
-                ts = None
-            i += 1
-            agent_msg = ""
-            if i < len(rows) and rows[i]["role"] == "assistant":
-                agent_msg = rows[i]["content"] or ""
-                i += 1
-            pairs.append({"user": user_msg, "agent": agent_msg, "timestamp": ts})
-        else:
-            # Orphan assistant message — skip
-            i += 1
-    return pairs
-
 
 
 def read_hook_payload():

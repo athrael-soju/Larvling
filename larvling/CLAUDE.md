@@ -74,8 +74,6 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 {"ts":"...","event":"knowledge","sid":"6801adcc","topics_inserted":1,"stmts_inserted":2}
 {"ts":"...","event":"tasks","sid":"6801adcc","inserted":1}
 {"ts":"...","event":"analysis","sid":"6801adcc","session_tags":["greeting"],"input_tokens":1234,"output_tokens":567}
-{"ts":"...","event":"auto_summary","sid":"6801adcc","trigger":"manual","pairs":12,"summary_len":450,"input_tokens":1234,"output_tokens":567}
-{"ts":"...","event":"tool_failure","sid":"6801adcc","tool":"Bash"}
 {"ts":"...","event":"session_end","sid":"6801adcc","exchanges":1,"duration":0.2}
 ```
 
@@ -83,19 +81,17 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 
 ### Session Summaries
 
-**Auto-summarization:** The PreCompact hook auto-generates a session summary when compaction fires (manual `/compact` or auto). It runs as a detached background process — no latency impact on compaction. This covers the common case where sessions end without a manual summary.
-
-**Manual:** `/summarize` still works for on-demand summaries between compactions.
-
 `inject_context()` automatically prints a `## Summary` hint when a summary is needed. Thresholds:
 - **No summary yet:** shown when the session reaches 10+ messages
 - **Stale summary:** shown when 5+ new messages have been added since the last summary
 
-When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines.
+When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines. The `summary-manager` agent handles the actual summarization work.
 
-### Knowledge Manager Agent
+### Agents
 
-The `knowledge-manager` is a subagent for autonomous knowledge management. Claude can delegate to it proactively when the conversation reveals a preference, convention, decision, or knowledge worth persisting. It handles deduplication, consolidation, and domain classification autonomously — searching existing topics and statements before deciding whether to add, update, or skip.
+**`knowledge-manager`** — Autonomous knowledge management. Claude can delegate to it proactively when the conversation reveals a preference, convention, decision, or knowledge worth persisting. It handles deduplication, consolidation, and domain classification autonomously — searching existing topics and statements before deciding whether to add, update, or skip.
+
+**`summary-manager`** — Session summarization. Delegated to when the user accepts a `/summarize` offer or when the summary hint fires. Reads conversation pairs, writes a concise summary, and stores it.
 
 ## Interaction Protocol
 

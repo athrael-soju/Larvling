@@ -269,7 +269,6 @@ def process_knowledge(conn, knowledge_list):
     return topics_inserted, stmts_inserted, stmts_updated, topics_updated
 
 
-VALID_STATUS = {"open", "done", "dropped"}
 VALID_PRIORITY = {"low", "medium", "high"}
 VALID_HORIZON = {"now", "soon", "later"}
 
