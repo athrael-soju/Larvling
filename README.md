@@ -146,10 +146,10 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 | `larvling/scripts/preflight.py`           | Schema bootstrap — ensures DB and tables exist              |
 | `larvling/scripts/hooks/session_start.py` | Injects session context, checks for updates                 |
 | `larvling/scripts/hooks/prompt.py`        | Logs user prompts and injects context hints                 |
-| `larvling/scripts/hooks/stop.py`          | Logs responses, computes quality signals, tracks token usage|
+| `larvling/scripts/hooks/stop.py`          | Logs responses and computes quality signals                 |
 | `larvling/scripts/hooks/failure.py`       | Records tool failures as quality signals                    |
 | `larvling/scripts/hooks/session_end.py`   | Finalizes session timing and exchange count                 |
-| `larvling/scripts/extract.py`             | Unified extraction - knowledge, sentiment, session tags, tasks, token usage |
+| `larvling/scripts/analyze.py`             | Unified extraction - knowledge, session tags, tasks         |
 | `larvling/scripts/summarize.py`           | Fetches conversation pairs and stores session summaries     |
 | `larvling/scripts/export.py`              | Exports a session conversation to markdown                  |
 | `larvling/scripts/query.py`               | Runs arbitrary SQL against larvling.db                      |
