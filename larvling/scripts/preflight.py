@@ -83,7 +83,6 @@ def main():
     if result == "fresh":
         print("# Larvling - First Run\n")
         print("Database created at `.claude/larvling.db`.")
-        print("Dashboard at `.claude/dashboard.html`.")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 ---
-name: remember
-description: Store knowledge that Larvling will remember across sessions
-argument-hint: "[knowledge to remember]"
+name: maintain
+description: Audit and consolidate Larvling's knowledge base
 ---
 
 **Schema:**
@@ -13,4 +12,4 @@ Run SQL via:
 python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
 
-Delegate to the `knowledge-manager` agent. Pass along the knowledge to store, or the conversation context if nothing specific was given.
+Delegate to the `knowledge-maintenance` agent. It will audit all topics and statements, identify issues (duplicates, stale entries, misclassifications, contradictions), propose changes, and apply only what the user approves.

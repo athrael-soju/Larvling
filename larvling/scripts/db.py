@@ -1,6 +1,6 @@
 """Shared database helpers for Larvling hook scripts.
 
-Schema: sessions, messages, facts
+Schema: sessions, messages, topics, statements, tasks, updates
 """
 
 import json
@@ -31,6 +31,7 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -86,7 +87,7 @@ def has_table(conn, name):
 # Schema creation and versioning
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 10
 
 
 def get_schema_version(conn):
@@ -132,8 +133,7 @@ def create_schema(conn):
             exchange_count INTEGER,
             summary_at TEXT,
             summary_msg_count INTEGER,
-            topics TEXT,
-            quality_signals TEXT
+            tags TEXT
         )
     """
     )
@@ -151,18 +151,62 @@ def create_schema(conn):
     )
     conn.execute(
         """
-        CREATE TABLE IF NOT EXISTS facts (
+        CREATE TABLE IF NOT EXISTS topics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            claim TEXT NOT NULL,
+            title TEXT NOT NULL,
             domain TEXT NOT NULL,
             tags TEXT NOT NULL,
-            created TEXT NOT NULL DEFAULT (date('now')),
+            created TEXT NOT NULL DEFAULT (datetime('now')),
             updated TEXT
         )
     """
     )
     conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS statements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            topic_id INTEGER NOT NULL REFERENCES topics(id),
+            claim TEXT NOT NULL,
+            created TEXT NOT NULL DEFAULT (datetime('now')),
+            updated TEXT
+        )
+    """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            domain TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            priority TEXT NOT NULL DEFAULT 'medium',
+            horizon TEXT NOT NULL DEFAULT 'later',
+            metadata TEXT,
+            created TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS updates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL REFERENCES tasks(id),
+            content TEXT NOT NULL,
+            timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """
+    )
+    conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_statements_topic ON statements(topic_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_updates_task ON updates(task_id)"
     )
     conn.commit()
 
@@ -176,7 +220,7 @@ def ensure_session(conn, session_id):
     """Create or touch a session row.
 
     On first call creates the session. On subsequent calls (e.g. resume)
-    updates ended_at so the session sorts to the top in the dashboard.
+    updates ended_at so the session sorts to the top in session listings.
     """
     conn.execute(
         "INSERT INTO sessions (id, started_at) "
@@ -309,63 +353,6 @@ def print_sessions(**kwargs):
         list_sessions(conn, **kwargs)
 
 
-def build_message_pairs(rows):
-    """Build user/agent pairs from ordered message rows, skipping orphans.
-
-    Each pair: {"user": str, "agent": str, "timestamp": str or None}
-    Works with rows that include or omit the timestamp column.
-    """
-    pairs = []
-    i = 0
-    while i < len(rows):
-        if rows[i]["role"] == "user":
-            user_msg = rows[i]["content"] or ""
-            try:
-                ts = rows[i]["timestamp"]
-            except (IndexError, KeyError):
-                ts = None
-            i += 1
-            agent_msg = ""
-            if i < len(rows) and rows[i]["role"] == "assistant":
-                agent_msg = rows[i]["content"] or ""
-                i += 1
-            pairs.append({"user": user_msg, "agent": agent_msg, "timestamp": ts})
-        else:
-            # Orphan assistant message — skip
-            i += 1
-    return pairs
-
-
-def accumulate_quality_signals(conn, session_id, new_signals):
-    """Merge new quality signals into a session's quality_signals JSON field.
-
-    Each key in new_signals is added (numerically) to the existing value.
-    Nested dicts (e.g. failures_by_tool) are merged one level deep.
-    """
-    sess = conn.execute(
-        "SELECT quality_signals FROM sessions WHERE id = ?",
-        (session_id,),
-    ).fetchone()
-    if not sess:
-        return
-    existing = {}
-    if sess["quality_signals"]:
-        try:
-            existing = json.loads(sess["quality_signals"])
-        except (json.JSONDecodeError, TypeError):
-            pass
-    for key, val in new_signals.items():
-        if isinstance(val, dict):
-            nested = existing.get(key, {})
-            for k, v in val.items():
-                nested[k] = nested.get(k, 0) + v
-            existing[key] = nested
-        else:
-            existing[key] = existing.get(key, 0) + val
-    conn.execute(
-        "UPDATE sessions SET quality_signals = ? WHERE id = ?",
-        (json.dumps(existing), session_id),
-    )
 
 
 def read_hook_payload():
@@ -389,6 +376,125 @@ def read_hook_payload():
     except json.JSONDecodeError as e:
         log("payload_error", size=len(raw), error=str(e))
         sys.exit(0)
+
+
+def spawn_detached(script_path, payload_path):
+    """Spawn a script as a detached process that outlives the parent.
+
+    Used by hooks that need to run slow work (SDK calls) without adding
+    latency to the parent hook.  The child reads its payload from the
+    temp file at *payload_path*.
+    """
+    import subprocess
+
+    creation = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    subprocess.Popen(
+        [sys.executable, script_path, "--detached", payload_path],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=creation,
+        start_new_session=(os.name != "nt"),
+    )
+
+
+def run_detached_or_inline(script_path, callback):
+    """Handle the detached-process pattern used by slow hooks.
+
+    *script_path* is the caller's ``__file__`` — the script to re-invoke
+    as a detached child.
+
+    In normal mode (stdin): reads payload, writes it to a temp file,
+    spawns a detached child with ``--detached <path>``, and exits.
+
+    In ``--detached`` mode: reads payload from the temp file, cleans it
+    up, parses JSON, and calls *callback(data)*.
+
+    Handles LARVLING_INTERNAL guard, stdout reconfiguration, and errors.
+    """
+    import tempfile
+
+    if os.environ.get("LARVLING_INTERNAL"):
+        return
+    reconfigure_stdout()
+
+    if "--detached" in sys.argv:
+        idx = sys.argv.index("--detached")
+        if idx + 1 >= len(sys.argv):
+            log("payload_error", error="--detached missing path argument")
+            return
+        payload_path = sys.argv[idx + 1]
+        try:
+            with open(payload_path, "r", encoding="utf-8") as f:
+                raw = f.read()
+        except Exception as e:
+            log("payload_error", error=f"failed to read detached payload: {e}")
+            try:
+                os.unlink(payload_path)
+            except OSError:
+                pass
+            return
+        try:
+            os.unlink(payload_path)
+        except OSError:
+            pass
+    else:
+        try:
+            raw = sys.stdin.buffer.read().decode("utf-8")
+        except Exception as e:
+            log("stdin_error", error=str(e))
+            return
+
+        if not raw.strip():
+            return
+
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        )
+        tmp.write(raw)
+        tmp.close()
+        spawn_detached(script_path, tmp.name)
+        return
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return
+
+    callback(data)
+
+
+def fetch_session_tags(conn, session_id):
+    """Fetch existing session tags for a session."""
+    row = conn.execute(
+        "SELECT tags FROM sessions WHERE id = ?", (session_id,)
+    ).fetchone()
+    return row["tags"] or "" if row else ""
+
+
+def store_message_metadata(conn, session_id, role, field, value, expected_content=None):
+    """Store a field in the metadata of the last message with the given role."""
+    if not value:
+        return
+
+    row = conn.execute(
+        "SELECT id, content, metadata FROM messages "
+        "WHERE session_id = ? AND role = ? "
+        "ORDER BY id DESC LIMIT 1",
+        (session_id, role),
+    ).fetchone()
+    if not row:
+        return
+
+    if expected_content and row["content"] != expected_content:
+        return
+
+    meta = parse_meta(row["metadata"])
+    meta[field] = value
+    conn.execute(
+        "UPDATE messages SET metadata = ? WHERE id = ?",
+        (json.dumps(meta), row["id"]),
+    )
 
 
 def log(event, session_id=None, **data):

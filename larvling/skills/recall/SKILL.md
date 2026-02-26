@@ -1,12 +1,14 @@
 ---
 name: recall
-description: Search or list facts stored in Larvling's memory
+description: Search or list knowledge stored in Larvling's memory
 argument-hint: "[search term]"
 ---
 
-**Schema:** `facts (id INTEGER PK AUTO, claim TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT NOT NULL DEFAULT date('now'), updated TEXT)`
+**Schema:**
+- `topics (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT, updated TEXT)`
+- `statements (id INTEGER PK AUTO, topic_id INTEGER FK→topics(id), claim TEXT NOT NULL, created TEXT, updated TEXT)`
 
-Search for relevant facts by keyword, topic, or any available context. Present results readably.
+Search for relevant knowledge by keyword, topic, or any available context. Use JOINs to show topic context with statements. Present results readably.
 
 Run SQL via:
 ```

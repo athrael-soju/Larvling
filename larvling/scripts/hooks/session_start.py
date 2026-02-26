@@ -7,8 +7,6 @@ import sys
 import time
 import urllib.request
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from db import (
     SCHEMA_VERSION,
     escape_like,
@@ -19,6 +17,37 @@ from db import (
     reconfigure_stdout,
     get_schema_version,
 )
+
+CACHE_PATH = os.path.join(os.getcwd(), ".claude", "larvling-cache.json")
+CACHE_TTL = 86400  # 24 hours
+
+
+def _read_cache(key):
+    """Read a cached value. Returns None if expired or missing."""
+    try:
+        with open(CACHE_PATH, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+        entry = cache.get(key)
+        if entry and time.time() - entry.get("ts", 0) < CACHE_TTL:
+            return entry.get("data")
+    except Exception:
+        pass
+    return None
+
+
+def _write_cache(key, data):
+    """Write a value to the file-based cache."""
+    try:
+        try:
+            with open(CACHE_PATH, "r", encoding="utf-8") as f:
+                cache = json.load(f)
+        except Exception:
+            cache = {}
+        cache[key] = {"ts": time.time(), "data": data}
+        with open(CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache, f)
+    except Exception:
+        pass
 
 
 def format_session_line(started_at, duration_min, summary):
@@ -128,7 +157,7 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
 def get_time_and_location():
     """Return a line with local datetime, UTC offset, and approximate location.
 
-    Location comes from a free IP-geolocation API (no auth required).
+    Location comes from a free IP-geolocation API (cached for 24h).
     Falls back gracefully — time is always available, location is best-effort.
     """
     now = time.localtime()
@@ -140,26 +169,30 @@ def get_time_and_location():
     dt_str = time.strftime("%A, %B %d, %Y at %I:%M %p", now)
     parts = [f"{dt_str} ({offset_str})"]
 
-    # Best-effort geolocation via free API
-    try:
-        req = urllib.request.Request(
-            "https://ipinfo.io/json",
-            headers={"User-Agent": "larvling", "Accept": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            geo = json.loads(resp.read().decode("utf-8"))
-        city = geo.get("city", "")
-        region = geo.get("region", "")
-        country = geo.get("country", "")
-        tz = geo.get("timezone", "")
-        loc_parts = [p for p in [city, region, country] if p]
-        if loc_parts:
-            loc_str = ", ".join(loc_parts)
-            if tz:
-                loc_str += f" ({tz})"
-            parts.append(loc_str)
-    except Exception:
-        pass
+    # Best-effort geolocation (cached 24h to avoid repeated API calls)
+    geo = _read_cache("geolocation")
+    if geo is None:
+        try:
+            req = urllib.request.Request(
+                "https://ipinfo.io/json",
+                headers={"User-Agent": "larvling", "Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                geo = json.loads(resp.read().decode("utf-8"))
+            _write_cache("geolocation", geo)
+        except Exception:
+            geo = {}
+
+    city = geo.get("city", "")
+    region = geo.get("region", "")
+    country = geo.get("country", "")
+    tz = geo.get("timezone", "")
+    loc_parts = [p for p in [city, region, country] if p]
+    if loc_parts:
+        loc_str = ", ".join(loc_parts)
+        if tz:
+            loc_str += f" ({tz})"
+        parts.append(loc_str)
 
     return " — ".join(parts)
 
@@ -202,24 +235,55 @@ def get_session_context():
                 lines.extend(relevant)
                 lines.append("")
 
-        # Fact awareness at session start
-        if has_table(conn, "facts"):
-            fact_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
-            if fact_count:
+        # Knowledge awareness at session start
+        topic_count = 0
+        stmt_count = 0
+        if has_table(conn, "topics"):
+            topic_count = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0]
+            stmt_count = conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0] if has_table(conn, "statements") else 0
+            if topic_count:
                 domain_rows = conn.execute(
                     "SELECT COALESCE(domain, 'unset') as d, COUNT(*) as c "
-                    "FROM facts GROUP BY domain ORDER BY c DESC"
+                    "FROM topics GROUP BY domain ORDER BY c DESC"
                 ).fetchall()
                 domains = ", ".join(
                     f"{r['d']} ({r['c']})" for r in domain_rows
                 )
                 recent = conn.execute(
-                    "SELECT id, claim FROM facts ORDER BY created DESC LIMIT 3"
+                    "SELECT t.id, t.title, s.id as sid, s.claim "
+                    "FROM topics t JOIN statements s ON s.topic_id = t.id "
+                    "ORDER BY s.created DESC LIMIT 3"
                 ).fetchall()
-                lines.append(f"## Stored Facts ({fact_count})")
+                lines.append(f"## Stored Knowledge ({topic_count} topics, {stmt_count} statements)")
                 lines.append(f"Domains: {domains}")
                 for r in recent:
-                    lines.append(f"- {r['id']}: {r['claim']}")
+                    lines.append(f"- {r['sid']}: {r['claim']}")
+                lines.append("")
+
+        # Maintenance hint for large knowledge bases
+        if topic_count >= 50 or stmt_count >= 100:
+            lines.append("## Maintenance")
+            lines.append(
+                f"Knowledge base has grown ({topic_count} topics, {stmt_count} statements). "
+                "Consider offering /maintain."
+            )
+            lines.append("")
+
+        # Open tasks at session start
+        if has_table(conn, "tasks"):
+            total_open = conn.execute(
+                "SELECT COUNT(*) FROM tasks WHERE status = 'open'"
+            ).fetchone()[0]
+            open_tasks = conn.execute(
+                "SELECT id, title, priority, horizon FROM tasks "
+                "WHERE status = 'open' "
+                "ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END "
+                "LIMIT 3"
+            ).fetchall()
+            if open_tasks:
+                lines.append(f"## Open Tasks ({total_open})")
+                for t in open_tasks:
+                    lines.append(f"- [{t['priority']}/{t['horizon']}] {t['title']}")
                 lines.append("")
 
         # Fallback: if no summaries, show recent data
@@ -249,21 +313,26 @@ def check_update():
     """Compare local plugin version against latest GitHub release.
 
     Returns an update notice string, or None if up to date / check fails.
+    Uses a 24h file cache to avoid repeated API calls.
     """
     local_version = get_plugin_version()
     if local_version == "?":
         return None
 
-    try:
-        req = urllib.request.Request(
-            RELEASES_URL,
-            headers={"Accept": "application/vnd.github+json", "User-Agent": "larvling"},
-        )
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        latest = data.get("tag_name", "").lstrip("v")
-    except Exception:
-        return None
+    latest = _read_cache("update_check")
+    if latest is None:
+        try:
+            req = urllib.request.Request(
+                RELEASES_URL,
+                headers={"Accept": "application/vnd.github+json", "User-Agent": "larvling"},
+            )
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            latest = data.get("tag_name", "").lstrip("v")
+            if latest:
+                _write_cache("update_check", latest)
+        except Exception:
+            return None
 
     if not latest or not local_version:
         return None
@@ -287,10 +356,25 @@ def main():
         return
     reconfigure_stdout()
 
+    # Read hook payload for matcher differentiation
+    payload = None
+    try:
+        raw = sys.stdin.buffer.read().decode("utf-8")
+        if raw.strip():
+            payload = json.loads(raw)
+    except Exception:
+        pass
+
+    matcher = (payload or {}).get("matcher", "startup")
+
     # Skip context during schema migration (preflight printed migration instructions)
     with open_db() as conn:
         if get_schema_version(conn) != SCHEMA_VERSION:
             return
+
+    # Skip full context injection during compaction
+    if matcher == "compact":
+        return
 
     print(get_session_context())
 

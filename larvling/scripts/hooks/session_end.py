@@ -1,10 +1,5 @@
 """SessionEnd hook — finalizes session timing and records exchange count."""
 
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from db import (
     open_db,
     ensure_session,
@@ -46,4 +41,5 @@ def handle(data):
 
 if __name__ == "__main__":
     data = read_hook_payload()
-    handle(data)
+    if data:
+        handle(data)

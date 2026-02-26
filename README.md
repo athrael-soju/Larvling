@@ -72,7 +72,7 @@ This approach is useful when:
 - You work across multiple machines and sync the repo (the `.claude/` directory travels with it)
 - You prefer not to rely on the plugin marketplace or cache
 
-> **Note:** Add `larvling/` to `.gitignore` if you don't want to track the plugin files themselves. The database and dashboard live in `.claude/`, which you may also want to gitignore depending on your workflow.
+> **Note:** Add `larvling/` to `.gitignore` if you don't want to track the plugin files themselves. The database lives in `.claude/`, which you may also want to gitignore depending on your workflow.
 
 ## Local Development
 
@@ -126,22 +126,14 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 
 | Skill                 | What it does                                                        |
 | --------------------- | ------------------------------------------------------------------- |
-| `/remember`           | Store a fact, preference, or decision that persists across sessions |
-| `/recall`             | Search stored facts by keyword, topic, or context                   |
-| `/forget`             | Remove a stored fact (with confirmation)                            |
+| `/remember`           | Store knowledge that persists across sessions                       |
+| `/recall`             | Search stored knowledge by keyword, topic, or context               |
+| `/forget`             | Remove stored knowledge (with confirmation)                         |
 | `/sessions`           | Browse and search past sessions by date, keyword, or topic          |
 | `/summarize`          | Generate or view an LLM-written session summary                     |
 | `/export`             | Export a session conversation to markdown                           |
 | `/status`             | Quick overview of Larvling's state (counts, DB size, version)       |
 | `/query`              | Run arbitrary SQL against larvling.db                               |
-| `/generate-dashboard` | Build the visual HTML dashboard from the database                   |
-
-## Dashboard
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/63f94432-e1be-4ef8-b56b-8934bb37358d" alt="Larvling dashboard" width="100%" />
-</p>
-The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessions with search, sorting, filtering, topic chips, sentiment indicators, and expandable messages. Generated on-demand via `/generate-dashboard`.
 
 ## Files
 
@@ -157,13 +149,12 @@ The dashboard at `.claude/dashboard.html` provides a two-panel view of all sessi
 | `larvling/scripts/hooks/stop.py`          | Logs responses, computes quality signals, tracks token usage|
 | `larvling/scripts/hooks/failure.py`       | Records tool failures as quality signals                    |
 | `larvling/scripts/hooks/session_end.py`   | Finalizes session timing and exchange count                 |
-| `larvling/scripts/extract.py`             | Unified extraction - facts, sentiment, topics, action items, token usage |
-| `larvling/scripts/dashboard.py`           | Builds the HTML dashboard from the database                 |
-| `dashboard.html.template`                 | HTML/CSS/JS template for the dashboard                      |
+| `larvling/scripts/extract.py`             | Unified extraction - knowledge, sentiment, session tags, tasks, token usage |
 | `larvling/scripts/summarize.py`           | Fetches conversation pairs and stores session summaries     |
 | `larvling/scripts/export.py`              | Exports a session conversation to markdown                  |
 | `larvling/scripts/query.py`               | Runs arbitrary SQL against larvling.db                      |
 | `larvling/skills/*.md`                    | Skill definitions (remember, recall, forget, etc.)          |
+| `larvling/agents/knowledge-manager.md`    | Subagent for autonomous knowledge management                |
 | `larvling/CLAUDE.md`                      | Instructions for the agent                                  |
 
 ## Uninstall
@@ -182,15 +173,14 @@ claude plugin marketplace remove athrael-soju
 To also remove stored data, delete the Larvling files from your project's `.claude/` directory:
 
 ```bash
-rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/larvling.jsonl .claude/dashboard.html
+rm .claude/larvling.db .claude/larvling.db-wal .claude/larvling.db-shm .claude/larvling.jsonl
 ```
 
 ## Data
 
 All data is stored locally in the project's `.claude/` directory:
 
-- `larvling.db` - SQLite database (WAL mode) with sessions, messages, and facts
+- `larvling.db` - SQLite database (WAL mode) with sessions, messages, knowledge, and tasks
 - `larvling.jsonl` - structured JSONL debug log (one JSON object per line, machine-parseable)
-- `dashboard.html` - static HTML dashboard, generated on-demand via `/generate-dashboard`
 
 When the plugin updates with schema changes, Larvling automatically backs up your database and guides the agent through the migration - your data is preserved.

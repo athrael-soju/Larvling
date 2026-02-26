@@ -1,23 +1,16 @@
 """
-Larvling Summarize - fetch conversation pairs and store session summaries.
+Larvling Summarize - manage session summaries.
 
 Usage:
     python summarize.py --list                       # list sessions
-    python summarize.py <session_id> --pairs         # all pairs as JSON
     python summarize.py <session_id> --get           # get existing session summary
     python summarize.py <session_id> --store "text"  # store/replace session summary
-
-Terminology:
-    - Session title:   first user prompt, auto-captured at UserPromptSubmit (sessions.title)
-    - Session summary:  Agent-generated summary via /summarize (sessions.agent_summary)
 """
 
-import json
 import sys
 import time
 
 from db import (
-    build_message_pairs,
     get_summary,
     open_db,
     record_summary,
@@ -26,38 +19,6 @@ from db import (
     print_sessions,
     reconfigure_stdout,
 )
-
-
-def get_pairs(session_id):
-    """Fetch user/agent message pairs as a JSON list.
-
-    Each pair is: {"index": N, "user": "...", "agent": "...", "timestamp": "..."}
-    """
-    with open_db() as conn:
-        session_id = resolve_session(conn, session_id)
-        if not session_id:
-            return None
-
-        rows = conn.execute(
-            """
-            SELECT role, content, timestamp
-            FROM messages
-            WHERE session_id = ? AND role IN ('user', 'assistant')
-            ORDER BY id
-            """,
-            (session_id,),
-        ).fetchall()
-
-    raw_pairs = build_message_pairs(rows)
-    return [
-        {
-            "index": i + 1,
-            "user": p["user"],
-            "agent": p["agent"],
-            "timestamp": p["timestamp"] or "",
-        }
-        for i, p in enumerate(raw_pairs)
-    ]
 
 
 def get_existing_summary(session_id):
@@ -110,14 +71,7 @@ def main():
 
     session_id = sys.argv[1]
 
-    if "--pairs" in sys.argv:
-        pairs = get_pairs(session_id)
-        if pairs is None:
-            print(f"No session found matching '{session_id}'", file=sys.stderr)
-            sys.exit(1)
-        print(json.dumps(pairs, indent=2))
-
-    elif "--get" in sys.argv:
+    if "--get" in sys.argv:
         summary = get_existing_summary(session_id)
         if summary:
             print(summary)
