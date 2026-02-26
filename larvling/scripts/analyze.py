@@ -355,7 +355,7 @@ def _run(data):
 
     # Get user text and agent text
     user_text = parse_last_user_text(transcript_path)
-    agent_text, _, _ = parse_last_turn(transcript_path)
+    agent_text, _ = parse_last_turn(transcript_path)
 
     if not user_text and not agent_text:
         log("extraction_skipped", session_id, reason="no text found")
@@ -405,7 +405,7 @@ def _run(data):
         if session_id and isinstance(session_tags, list):
             store_tags(conn, session_id, session_tags)
 
-        # Record extraction as a system message with usage metadata
+        # Record extraction as a system message
         if session_id:
             k_parts = []
             if topics_ins:
@@ -419,7 +419,7 @@ def _run(data):
             t_summary = f"{tasks_ins} tasks" if tasks_ins else "no tasks"
 
             sys_content = f"Extraction: knowledge={k_summary}, {t_summary}"
-            sys_meta = {"usage": usage_info} if usage_info else None
+            sys_meta = None
             record_message(conn, session_id, "system", sys_content, sys_meta)
 
         conn.commit()
@@ -445,9 +445,6 @@ def _run(data):
         analysis_data["session_tags"] = tags if isinstance(tags, list) else [tags]
     if result.get("tasks"):
         analysis_data["tasks"] = len(result["tasks"])
-    if usage_info and isinstance(usage_info, dict):
-        analysis_data["input_tokens"] = usage_info.get("input_tokens", 0)
-        analysis_data["output_tokens"] = usage_info.get("output_tokens", 0)
 
     log("analysis", session_id, **analysis_data)
 

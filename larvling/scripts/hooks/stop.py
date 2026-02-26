@@ -1,10 +1,9 @@
-"""Stop hook — logs the agent's last response and tracks token usage."""
+"""Stop hook — logs the agent's last response."""
 
 from db import (
     open_db,
     ensure_session,
     record_message,
-    store_message_metadata,
     read_hook_payload,
     log,
 )
@@ -23,7 +22,7 @@ def handle(data):
 
     wait_for_transcript_stable(transcript_path)
 
-    response, tools, usage = parse_last_turn(transcript_path)
+    response, tools = parse_last_turn(transcript_path)
 
     with open_db() as conn:
         ensure_session(conn, session_id)
@@ -39,20 +38,8 @@ def handle(data):
             ).fetchone()
             is_dup = bool(row and row[0] == response)
             if not is_dup:
-                meta = {"tool_calls": tools} if tools else {}
-                if usage:
-                    meta["usage"] = usage
-                record_message(conn, session_id, "assistant", response, meta or None)
-            elif usage:
-                # Response was a dup (already stored), but still attach usage
-                store_message_metadata(
-                    conn,
-                    session_id,
-                    "assistant",
-                    "usage",
-                    usage,
-                    expected_content=response,
-                )
+                meta = {"tool_calls": tools} if tools else None
+                record_message(conn, session_id, "assistant", response, meta)
 
         conn.commit()
 
@@ -60,20 +47,6 @@ def handle(data):
     resp_data = {"chars": len(response) if response else 0, "is_dup": is_dup}
     if tools:
         resp_data["tools"] = sum(tools.values())
-    if usage:
-        cached = usage.get("cache_read_input_tokens", 0)
-        if cached:
-            resp_data["cache_read"] = cached
-        new_in = usage.get("input_tokens", 0) + usage.get(
-            "cache_creation_input_tokens", 0
-        )
-        if new_in:
-            resp_data["input_new"] = new_in
-        agent_out = usage.get("output_tokens", 0)
-        if agent_out:
-            resp_data["output"] = agent_out
-        if usage.get("output_tokens_estimated"):
-            resp_data["output_estimated"] = True
 
     log("response", session_id, **resp_data)
 
