@@ -56,7 +56,6 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 
 **Stop → Unified analysis (write):** `analyze.py` runs as a command hook after every response, calling `sdk.py` (`call_model()`) for Agent SDK integration. A single SDK call extracts multiple data types from the last exchange:
 - **Knowledge** → `topics` + `statements` tables (hierarchical: topic groups related statements)
-- **Sentiment** (focused/curious/frustrated/satisfied/neutral) → `messages.metadata` JSON on the last assistant message
 - **Session tags** → `sessions.tags` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)
 - **Tasks** → `tasks` table with native columns for status, priority, horizon
 
@@ -74,7 +73,7 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 {"ts":"...","event":"skill","sid":"6801adcc","name":"/larvling:status","input_tokens_est":85}
 {"ts":"...","event":"knowledge","sid":"6801adcc","topics_inserted":1,"stmts_inserted":2}
 {"ts":"...","event":"tasks","sid":"6801adcc","inserted":1}
-{"ts":"...","event":"analysis","sid":"6801adcc","sentiment":"curious","session_tags":["greeting"],"input_tokens":1234,"output_tokens":567}
+{"ts":"...","event":"analysis","sid":"6801adcc","session_tags":["greeting"],"input_tokens":1234,"output_tokens":567}
 {"ts":"...","event":"auto_summary","sid":"6801adcc","trigger":"manual","pairs":12,"summary_len":450,"input_tokens":1234,"output_tokens":567}
 {"ts":"...","event":"tool_failure","sid":"6801adcc","tool":"Bash"}
 {"ts":"...","event":"session_end","sid":"6801adcc","exchanges":1,"duration":0.2}

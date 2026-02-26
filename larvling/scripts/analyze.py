@@ -2,7 +2,7 @@
 Unified exchange analysis — Stop command hook.
 
 Reads the transcript, parses the last exchange, calls Sonnet (via sdk.py)
-to identify knowledge, sentiment, session tags, and tasks in a single
+to identify knowledge, session tags, and tasks in a single
 SDK call, then writes results to SQLite.
 """
 
@@ -16,7 +16,6 @@ from db import (
     has_table,
     ensure_session,
     record_message,
-    store_message_metadata,
     fetch_session_tags,
     run_detached_or_inline,
     log,
@@ -75,16 +74,13 @@ changelog entries, or anything that will go stale when the code changes.
    - When in doubt, ask: "Would this still be useful in 30 days?" If not, skip it.
    - Prefer fewer, higher-quality items over many low-value ones.
 
-2. **sentiment** - Single word for the user's mood in this exchange:
-   - One of: focused, curious, frustrated, satisfied, neutral
-
-3. **session_tags** - Updated session tag list (1-4 words each, max ~8 tags).
+2. **session_tags** - Updated session tag list (1-4 words each, max ~8 tags).
    Current session tags: {existing_tags}
    Return the FULL updated list — merge similar tags, drop tags no longer
    relevant, and add new tags from this exchange.
    If current tags is empty, just return new tags from this exchange.
 
-4. **tasks** - Commitments or TODOs mentioned by either party:
+3. **tasks** - Commitments or TODOs mentioned by either party:
    - Each task: {{"title": "...", "domain": "...", "priority": "low|medium|high", "horizon": "now|soon|later"}}
    - domain: same as knowledge domains
    - priority: how important (low/medium/high)
@@ -93,12 +89,11 @@ changelog entries, or anything that will go stale when the code changes.
 Return JSON:
 {{
   "knowledge": [{{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "add_topic"}}],
-  "sentiment": "focused",
   "session_tags": ["python", "deployment"],
   "tasks": [{{"title": "refactor auth module", "domain": "technical", "priority": "medium", "horizon": "soon"}}]
 }}
 
-If nothing to extract for a section, use empty list/string."""
+If nothing to extract for a section, use empty list."""
 
 
 EXTRACTION_SCHEMA = {
@@ -120,7 +115,6 @@ EXTRACTION_SCHEMA = {
                 "required": ["claim", "domain", "tags", "action"],
             },
         },
-        "sentiment": {"type": "string"},
         "session_tags": {"type": "array", "items": {"type": "string"}},
         "tasks": {
             "type": "array",
@@ -136,7 +130,7 @@ EXTRACTION_SCHEMA = {
             },
         },
     },
-    "required": ["knowledge", "sentiment", "session_tags", "tasks"],
+    "required": ["knowledge", "session_tags", "tasks"],
 }
 
 
@@ -400,11 +394,6 @@ def _run(data):
         tasks_list = result.get("tasks", [])
         tasks_ins = process_tasks(conn, tasks_list)
 
-        # Sentiment
-        sentiment = result.get("sentiment")
-        if session_id and isinstance(sentiment, str):
-            store_message_metadata(conn, session_id, "assistant", "sentiment", sentiment, expected_content=agent_text)
-
         # Session tags
         session_tags = result.get("session_tags", [])
         if session_id and isinstance(session_tags, list):
@@ -445,8 +434,6 @@ def _run(data):
         log("tasks", session_id, inserted=tasks_ins)
 
     analysis_data = {}
-    if result.get("sentiment"):
-        analysis_data["sentiment"] = result["sentiment"]
     if result.get("session_tags"):
         tags = result["session_tags"]
         analysis_data["session_tags"] = tags if isinstance(tags, list) else [tags]
