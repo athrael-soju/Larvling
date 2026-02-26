@@ -1,6 +1,6 @@
 {
   "name": "larvling",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Agentic memory - automatic conversation tracking, session context, and persistent knowledge for Claude Code",
   "author": {
     "name": "athrael-soju",
@@ -8,5 +8,11 @@
   },
   "repository": "https://github.com/athrael-soju/Larvling",
   "license": "MIT",
-  "keywords": ["memory", "knowledge", "sessions", "tracking", "context"]
+  "keywords": [
+    "memory",
+    "knowledge",
+    "sessions",
+    "tracking",
+    "context"
+  ]
 }
