@@ -16,6 +16,17 @@ def handle(data):
         return
 
     with open_db() as conn:
+        # Check if any messages were recorded for this session.
+        # If not, it's a ghost session (started but no real exchange happened).
+        msg_count = conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()[0]
+
+        if msg_count == 0:
+            log("session_end", session_id, ghost=True)
+            return
+
         ensure_session(conn, session_id)
         finalize_session(conn, session_id)
 
