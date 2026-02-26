@@ -26,6 +26,25 @@ Review the context Larvling injects at session start - it's your memory of what 
 - Read the current and desired schemas provided, write and run the SQL to migrate (preserving all data), then bump the version in `larvling/db.py` with the provided command.
 - A backup of the database has already been created.
 
+**SQLite migration rules (MUST follow):**
+
+1. **Simple additions** (new column, new table, new index) — use `ALTER TABLE ADD COLUMN` or `CREATE TABLE/INDEX IF NOT EXISTS` directly. No table rebuild needed.
+2. **Column rename/type change/FK change** — SQLite requires the 12-step rebuild pattern:
+   - `PRAGMA foreign_keys = OFF`
+   - `BEGIN TRANSACTION`
+   - `CREATE TABLE <new_table> (...)` with the correct schema
+   - `INSERT INTO <new_table> SELECT ... FROM <old_table>`
+   - `DROP TABLE <old_table>`
+   - `ALTER TABLE <new_table> RENAME TO <old_table>`
+   - Rebuild **every table** that has a FK referencing the rebuilt table (same pattern)
+   - Rebuild any indexes/triggers on affected tables
+   - `PRAGMA foreign_key_check` — must return zero rows
+   - `COMMIT`
+   - `PRAGMA foreign_keys = ON`
+3. **Never leave temp tables behind** — no `_old`, `_backup`, `_temp` tables should exist after migration. `DROP TABLE` the originals, rename the new ones.
+4. **Always verify FKs after migration** — run `PRAGMA foreign_key_check` and confirm empty result. If it returns rows, the migration is broken.
+5. **Verify with `get_current_schema()`** — after migration, compare the live schema against `get_desired_schema()`. They must match (ignoring whitespace).
+
 ### `/query` - Direct SQL Access
 
 Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on conversation context.
