@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7](https://github.com/athrael-soju/Larvling/compare/v0.1.6...v0.1.7) (2026-02-26)
+
+
+### Features
+
+* Add detailed SQLite migration rules for schema updates ([1284209](https://github.com/athrael-soju/Larvling/commit/12842093db501a76ec4cf72830a73e657c01565b))
+* Enhance session end handling to log ghost sessions ([87331e0](https://github.com/athrael-soju/Larvling/commit/87331e0b8e45c5357458ec02bdb3fbeefebac64a))
+
 ## [0.1.6](https://github.com/athrael-soju/Larvling/compare/v0.1.5...v0.1.6) (2026-02-26)
 
 
