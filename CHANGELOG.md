@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.6](https://github.com/athrael-soju/Larvling/compare/v0.1.5...v0.1.6) (2026-02-26)
+
+
+### Features
+
+* Add knowledge maintenance capabilities, including audit and consolidation of the knowledge base; update documentation and settings ([38967e3](https://github.com/athrael-soju/Larvling/commit/38967e3c038b1fad4ab2b3c77268bb307b0c5c8b))
+* Add PreCompact hook for auto-generating session summaries before compaction ([6da2904](https://github.com/athrael-soju/Larvling/commit/6da2904ae2f7a1bc195c7f9e510606f31aafcbc7))
+* Add summary-manager configuration to settings.json for enhanced summary management ([54ce2cd](https://github.com/athrael-soju/Larvling/commit/54ce2cda5ccd19971ecb59fc459b67eecfb8ba87))
+* Enhance Larvling schema, add unified analysis script, and improve hook functionality ([66edb6d](https://github.com/athrael-soju/Larvling/commit/66edb6d13b7a5ba6072ed20ed34cf79fd4ec3311))
+* Introduce knowledge management system ([37a54dc](https://github.com/athrael-soju/Larvling/commit/37a54dc1d4e253a484af5e6fdf681ac49ef3f73e))
+* Refactor domain, priority, and horizon constants for improved clarity and organization ([69587ba](https://github.com/athrael-soju/Larvling/commit/69587bad374bbc292e6a5399c7cc5f5301df0926))
+* Refactor session summarization process, remove PreCompact hook, and enhance summary management ([81c250c](https://github.com/athrael-soju/Larvling/commit/81c250c154e822c04a9809688d1b9fb71dd916c8))
+* Remove dashboard template, update schema documentation, and clean up quality signal handling ([64c4073](https://github.com/athrael-soju/Larvling/commit/64c4073fbcde388d6226649a05760683b53cf3b5))
+* Update analysis script to remove sentiment extraction and adjust schema requirements ([703adbc](https://github.com/athrael-soju/Larvling/commit/703adbc217e581b0ffe147ee47c58f0f6795de32))
+* Update diagram to reflect new schema and capabilities ([fe2356a](https://github.com/athrael-soju/Larvling/commit/fe2356a714973ad3f4c93d6e0bcd8c1959748e7e))
+* Update knowledge management terminology and schema for clarity and consistency ([c0ffe69](https://github.com/athrael-soju/Larvling/commit/c0ffe698347c14f2fc1943a311d26a3ee95a1ce7))
+* Update Larvling schema and capabilities, enhance documentation, and remove dashboard generation script ([afb9d9a](https://github.com/athrael-soju/Larvling/commit/afb9d9ab3d2ad13df754a493b2b7ba7d03a5e29e))
+* Update plugin manifest, add changelog, license, and README; enhance session management and caching ([1be915e](https://github.com/athrael-soju/Larvling/commit/1be915e3b330fa91f54984040b6e0fb1b7425ba6))
+* Update remember and summarize skills to enhance knowledge storage and session summary generation ([ab4d60c](https://github.com/athrael-soju/Larvling/commit/ab4d60cb18e8408a380975940673370cffb81dd1))
+
+
+### Bug Fixes
+
+* Address PR review findings — NameError in detached payload, domain validation, variable scoping ([6651c16](https://github.com/athrael-soju/Larvling/commit/6651c16c9e8b9e93febfa1180ae669668dd0effa))
+
 ## [0.1.5](https://github.com/athrael-soju/Larvling/compare/v0.1.4...v0.1.5) (2026-02-24)
 
 
