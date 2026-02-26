@@ -2,6 +2,9 @@
   "agent": {
     "knowledge-manager": {
       "model": "sonnet"
+    },
+    "summary-manager": {
+      "model": "sonnet"
     }
   }
 }
