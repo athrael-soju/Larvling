@@ -147,8 +147,8 @@ def build_extraction_prompt(user_text, agent_text, session_id=""):
     """Format the extraction prompt with the exchange text."""
     query_script = os.path.join(os.path.dirname(__file__), "query.py")
     return EXTRACTION_PROMPT.format(
-        user_text=user_text or "(no user text)",
-        agent_text=agent_text or "(no agent text)",
+        user_text=user_text,
+        agent_text=agent_text,
         session_id=session_id or "",
         query_script=query_script.replace("\\", "/"),
     )
@@ -163,7 +163,24 @@ VALID_PRIORITY = {"low", "medium", "high"}
 VALID_HORIZON = {"now", "soon", "later"}
 
 
-def process_knowledge(conn, knowledge_list):
+def _skip(session_id, action, reason, **extra):
+    """Log a skipped extraction item."""
+    log("extraction_skipped", session_id, action=action, reason=reason, **extra)
+
+
+def _parse_id(value, field_name, action, session_id):
+    """Parse an integer ID field. Returns int or None (with logging)."""
+    if value is None:
+        _skip(session_id, action, f"missing {field_name}")
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        _skip(session_id, action, f"invalid {field_name}", value=str(value))
+        return None
+
+
+def process_knowledge(conn, knowledge_list, session_id=None):
     """Process extracted knowledge into topics+statements tables.
 
     Handles 4 actions: add_topic, add_statement, update_statement, update_topic.
@@ -184,19 +201,17 @@ def process_knowledge(conn, knowledge_list):
             continue
 
         if action == "update_topic":
-            topic_id = item.get("topic_id")
+            topic_id = _parse_id(item.get("topic_id"), "topic_id", action, session_id)
             if topic_id is None:
                 continue
-            try:
-                topic_id = int(topic_id)
-            except (ValueError, TypeError):
-                continue
             if not conn.execute("SELECT 1 FROM topics WHERE id = ?", (topic_id,)).fetchone():
+                _skip(session_id, action, "topic not found", topic_id=topic_id)
                 continue
             title = item.get("topic_title", "").strip()
             domain = item.get("domain", "").strip().lower()
             if domain and domain not in VALID_DOMAINS:
-                domain = ""
+                _skip(session_id, action, "invalid domain", domain=domain)
+                continue
             tags = item.get("tags", "").strip()
             if title:
                 conn.execute(
@@ -208,17 +223,15 @@ def process_knowledge(conn, knowledge_list):
             continue
 
         if action == "update_statement":
-            stmt_id = item.get("statement_id")
+            stmt_id = _parse_id(item.get("statement_id"), "statement_id", action, session_id)
             if stmt_id is None:
-                continue
-            try:
-                stmt_id = int(stmt_id)
-            except (ValueError, TypeError):
                 continue
             claim = item.get("claim", "").strip()
             if not claim:
+                _skip(session_id, action, "missing claim")
                 continue
             if not conn.execute("SELECT 1 FROM statements WHERE id = ?", (stmt_id,)).fetchone():
+                _skip(session_id, action, "statement not found", statement_id=stmt_id)
                 continue
             conn.execute(
                 "UPDATE statements SET claim = ?, updated = datetime('now') WHERE id = ?",
@@ -228,17 +241,15 @@ def process_knowledge(conn, knowledge_list):
             continue
 
         if action == "add_statement":
-            topic_id = item.get("topic_id")
+            topic_id = _parse_id(item.get("topic_id"), "topic_id", action, session_id)
             if topic_id is None:
-                continue
-            try:
-                topic_id = int(topic_id)
-            except (ValueError, TypeError):
                 continue
             claim = item.get("claim", "").strip()
             if not claim:
+                _skip(session_id, action, "missing claim")
                 continue
             if not conn.execute("SELECT 1 FROM topics WHERE id = ?", (topic_id,)).fetchone():
+                _skip(session_id, action, "topic not found", topic_id=topic_id)
                 continue
             # Exact-match dedup safety net
             if conn.execute(
@@ -256,15 +267,19 @@ def process_knowledge(conn, knowledge_list):
         # add_topic: new topic + first statement
         claim = item.get("claim", "").strip()
         if not claim:
+            _skip(session_id, action, "missing claim")
             continue
         topic_title = item.get("topic_title", "").strip()
         if not topic_title:
+            _skip(session_id, action, "missing topic_title")
             continue
-        domain = item.get("domain", "knowledge").strip().lower()
-        if domain not in VALID_DOMAINS:
-            domain = "knowledge"
+        domain = item.get("domain", "").strip().lower()
+        if not domain or domain not in VALID_DOMAINS:
+            _skip(session_id, action, "invalid domain", domain=domain)
+            continue
         tags = item.get("tags", "").strip()
         if not tags:
+            _skip(session_id, action, "missing tags")
             continue
 
         # Exact-match dedup on claim
@@ -291,7 +306,7 @@ def process_knowledge(conn, knowledge_list):
 VALID_STATUS = {"open", "done", "dropped"}
 
 
-def process_tasks(conn, tasks_list):
+def process_tasks(conn, tasks_list, session_id=None):
     """Process extracted tasks into tasks+updates tables.
 
     Handles 3 actions: add_task, add_update, update_task.
@@ -310,15 +325,15 @@ def process_tasks(conn, tasks_list):
             continue
 
         if action == "add_update":
-            task_id = task.get("task_id")
-            content = task.get("content", "").strip()
-            if task_id is None or not content:
+            task_id = _parse_id(task.get("task_id"), "task_id", action, session_id)
+            if task_id is None:
                 continue
-            try:
-                task_id = int(task_id)
-            except (ValueError, TypeError):
+            content = task.get("content", "").strip()
+            if not content:
+                _skip(session_id, action, "missing content")
                 continue
             if not conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone():
+                _skip(session_id, action, "task not found", task_id=task_id)
                 continue
             # Exact-match dedup safety net
             if conn.execute(
@@ -334,30 +349,36 @@ def process_tasks(conn, tasks_list):
             continue
 
         if action == "update_task":
-            task_id = task.get("task_id")
-            content = task.get("content", "").strip()
+            task_id = _parse_id(task.get("task_id"), "task_id", action, session_id)
             if task_id is None:
                 continue
-            try:
-                task_id = int(task_id)
-            except (ValueError, TypeError):
-                continue
+            content = task.get("content", "").strip()
             if not conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone():
+                _skip(session_id, action, "task not found", task_id=task_id)
                 continue
 
-            # Build SET clause from provided fields
+            # Build SET clause — skip invalid enum values
             sets = []
             params = []
             status = task.get("status", "").strip().lower()
-            if status and status in VALID_STATUS:
+            if status:
+                if status not in VALID_STATUS:
+                    _skip(session_id, action, "invalid status", status=status)
+                    continue
                 sets.append("status = ?")
                 params.append(status)
             priority = task.get("priority", "").strip().lower()
-            if priority and priority in VALID_PRIORITY:
+            if priority:
+                if priority not in VALID_PRIORITY:
+                    _skip(session_id, action, "invalid priority", priority=priority)
+                    continue
                 sets.append("priority = ?")
                 params.append(priority)
             horizon = task.get("horizon", "").strip().lower()
-            if horizon and horizon in VALID_HORIZON:
+            if horizon:
+                if horizon not in VALID_HORIZON:
+                    _skip(session_id, action, "invalid horizon", horizon=horizon)
+                    continue
                 sets.append("horizon = ?")
                 params.append(horizon)
             title = task.get("title", "").strip()
@@ -390,17 +411,20 @@ def process_tasks(conn, tasks_list):
         # add_task: new task
         title = task.get("title", "").strip()
         if not title:
+            _skip(session_id, action, "missing title")
             continue
-        domain = task.get("domain", "technical").strip().lower()
-        priority = task.get("priority", "medium").strip().lower()
-        horizon = task.get("horizon", "later").strip().lower()
-
-        if domain not in VALID_DOMAINS:
-            domain = "technical"
-        if priority not in VALID_PRIORITY:
-            priority = "medium"
-        if horizon not in VALID_HORIZON:
-            horizon = "later"
+        domain = task.get("domain", "").strip().lower()
+        if not domain or domain not in VALID_DOMAINS:
+            _skip(session_id, action, "invalid domain", domain=domain)
+            continue
+        priority = task.get("priority", "").strip().lower()
+        if not priority or priority not in VALID_PRIORITY:
+            _skip(session_id, action, "invalid priority", priority=priority)
+            continue
+        horizon = task.get("horizon", "").strip().lower()
+        if not horizon or horizon not in VALID_HORIZON:
+            _skip(session_id, action, "invalid horizon", horizon=horizon)
+            continue
 
         # Dedup: skip if open task with same title exists
         if conn.execute(
@@ -490,11 +514,11 @@ def _run(data):
 
         # Knowledge (topics + statements)
         knowledge = result.get("knowledge", [])
-        topics_ins, stmts_ins, stmts_upd, topics_upd = process_knowledge(conn, knowledge)
+        topics_ins, stmts_ins, stmts_upd, topics_upd = process_knowledge(conn, knowledge, session_id)
 
         # Tasks
         tasks_list = result.get("tasks", [])
-        tasks_ins, updates_ins, tasks_upd = process_tasks(conn, tasks_list)
+        tasks_ins, updates_ins, tasks_upd = process_tasks(conn, tasks_list, session_id)
 
         # Session tags
         session_tags = result.get("session_tags", [])
