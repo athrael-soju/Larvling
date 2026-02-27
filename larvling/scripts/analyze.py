@@ -66,10 +66,7 @@ concepts) — NOT code-level implementation details
    - Each item: {{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "add_topic|add_statement|update_statement|...", "topic_id": N, "statement_id": N}}
    - Domains: personal, professional, preferences, interests, knowledge, technical, workflow
    - Tags: short topic label (e.g. "octopuses", "physics", "python")
-   - **SKIP** (do NOT extract): bug reports, code fixes, line numbers, function \
-signatures, file paths, refactoring notes, schema changes, documentation edits, \
-changelog entries, or anything that will go stale when the code changes.
-   - When in doubt, ask: "Would this still be useful in 30 days?" If not, skip it.
+   - Ask: "Would this still be useful in 30 days?" If not, skip it.
    - Prefer fewer, higher-quality items over many low-value ones.
 
 2. **session_tags** - Updated session tag list (1-4 words each, max ~8 tags).
@@ -120,7 +117,7 @@ EXTRACTION_SCHEMA = {
                     "topic_id": {"type": "integer"},
                     "statement_id": {"type": "integer"},
                 },
-                "required": ["claim", "domain", "tags", "action"],
+                "required": ["topic_title", "claim", "domain", "tags", "action"],
             },
         },
         "session_tags": {"type": "array", "items": {"type": "string"}},
@@ -260,7 +257,9 @@ def process_knowledge(conn, knowledge_list):
         claim = item.get("claim", "").strip()
         if not claim:
             continue
-        topic_title = item.get("topic_title", "").strip() or claim[:80]
+        topic_title = item.get("topic_title", "").strip()
+        if not topic_title:
+            continue
         domain = item.get("domain", "knowledge").strip().lower()
         if domain not in VALID_DOMAINS:
             domain = "knowledge"
