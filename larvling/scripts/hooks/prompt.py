@@ -42,9 +42,7 @@ def inject_context(conn, session_id):
         text = (
             f"\n## Knowledge Context\n{topic_count} topic(s), {stmt_count} statement(s). "
             f'query: python "{query_script}" "<SQL>"\n'
-            f"Search for relevant knowledge "
-            f"(e.g. SELECT t.id, t.title, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE '%topic%') "
-            f"and weave it into your response naturally."
+            f"Search for relevant knowledge and weave it into your response naturally."
         )
         print(text)
         injected.append(f"{topic_count} topics, {stmt_count} statements")

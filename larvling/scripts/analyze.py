@@ -14,7 +14,6 @@ from db import (
     has_table,
     ensure_session,
     record_message,
-    fetch_session_tags,
     run_detached_or_inline,
     log,
 )
@@ -39,12 +38,16 @@ Before finalizing knowledge items, query the database to check for existing topi
 
 python "{query_script}" "<SQL>"
 
-Two tables store knowledge:
+Six tables in 3 parent→child pairs:
 - `topics` (id INTEGER PK, title, domain, tags, created, updated)
 - `statements` (id INTEGER PK, topic_id INTEGER FK→topics(id), claim, created, updated)
+- `tasks` (id INTEGER PK, title, domain, status, priority, horizon, metadata, created)
+- `updates` (id INTEGER PK, task_id INTEGER FK→tasks(id), content, timestamp)
+- `sessions` (id TEXT PK, started_at, ended_at, duration_min, title, agent_summary, exchange_count, summary_at, summary_msg_count, tags)
+- `messages` (id INTEGER PK, session_id TEXT FK, timestamp, role, content, metadata)
 
 For each knowledge item you want to extract:
-1. Search for related topics/statements (e.g. `SELECT t.id, t.title, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE t.title LIKE '%keyword%' OR s.claim LIKE '%keyword%'`)
+1. Search for related topics and statements in the database
 2. Based on what you find, set the action:
    - **add_topic**: no existing overlap — create a new topic with its first statement
    - **add_statement**: related topic exists — add a new statement to it (include "topic_id")
@@ -70,22 +73,32 @@ changelog entries, or anything that will go stale when the code changes.
    - Prefer fewer, higher-quality items over many low-value ones.
 
 2. **session_tags** - Updated session tag list (1-4 words each, max ~8 tags).
-   Current session tags: {existing_tags}
+   Query the current session's tags: `SELECT tags FROM sessions WHERE id = '{session_id}'`
    Return the FULL updated list — merge similar tags, drop tags no longer
    relevant, and add new tags from this exchange.
    If current tags is empty, just return new tags from this exchange.
 
-3. **tasks** - Commitments or TODOs mentioned by either party:
-   - Each task: {{"title": "...", "domain": "...", "priority": "low|medium|high", "horizon": "now|soon|later"}}
+3. **tasks** - Commitments, TODOs, or progress on existing tasks:
+   For each task item, query existing tasks and their updates in the database.
+
+   Based on what you find, set the action:
+   - **add_task**: new commitment/TODO not yet tracked — create a new task
+   - **add_update**: genuinely new context, progress, or notes about an existing task (include "task_id"). Check existing updates first — **skip** if the same fact is already recorded.
+   - **update_task**: change status/priority/horizon on an existing task (include "task_id"); also records the reason as an update entry
+   - **skip**: task already tracked and no new information — do NOT include it
+
+   Each item: {{"title": "...", "domain": "...", "priority": "low|medium|high", "horizon": "now|soon|later", "status": "open|done|dropped", "action": "add_task|add_update|update_task", "task_id": N, "content": "..."}}
+   - "content" is used for add_update (the fact/note) and update_task (the reason for the change)
    - domain: same as knowledge domains
    - priority: how important (low/medium/high)
    - horizon: when to act (now/soon/later)
+   - status: open (default), done (completed), dropped (no longer relevant)
 
 Return JSON:
 {{
   "knowledge": [{{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "add_topic"}}],
   "session_tags": ["python", "deployment"],
-  "tasks": [{{"title": "refactor auth module", "domain": "technical", "priority": "medium", "horizon": "soon"}}]
+  "tasks": [{{"title": "refactor auth module", "domain": "technical", "priority": "medium", "horizon": "soon", "action": "add_task"}}]
 }}
 
 If nothing to extract for a section, use empty list."""
@@ -120,8 +133,12 @@ EXTRACTION_SCHEMA = {
                     "domain": {"type": "string"},
                     "priority": {"type": "string"},
                     "horizon": {"type": "string"},
+                    "status": {"type": "string"},
+                    "action": {"type": "string"},
+                    "task_id": {"type": "integer"},
+                    "content": {"type": "string"},
                 },
-                "required": ["title"],
+                "required": ["action"],
             },
         },
     },
@@ -129,13 +146,13 @@ EXTRACTION_SCHEMA = {
 }
 
 
-def build_extraction_prompt(user_text, agent_text, existing_tags=""):
+def build_extraction_prompt(user_text, agent_text, session_id=""):
     """Format the extraction prompt with the exchange text."""
     query_script = os.path.join(os.path.dirname(__file__), "query.py")
     return EXTRACTION_PROMPT.format(
         user_text=user_text or "(no user text)",
         agent_text=agent_text or "(no agent text)",
-        existing_tags=existing_tags or "(none)",
+        session_id=session_id or "",
         query_script=query_script.replace("\\", "/"),
     )
 
@@ -272,13 +289,106 @@ def process_knowledge(conn, knowledge_list):
     return topics_inserted, stmts_inserted, stmts_updated, topics_updated
 
 
-def process_tasks(conn, tasks_list):
-    """Insert extracted tasks. Returns count inserted."""
-    if not tasks_list or not has_table(conn, "tasks"):
-        return 0
+VALID_STATUS = {"open", "done", "dropped"}
 
-    inserted = 0
+
+def process_tasks(conn, tasks_list):
+    """Process extracted tasks into tasks+updates tables.
+
+    Handles 3 actions: add_task, add_update, update_task.
+    Returns (tasks_inserted, updates_inserted, tasks_updated).
+    """
+    if not tasks_list or not has_table(conn, "tasks"):
+        return 0, 0, 0
+
+    tasks_inserted = 0
+    updates_inserted = 0
+    tasks_updated = 0
+
     for task in tasks_list:
+        action = task.get("action", "").strip().lower()
+        if action not in ("add_task", "add_update", "update_task"):
+            continue
+
+        if action == "add_update":
+            task_id = task.get("task_id")
+            content = task.get("content", "").strip()
+            if task_id is None or not content:
+                continue
+            try:
+                task_id = int(task_id)
+            except (ValueError, TypeError):
+                continue
+            if not conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone():
+                continue
+            # Exact-match dedup safety net
+            if conn.execute(
+                "SELECT 1 FROM updates WHERE task_id = ? AND content = ?",
+                (task_id, content),
+            ).fetchone():
+                continue
+            conn.execute(
+                "INSERT INTO updates (task_id, content) VALUES (?, ?)",
+                (task_id, content),
+            )
+            updates_inserted += 1
+            continue
+
+        if action == "update_task":
+            task_id = task.get("task_id")
+            content = task.get("content", "").strip()
+            if task_id is None:
+                continue
+            try:
+                task_id = int(task_id)
+            except (ValueError, TypeError):
+                continue
+            if not conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone():
+                continue
+
+            # Build SET clause from provided fields
+            sets = []
+            params = []
+            status = task.get("status", "").strip().lower()
+            if status and status in VALID_STATUS:
+                sets.append("status = ?")
+                params.append(status)
+            priority = task.get("priority", "").strip().lower()
+            if priority and priority in VALID_PRIORITY:
+                sets.append("priority = ?")
+                params.append(priority)
+            horizon = task.get("horizon", "").strip().lower()
+            if horizon and horizon in VALID_HORIZON:
+                sets.append("horizon = ?")
+                params.append(horizon)
+            title = task.get("title", "").strip()
+            if title:
+                sets.append("title = ?")
+                params.append(title)
+
+            if sets:
+                params.append(task_id)
+                conn.execute(
+                    f"UPDATE tasks SET {', '.join(sets)} WHERE id = ?",
+                    params,
+                )
+                tasks_updated += 1
+
+            # Record the reason as an update entry
+            if content:
+                # Exact-match dedup safety net
+                if not conn.execute(
+                    "SELECT 1 FROM updates WHERE task_id = ? AND content = ?",
+                    (task_id, content),
+                ).fetchone():
+                    conn.execute(
+                        "INSERT INTO updates (task_id, content) VALUES (?, ?)",
+                        (task_id, content),
+                    )
+                    updates_inserted += 1
+            continue
+
+        # add_task: new task
         title = task.get("title", "").strip()
         if not title:
             continue
@@ -286,7 +396,6 @@ def process_tasks(conn, tasks_list):
         priority = task.get("priority", "medium").strip().lower()
         horizon = task.get("horizon", "later").strip().lower()
 
-        # Validate enums, fallback to defaults
         if domain not in VALID_DOMAINS:
             domain = "technical"
         if priority not in VALID_PRIORITY:
@@ -305,9 +414,9 @@ def process_tasks(conn, tasks_list):
             "INSERT INTO tasks (title, domain, priority, horizon) VALUES (?, ?, ?, ?)",
             (title, domain, priority, horizon),
         )
-        inserted += 1
+        tasks_inserted += 1
 
-    return inserted
+    return tasks_inserted, updates_inserted, tasks_updated
 
 
 
@@ -358,17 +467,8 @@ def _run(data):
         log("extraction_skipped", session_id, reason="no text found")
         return
 
-    # Read existing tags before the SDK call (brief read-only access)
-    existing_tags = ""
-    if session_id:
-        try:
-            with open_db() as conn:
-                existing_tags = fetch_session_tags(conn, session_id)
-        except Exception as e:
-            log("extraction_error", session_id, context="tag fetch", error=str(e))
-
     try:
-        prompt = build_extraction_prompt(user_text, agent_text, existing_tags)
+        prompt = build_extraction_prompt(user_text, agent_text, session_id)
         result, usage_info = asyncio.run(
             call_model(
                 prompt,
@@ -395,7 +495,7 @@ def _run(data):
 
         # Tasks
         tasks_list = result.get("tasks", [])
-        tasks_ins = process_tasks(conn, tasks_list)
+        tasks_ins, updates_ins, tasks_upd = process_tasks(conn, tasks_list)
 
         # Session tags
         session_tags = result.get("session_tags", [])
@@ -413,7 +513,14 @@ def _run(data):
                 k_parts.append(f"{stmts_upd + topics_upd} updated")
             k_summary = ", ".join(k_parts) if k_parts else "no changes"
 
-            t_summary = f"{tasks_ins} tasks" if tasks_ins else "no tasks"
+            t_parts = []
+            if tasks_ins:
+                t_parts.append(f"{tasks_ins} tasks")
+            if updates_ins:
+                t_parts.append(f"{updates_ins} updates")
+            if tasks_upd:
+                t_parts.append(f"{tasks_upd} modified")
+            t_summary = ", ".join(t_parts) if t_parts else "no tasks"
 
             sys_content = f"Extraction: knowledge={k_summary}, {t_summary}"
             sys_meta = None
@@ -433,8 +540,15 @@ def _run(data):
             k_data["topics_updated"] = topics_upd
         log("knowledge", session_id, **k_data)
 
-    if tasks_ins:
-        log("tasks", session_id, inserted=tasks_ins)
+    if tasks_ins or updates_ins or tasks_upd:
+        t_data = {}
+        if tasks_ins:
+            t_data["inserted"] = tasks_ins
+        if updates_ins:
+            t_data["updates_inserted"] = updates_ins
+        if tasks_upd:
+            t_data["tasks_updated"] = tasks_upd
+        log("tasks", session_id, **t_data)
 
     analysis_data = {}
     if result.get("session_tags"):
