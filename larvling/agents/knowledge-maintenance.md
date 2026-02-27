@@ -29,10 +29,7 @@ Valid domains: `personal`, `professional`, `preferences`, `interests`, `knowledg
 
 ## Audit Process
 
-1. **Query all knowledge** — fetch all topics with their statements:
-   ```
-   SELECT t.id, t.title, t.domain, t.tags, s.id as sid, s.claim FROM topics t LEFT JOIN statements s ON s.topic_id = t.id ORDER BY t.domain, t.id
-   ```
+1. **Query all knowledge** — fetch all topics with their statements from the database.
 
 2. **Identify issues** — analyze the data for:
    - **Duplicate/overlapping topics**: similar titles or domains that should be merged

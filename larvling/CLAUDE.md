@@ -73,11 +73,10 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 
 **UserPromptSubmit → Knowledge Context (read):** The `## Knowledge Context` directive prints on every exchange with the `query.py` path and topic/statement counts. Search for relevant knowledge and weave it into your response naturally.
 
-**Stop → Unified analysis (write):** `analyze.py` runs as a command hook after every response, calling `sdk.py` (`call_model()`) for Agent SDK integration. The extraction agent has Bash tool access to query the knowledge DB for dedup — it identifies candidate knowledge from the exchange, then queries existing topics before deciding the action. A single SDK call extracts multiple data types from the last exchange:
-- **Knowledge** → `topics` + `statements` tables (hierarchical: topic groups related statements)
-- **Session tags** → `sessions.tags` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)
-- **Tasks** → `tasks` table with native columns for status, priority, horizon
-
+**Stop → Unified analysis (write):** `analyze.py` runs as a command hook after every response, calling `sdk.py` (`call_model()`) for Agent SDK integration. The extraction agent has Bash tool access to query all 6 tables for dedup — given the full schema, it decides what queries to run. A single SDK call extracts multiple data types from the last exchange:
+- **Knowledge** → `topics` + `statements` tables (hierarchical: topic groups related statements). Actions: `add_topic`, `add_statement`, `update_statement`, `update_topic`.
+- **Session tags** → `sessions.tags` column, comma-separated, dynamically consolidated each exchange. The agent queries current tags itself.
+- **Tasks** → `tasks` + `updates` tables. Actions: `add_task`, `add_update` (attach context/notes), `update_task` (modify status/priority/horizon with reason). Invalid fields skip the item and log to JSONL — no silent coercion.
 
 **Log format** — JSONL (one JSON object per line) in `.claude/larvling.jsonl`:
 ```jsonl
@@ -86,7 +85,8 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 {"ts":"...","event":"response","sid":"6801adcc","chars":20,"is_dup":false}
 {"ts":"...","event":"skill","sid":"6801adcc","name":"/larvling:status"}
 {"ts":"...","event":"knowledge","sid":"6801adcc","topics_inserted":1,"stmts_inserted":2}
-{"ts":"...","event":"tasks","sid":"6801adcc","inserted":1}
+{"ts":"...","event":"tasks","sid":"6801adcc","inserted":1,"updates_inserted":2,"tasks_updated":1}
+{"ts":"...","event":"extraction_skipped","sid":"6801adcc","action":"add_task","reason":"invalid domain","domain":"foobar"}
 {"ts":"...","event":"analysis","sid":"6801adcc","session_tags":["greeting"]}
 {"ts":"...","event":"session_end","sid":"6801adcc","exchanges":1,"duration":0.2}
 ```

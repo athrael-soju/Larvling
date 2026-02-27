@@ -8,7 +8,7 @@ Larvling is a [Claude Code plugin](https://docs.anthropic.com/en/docs/claude-cod
 
 - **Automatic session tracking** — every conversation logged with timing and exchange counts
 - **Knowledge extraction** — preferences, decisions, and domain knowledge automatically identified and stored
-- **Task management** — TODOs and commitments extracted and tracked across sessions
+- **Task management** — TODOs and commitments extracted, tracked, and updated across sessions with progress notes
 - **Session context** — previous sessions, relevant knowledge, and open tasks injected at startup
 - **Git-aware relevance** — surfaces past sessions related to your current working files
 
@@ -50,7 +50,7 @@ pip install -r larvling/requirements.txt
 - **Tables**: `sessions`, `messages`, `topics`, `statements`, `tasks`, `updates`
 - **Hooks**: SessionStart, UserPromptSubmit, Stop, SessionEnd
 - **Agents**: `knowledge-manager` (proactive knowledge dedup), `summary-manager` (session summaries), `knowledge-maintenance` (periodic knowledge audit)
-- **Analysis**: Unified Sonnet SDK call at Stop extracts knowledge, tags, and tasks
+- **Analysis**: Unified Sonnet SDK call at Stop extracts knowledge, tags, and tasks — agent queries the DB dynamically for dedup
 
 ## License
 

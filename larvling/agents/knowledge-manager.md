@@ -29,10 +29,7 @@ Classify knowledge into one of: `personal`, `professional`, `preferences`, `inte
 
 ## When Storing New Knowledge
 
-1. **Search first** — query existing topics and statements for semantic overlap:
-   ```
-   SELECT t.id, t.title, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE '%keyword%' OR t.title LIKE '%keyword%'
-   ```
+1. **Search first** — query existing topics and statements for semantic overlap
 2. **Decide**: add new topic+statement (new knowledge), add statement to existing topic (extends knowledge), update statement (refines existing), or skip (already covered)
 3. **If adding to existing topic**, use the topic_id from the search
 4. **If inserting new**, pick the right domain and comma-separated tags for the topic
@@ -40,7 +37,7 @@ Classify knowledge into one of: `personal`, `professional`, `preferences`, `inte
 ## When Consolidating
 
 If asked to consolidate or clean up knowledge:
-1. Query all topics with statements: `SELECT t.id, t.title, t.domain, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id ORDER BY t.domain, t.created`
+1. Query all topics with their statements
 2. Identify duplicate or near-duplicate statements across topics
 3. Merge by updating statements to point to the better topic, then update the empty topic's title to indicate it's retired
 4. Report what was merged or updated

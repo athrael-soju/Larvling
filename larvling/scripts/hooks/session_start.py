@@ -57,7 +57,7 @@ def format_session_line(started_at, duration_min, summary):
     return f"- **{date}**{dur}: {summary}"
 
 
-def get_recent_summaries(conn, limit=3):
+def get_recent_summaries(conn, limit=5):
     """Get summaries from the most recent sessions."""
     rows = conn.execute(
         """
@@ -110,10 +110,10 @@ def get_git_context():
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
 
-    return list(dict.fromkeys(f.strip() for f in files if f.strip()))[:20]
+    return list(dict.fromkeys(f.strip() for f in files if f.strip()))
 
 
-def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
+def find_relevant_sessions(conn, file_names, exclude_sids, limit=3):
     """Find sessions that reference any of the given file names."""
     if not file_names:
         return []
@@ -121,7 +121,7 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=2):
     session_hits = {}
     for fname in file_names:
         basename = os.path.basename(fname)
-        if not basename or len(basename) < 3:
+        if not basename:
             continue
         safe_name = escape_like(basename)
         rows = conn.execute(
@@ -221,7 +221,7 @@ def get_session_context():
                 """
                 SELECT id FROM sessions
                 WHERE agent_summary IS NOT NULL OR title IS NOT NULL
-                ORDER BY started_at DESC LIMIT 3
+                ORDER BY started_at DESC LIMIT 5
                 """
             ).fetchall()
             recent_sids = {row["id"] for row in rows}
@@ -252,7 +252,7 @@ def get_session_context():
                 recent = conn.execute(
                     "SELECT t.id, t.title, s.id as sid, s.claim "
                     "FROM topics t JOIN statements s ON s.topic_id = t.id "
-                    "ORDER BY s.created DESC LIMIT 3"
+                    "ORDER BY s.updated DESC, s.created DESC LIMIT 10"
                 ).fetchall()
                 lines.append(f"## Stored Knowledge ({topic_count} topics, {stmt_count} statements)")
                 lines.append(f"Domains: {domains}")
@@ -277,8 +277,8 @@ def get_session_context():
             open_tasks = conn.execute(
                 "SELECT id, title, priority, horizon FROM tasks "
                 "WHERE status = 'open' "
-                "ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END "
-                "LIMIT 3"
+                "ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, "
+                "CASE horizon WHEN 'now' THEN 1 WHEN 'soon' THEN 2 ELSE 3 END"
             ).fetchall()
             if open_tasks:
                 lines.append(f"## Open Tasks ({total_open})")
@@ -296,7 +296,7 @@ def get_session_context():
                     total = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
                     lines.append(f"## Recent Activity ({total} messages)")
                     for row in rows:
-                        content = (row["content"] or "")[:80]
+                        content = row["content"] or ""
                         lines.append(f"- **{row['role']}:** {content}")
                     lines.append("")
             except Exception:

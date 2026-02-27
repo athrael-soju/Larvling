@@ -333,7 +333,7 @@ def list_sessions(conn, show_summary_status=False):
         dur = f" ({duration}m)" if duration else ""
         title = row["title"] or ""
         if title:
-            title = title.split("\n")[0][:100]
+            title = title.split("\n")[0]
 
         if show_summary_status:
             if row["agent_summary"]:
