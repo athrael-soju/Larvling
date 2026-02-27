@@ -49,7 +49,7 @@ claude plugin install larvling@kimchi-cult --scope local
 **For local development / testing:**
 
 ```bash
-claude --plugin-dir .
+claude --plugin-dir ./larvling
 ```
 
 > **Tip:** `--plugin-dir` loads the plugin directly from the repo - no caching involved. This is the simplest way to iterate on changes.
@@ -63,7 +63,7 @@ When Larvling is installed via `plugin install`, Claude Code copies the plugin f
 **Option A - `--plugin-dir` (recommended):**
 
 ```bash
-claude --plugin-dir .
+claude --plugin-dir ./larvling
 ```
 
 This bypasses the cache entirely and loads the plugin straight from the repo. Changes take effect on the next session start.
@@ -116,25 +116,25 @@ Copy your changed files into the cache directory. Restart the session to pick up
 
 ## Files
 
-| File                            | What it does                                                |
-| ------------------------------- | ----------------------------------------------------------- |
-| `.claude-plugin/plugin.json`    | Plugin manifest - name and description                      |
-| `hooks/hooks.json`              | Hook definitions - tells Claude Code when to call Larvling  |
-| `scripts/db.py`                 | Database helpers, schema creation, and version management   |
-| `scripts/transcript.py`         | Transcript parsing utilities for hook scripts               |
-| `scripts/preflight.py`          | Schema bootstrap — ensures DB and tables exist              |
-| `scripts/hooks/session_start.py`| Injects session context, checks for updates                 |
-| `scripts/hooks/prompt.py`       | Logs user prompts and injects context hints                 |
-| `scripts/hooks/stop.py`         | Logs responses and computes quality signals                 |
-| `scripts/hooks/failure.py`      | Records tool failures as quality signals                    |
-| `scripts/hooks/session_end.py`  | Finalizes session timing and exchange count                 |
-| `scripts/analyze.py`            | Unified extraction - knowledge, session tags, tasks         |
-| `scripts/summarize.py`          | Fetches conversation pairs and stores session summaries     |
-| `scripts/export.py`             | Exports a session conversation to markdown                  |
-| `scripts/query.py`              | Runs arbitrary SQL against larvling.db                      |
-| `skills/*.md`                   | Skill definitions (remember, recall, forget, etc.)          |
-| `agents/knowledge-manager.md`   | Subagent for autonomous knowledge management                |
-| `CLAUDE.md`                     | Instructions for the agent                                  |
+| File                                      | What it does                                                |
+| ----------------------------------------- | ----------------------------------------------------------- |
+| `larvling/.claude-plugin/plugin.json`     | Plugin manifest - name and description                      |
+| `larvling/hooks/hooks.json`               | Hook definitions - tells Claude Code when to call Larvling  |
+| `larvling/scripts/db.py`                  | Database helpers, schema creation, and version management   |
+| `larvling/scripts/transcript.py`          | Transcript parsing utilities for hook scripts               |
+| `larvling/scripts/preflight.py`           | Schema bootstrap — ensures DB and tables exist              |
+| `larvling/scripts/hooks/session_start.py` | Injects session context, checks for updates                 |
+| `larvling/scripts/hooks/prompt.py`        | Logs user prompts and injects context hints                 |
+| `larvling/scripts/hooks/stop.py`          | Logs responses and computes quality signals                 |
+| `larvling/scripts/hooks/failure.py`       | Records tool failures as quality signals                    |
+| `larvling/scripts/hooks/session_end.py`   | Finalizes session timing and exchange count                 |
+| `larvling/scripts/analyze.py`             | Unified extraction - knowledge, session tags, tasks         |
+| `larvling/scripts/summarize.py`           | Fetches conversation pairs and stores session summaries     |
+| `larvling/scripts/export.py`              | Exports a session conversation to markdown                  |
+| `larvling/scripts/query.py`               | Runs arbitrary SQL against larvling.db                      |
+| `larvling/skills/*.md`                    | Skill definitions (remember, recall, forget, etc.)          |
+| `larvling/agents/knowledge-manager.md`    | Subagent for autonomous knowledge management                |
+| `larvling/CLAUDE.md`                      | Instructions for the agent                                  |
 
 ## Uninstall
 
