@@ -23,7 +23,7 @@ Review the context Larvling injects at session start - it's your memory of what 
 ### Schema Migration
 
 - When the SessionStart context contains "Schema Migration Required", the database schema needs updating.
-- Read the current and desired schemas provided, write and run the SQL to migrate (preserving all data), then bump the version in `larvling/db.py` with the provided command.
+- Read the current and desired schemas provided, write and run the SQL to migrate (preserving all data), then bump the version in `scripts/db.py` with the provided command.
 - A backup of the database has already been created.
 
 **SQLite migration rules (MUST follow):**
