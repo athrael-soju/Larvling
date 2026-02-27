@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.9](https://github.com/athrael-soju/Larvling/compare/v0.1.8...v0.1.9) (2026-02-27)
+
+
+### Refactoring
+
+* Enhance knowledge extraction and task management processes with improved logging and validation ([06f3796](https://github.com/athrael-soju/Larvling/commit/06f37965b0028ee937a3996a94549712c7e56a7a))
+* Simplify knowledge search queries and enhance task processing logic ([2591e03](https://github.com/athrael-soju/Larvling/commit/2591e036a59c7dad9b7f5e62e36f94c80cbe76b3))
+* Update extraction logic and enhance session summary limits ([f928174](https://github.com/athrael-soju/Larvling/commit/f928174eb0215c9ac1e51352f3a66cc73cd1526a))
+
 ## [0.1.8](https://github.com/athrael-soju/Larvling/compare/v0.1.7...v0.1.8) (2026-02-27)
 
 
