@@ -22,10 +22,10 @@ Requires Claude Code 1.0.33+.
 
 ```bash
 # From the terminal
-claude plugin marketplace add https://github.com/athrael-soju/Larvling
+claude plugin marketplace add athrael-soju/kimchi-cult
 
 # Or from within Claude Code
-/plugin marketplace add https://github.com/athrael-soju/Larvling
+/plugin marketplace add athrael-soju/kimchi-cult
 ```
 
 **2. Install the plugin with your preferred scope:**
@@ -38,10 +38,10 @@ claude plugin marketplace add https://github.com/athrael-soju/Larvling
 
 ```bash
 # From the terminal
-claude plugin install larvling@athrael-soju --scope local
+claude plugin install larvling@kimchi-cult --scope local
 
 # Or from within Claude Code
-/plugin install larvling@athrael-soju --scope local
+/plugin install larvling@kimchi-cult --scope local
 ```
 
 > **Which scope should I use?** `local` is recommended for most users - it keeps Larvling scoped to the project you're working in. Use `user` if you want Larvling active everywhere, or `project` to share the plugin config with your team via source control.
@@ -91,8 +91,8 @@ This bypasses the cache entirely and loads the plugin straight from the repo. Ch
 **Option B - Reinstall the plugin:**
 
 ```bash
-claude plugin uninstall larvling@athrael-soju
-claude plugin install larvling@athrael-soju --scope local
+claude plugin uninstall larvling@kimchi-cult
+claude plugin install larvling@kimchi-cult --scope local
 ```
 
 This refreshes the cache with the latest files from the repo. Requires restarting the session.
@@ -161,13 +161,13 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 
 ```bash
 # From the terminal (use the same scope you installed with)
-claude plugin uninstall larvling@athrael-soju --scope local
+claude plugin uninstall larvling@kimchi-cult --scope local
 
 # Or from within Claude Code
-/plugin uninstall larvling@athrael-soju --scope local
+/plugin uninstall larvling@kimchi-cult --scope local
 
 # Optionally remove the marketplace source
-claude plugin marketplace remove athrael-soju
+claude plugin marketplace remove kimchi-cult
 ```
 
 To also remove stored data, delete the Larvling files from your project's `.claude/` directory:
