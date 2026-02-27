@@ -22,10 +22,10 @@ Requires Claude Code 1.0.33+.
 
 ```bash
 # From the terminal
-claude plugin marketplace add https://github.com/athrael-soju/Larvling
+claude plugin marketplace add athrael-soju/kimchi-cult
 
 # Or from within Claude Code
-/plugin marketplace add https://github.com/athrael-soju/Larvling
+/plugin marketplace add athrael-soju/kimchi-cult
 ```
 
 **2. Install the plugin with your preferred scope:**
@@ -38,10 +38,10 @@ claude plugin marketplace add https://github.com/athrael-soju/Larvling
 
 ```bash
 # From the terminal
-claude plugin install larvling@athrael-soju --scope local
+claude plugin install larvling@kimchi-cult --scope local
 
 # Or from within Claude Code
-/plugin install larvling@athrael-soju --scope local
+/plugin install larvling@kimchi-cult --scope local
 ```
 
 > **Which scope should I use?** `local` is recommended for most users - it keeps Larvling scoped to the project you're working in. Use `user` if you want Larvling active everywhere, or `project` to share the plugin config with your team via source control.
@@ -49,30 +49,10 @@ claude plugin install larvling@athrael-soju --scope local
 **For local development / testing:**
 
 ```bash
-claude --plugin-dir ./larvling
+claude --plugin-dir .
 ```
 
 > **Tip:** `--plugin-dir` loads the plugin directly from the repo - no caching involved. This is the simplest way to iterate on changes.
-
-### Alternative: Copy into the repo
-
-You can copy the `larvling/` directory directly into your project's repository. This ensures the SQLite database (stored in `.claude/`) stays tied to the project and persists across sessions, environments, and machines.
-
-```bash
-# Copy the plugin into your repo
-cp -r /path/to/Larvling/larvling ./larvling
-
-# Run Claude Code with the local copy
-claude --plugin-dir ./larvling
-```
-
-This approach is useful when:
-
-- You want the database to live alongside your project and survive environment rebuilds (e.g., containers, Codespaces, CI)
-- You work across multiple machines and sync the repo (the `.claude/` directory travels with it)
-- You prefer not to rely on the plugin marketplace or cache
-
-> **Note:** Add `larvling/` to `.gitignore` if you don't want to track the plugin files themselves. The database lives in `.claude/`, which you may also want to gitignore depending on your workflow.
 
 ## Local Development
 
@@ -83,7 +63,7 @@ When Larvling is installed via `plugin install`, Claude Code copies the plugin f
 **Option A - `--plugin-dir` (recommended):**
 
 ```bash
-claude --plugin-dir ./larvling
+claude --plugin-dir .
 ```
 
 This bypasses the cache entirely and loads the plugin straight from the repo. Changes take effect on the next session start.
@@ -91,8 +71,8 @@ This bypasses the cache entirely and loads the plugin straight from the repo. Ch
 **Option B - Reinstall the plugin:**
 
 ```bash
-claude plugin uninstall larvling@athrael-soju
-claude plugin install larvling@athrael-soju --scope local
+claude plugin uninstall larvling@kimchi-cult
+claude plugin install larvling@kimchi-cult --scope local
 ```
 
 This refreshes the cache with the latest files from the repo. Requires restarting the session.
@@ -102,13 +82,12 @@ This refreshes the cache with the latest files from the repo. Requires restartin
 ```bash
 # Find the cache directory
 # Linux / macOS
-ls ~/.claude/plugins/cache/athrael-soju/larvling/
-
+ls ~/.claude/plugins/cache/athrael-soju/
 # Windows
 dir %USERPROFILE%\.claude\plugins\cache\athrael-soju\larvling\
 ```
 
-Copy your changed files into the cache directory (note: the cache uses a **flat structure** - there is no `larvling/` prefix inside it). Restart the session to pick up the changes.
+Copy your changed files into the cache directory. Restart the session to pick up the changes.
 
 ### Cache gotchas
 
@@ -137,37 +116,37 @@ Copy your changed files into the cache directory (note: the cache uses a **flat 
 
 ## Files
 
-| File                                      | What it does                                                |
-| ----------------------------------------- | ----------------------------------------------------------- |
-| `larvling/.claude-plugin/plugin.json`     | Plugin manifest - name and description                      |
-| `larvling/hooks/hooks.json`               | Hook definitions - tells Claude Code when to call Larvling  |
-| `larvling/scripts/db.py`                  | Database helpers, schema creation, and version management   |
-| `larvling/scripts/transcript.py`          | Transcript parsing utilities for hook scripts               |
-| `larvling/scripts/preflight.py`           | Schema bootstrap — ensures DB and tables exist              |
-| `larvling/scripts/hooks/session_start.py` | Injects session context, checks for updates                 |
-| `larvling/scripts/hooks/prompt.py`        | Logs user prompts and injects context hints                 |
-| `larvling/scripts/hooks/stop.py`          | Logs responses and computes quality signals                 |
-| `larvling/scripts/hooks/failure.py`       | Records tool failures as quality signals                    |
-| `larvling/scripts/hooks/session_end.py`   | Finalizes session timing and exchange count                 |
-| `larvling/scripts/analyze.py`             | Unified extraction - knowledge, session tags, tasks         |
-| `larvling/scripts/summarize.py`           | Fetches conversation pairs and stores session summaries     |
-| `larvling/scripts/export.py`              | Exports a session conversation to markdown                  |
-| `larvling/scripts/query.py`               | Runs arbitrary SQL against larvling.db                      |
-| `larvling/skills/*.md`                    | Skill definitions (remember, recall, forget, etc.)          |
-| `larvling/agents/knowledge-manager.md`    | Subagent for autonomous knowledge management                |
-| `larvling/CLAUDE.md`                      | Instructions for the agent                                  |
+| File                            | What it does                                                |
+| ------------------------------- | ----------------------------------------------------------- |
+| `.claude-plugin/plugin.json`    | Plugin manifest - name and description                      |
+| `hooks/hooks.json`              | Hook definitions - tells Claude Code when to call Larvling  |
+| `scripts/db.py`                 | Database helpers, schema creation, and version management   |
+| `scripts/transcript.py`         | Transcript parsing utilities for hook scripts               |
+| `scripts/preflight.py`          | Schema bootstrap — ensures DB and tables exist              |
+| `scripts/hooks/session_start.py`| Injects session context, checks for updates                 |
+| `scripts/hooks/prompt.py`       | Logs user prompts and injects context hints                 |
+| `scripts/hooks/stop.py`         | Logs responses and computes quality signals                 |
+| `scripts/hooks/failure.py`      | Records tool failures as quality signals                    |
+| `scripts/hooks/session_end.py`  | Finalizes session timing and exchange count                 |
+| `scripts/analyze.py`            | Unified extraction - knowledge, session tags, tasks         |
+| `scripts/summarize.py`          | Fetches conversation pairs and stores session summaries     |
+| `scripts/export.py`             | Exports a session conversation to markdown                  |
+| `scripts/query.py`              | Runs arbitrary SQL against larvling.db                      |
+| `skills/*.md`                   | Skill definitions (remember, recall, forget, etc.)          |
+| `agents/knowledge-manager.md`   | Subagent for autonomous knowledge management                |
+| `CLAUDE.md`                     | Instructions for the agent                                  |
 
 ## Uninstall
 
 ```bash
 # From the terminal (use the same scope you installed with)
-claude plugin uninstall larvling@athrael-soju --scope local
+claude plugin uninstall larvling@kimchi-cult --scope local
 
 # Or from within Claude Code
-/plugin uninstall larvling@athrael-soju --scope local
+/plugin uninstall larvling@kimchi-cult --scope local
 
 # Optionally remove the marketplace source
-claude plugin marketplace remove athrael-soju
+claude plugin marketplace remove kimchi-cult
 ```
 
 To also remove stored data, delete the Larvling files from your project's `.claude/` directory:
