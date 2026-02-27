@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.8](https://github.com/athrael-soju/Larvling/compare/v0.1.7...v0.1.8) (2026-02-27)
+
+
+### Refactoring
+
+* Enhance knowledge deduplication process in analyze.py and update CLAUDE.md ([800a8b1](https://github.com/athrael-soju/Larvling/commit/800a8b1254b1d14969c89f4787adc93870e36ee5))
+* Remove token tracking and improve knowledge dedup ([b003df9](https://github.com/athrael-soju/Larvling/commit/b003df9a1a29d89d208c51328d5e0397065ecd99))
+* Remove token usage tracking and related metadata from hooks and analysis ([a6f3f5d](https://github.com/athrael-soju/Larvling/commit/a6f3f5d50a8d9ac707fc7ea9c95d0ed5f2b35f19))
+* Remove token usage tracking from stop and extract hooks in README ([1f89cc6](https://github.com/athrael-soju/Larvling/commit/1f89cc6dc606d85d0901c6967fbe7f0de7398005))
+* Update README to remove token usage from session tracking description ([03a6fa0](https://github.com/athrael-soju/Larvling/commit/03a6fa015062aed5751237be4a70b8dd001b807d))
+
 ## [0.1.7](https://github.com/athrael-soju/Larvling/compare/v0.1.6...v0.1.7) (2026-02-26)
 
 
