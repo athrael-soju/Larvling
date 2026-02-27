@@ -472,30 +472,6 @@ def fetch_session_tags(conn, session_id):
     return row["tags"] or "" if row else ""
 
 
-def store_message_metadata(conn, session_id, role, field, value, expected_content=None):
-    """Store a field in the metadata of the last message with the given role."""
-    if not value:
-        return
-
-    row = conn.execute(
-        "SELECT id, content, metadata FROM messages "
-        "WHERE session_id = ? AND role = ? "
-        "ORDER BY id DESC LIMIT 1",
-        (session_id, role),
-    ).fetchone()
-    if not row:
-        return
-
-    if expected_content and row["content"] != expected_content:
-        return
-
-    meta = parse_meta(row["metadata"])
-    meta[field] = value
-    conn.execute(
-        "UPDATE messages SET metadata = ? WHERE id = ?",
-        (json.dumps(meta), row["id"]),
-    )
-
 
 def log(event, session_id=None, **data):
     """Append a JSONL entry to .claude/larvling.jsonl for debugging."""

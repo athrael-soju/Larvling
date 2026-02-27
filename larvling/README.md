@@ -6,7 +6,7 @@ Larvling is a [Claude Code plugin](https://docs.anthropic.com/en/docs/claude-cod
 
 ## Features
 
-- **Automatic session tracking** — every conversation logged with timing, exchange counts, and token usage
+- **Automatic session tracking** — every conversation logged with timing and exchange counts
 - **Knowledge extraction** — preferences, decisions, and domain knowledge automatically identified and stored
 - **Task management** — TODOs and commitments extracted and tracked across sessions
 - **Session context** — previous sessions, relevant knowledge, and open tasks injected at startup

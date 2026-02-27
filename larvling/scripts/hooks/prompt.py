@@ -27,7 +27,6 @@ def strip_ide_tags(text):
 def inject_context(conn, session_id):
     """Print context hints (knowledge lookup, summary staleness) for the agent."""
     injected = []
-    total_chars = 0
 
     if has_table(conn, "topics"):
         topic_count = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0]
@@ -48,7 +47,6 @@ def inject_context(conn, session_id):
             f"and weave it into your response naturally."
         )
         print(text)
-        total_chars += len(text)
         injected.append(f"{topic_count} topics, {stmt_count} statements")
 
     session = conn.execute(
@@ -69,7 +67,6 @@ def inject_context(conn, session_id):
                 f"Offer /summarize via AskUserQuestion."
             )
             print(text)
-            total_chars += len(text)
             injected.append("summary hint")
         elif session["agent_summary"] and msg_count > summarized + 4:
             text = (
@@ -78,12 +75,10 @@ def inject_context(conn, session_id):
                 f"Offer /summarize via AskUserQuestion."
             )
             print(text)
-            total_chars += len(text)
             injected.append("stale summary hint")
 
     if injected:
-        tokens = max(1, total_chars // 4)
-        log("context", session_id, injected=injected, tokens_est=tokens)
+        log("context", session_id, injected=injected)
 
 
 def handle(data):
@@ -95,11 +90,9 @@ def handle(data):
     if not prompt:
         return
 
-    user_tokens = max(1, len(prompt) // 4)
     meta = {
         "cwd": data.get("cwd"),
         "permission_mode": data.get("permission_mode"),
-        "usage": {"input_tokens_estimate": user_tokens},
     }
 
     with open_db() as conn:
@@ -125,14 +118,9 @@ def handle(data):
         if not cmd_match and re.fullmatch(r"/[\w:/-]+", prompt.strip()):
             cmd_match = re.fullmatch(r"/([\w:/-]+)", prompt.strip())
         if cmd_match:
-            log(
-                "skill",
-                session_id,
-                name=f"/{cmd_match.group(1)}",
-                input_tokens_est=user_tokens,
-            )
+            log("skill", session_id, name=f"/{cmd_match.group(1)}")
         else:
-            log("prompt", session_id, n=count, input_tokens_est=user_tokens)
+            log("prompt", session_id, n=count)
 
         try:
             inject_context(conn, session_id)

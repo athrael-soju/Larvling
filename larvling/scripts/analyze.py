@@ -33,9 +33,9 @@ USER said: {user_text}
 
 AGENT responded: {agent_text}
 
-## Knowledge-awareness
+## Knowledge deduplication
 
-You can query the knowledge database to check for duplicates or related topics:
+Before finalizing knowledge items, query the database to check for existing topics:
 
 python "{query_script}" "<SQL>"
 
@@ -43,17 +43,14 @@ Two tables store knowledge:
 - `topics` (id INTEGER PK, title, domain, tags, created, updated)
 - `statements` (id INTEGER PK, topic_id INTEGER FK→topics(id), claim, created, updated)
 
-Example queries:
-- `SELECT t.id, t.title, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE '%keyword%'`
-- `SELECT id, title, domain FROM topics WHERE title LIKE '%keyword%'`
-
-Use this to avoid duplicates and consolidate related knowledge. \
-For each knowledge item, set action to:
-- **add_topic**: create a new topic with its first statement (no existing overlap)
-- **add_statement**: add a new statement to an existing topic (include "topic_id")
-- **update_statement**: refine an existing statement (include "statement_id")
-- **update_topic**: update title/domain/tags of an existing topic (include "topic_id")
-- **skip**: knowledge already exists unchanged — do NOT include it
+For each knowledge item you want to extract:
+1. Search for related topics/statements (e.g. `SELECT t.id, t.title, s.id as sid, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE t.title LIKE '%keyword%' OR s.claim LIKE '%keyword%'`)
+2. Based on what you find, set the action:
+   - **add_topic**: no existing overlap — create a new topic with its first statement
+   - **add_statement**: related topic exists — add a new statement to it (include "topic_id")
+   - **update_statement**: existing statement needs refinement (include "statement_id")
+   - **update_topic**: existing topic title/domain/tags need updating (include "topic_id")
+   - **skip**: knowledge already exists unchanged — do NOT include it
 Never delete data. To retire knowledge, update the statement or topic instead.
 
 ## Extraction
@@ -355,7 +352,7 @@ def _run(data):
 
     # Get user text and agent text
     user_text = parse_last_user_text(transcript_path)
-    agent_text, _, _ = parse_last_turn(transcript_path)
+    agent_text, _ = parse_last_turn(transcript_path)
 
     if not user_text and not agent_text:
         log("extraction_skipped", session_id, reason="no text found")
@@ -405,7 +402,7 @@ def _run(data):
         if session_id and isinstance(session_tags, list):
             store_tags(conn, session_id, session_tags)
 
-        # Record extraction as a system message with usage metadata
+        # Record extraction as a system message
         if session_id:
             k_parts = []
             if topics_ins:
@@ -419,7 +416,7 @@ def _run(data):
             t_summary = f"{tasks_ins} tasks" if tasks_ins else "no tasks"
 
             sys_content = f"Extraction: knowledge={k_summary}, {t_summary}"
-            sys_meta = {"usage": usage_info} if usage_info else None
+            sys_meta = None
             record_message(conn, session_id, "system", sys_content, sys_meta)
 
         conn.commit()
@@ -445,9 +442,6 @@ def _run(data):
         analysis_data["session_tags"] = tags if isinstance(tags, list) else [tags]
     if result.get("tasks"):
         analysis_data["tasks"] = len(result["tasks"])
-    if usage_info and isinstance(usage_info, dict):
-        analysis_data["input_tokens"] = usage_info.get("input_tokens", 0)
-        analysis_data["output_tokens"] = usage_info.get("output_tokens", 0)
 
     log("analysis", session_id, **analysis_data)
 

@@ -73,26 +73,21 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 
 **UserPromptSubmit → Knowledge Context (read):** The `## Knowledge Context` directive prints on every exchange with the `query.py` path and topic/statement counts. Search for relevant knowledge and weave it into your response naturally.
 
-**Stop → Unified analysis (write):** `analyze.py` runs as a command hook after every response, calling `sdk.py` (`call_model()`) for Agent SDK integration. A single SDK call extracts multiple data types from the last exchange:
+**Stop → Unified analysis (write):** `analyze.py` runs as a command hook after every response, calling `sdk.py` (`call_model()`) for Agent SDK integration. The extraction agent has Bash tool access to query the knowledge DB for dedup — it identifies candidate knowledge from the exchange, then queries existing topics before deciding the action. A single SDK call extracts multiple data types from the last exchange:
 - **Knowledge** → `topics` + `statements` tables (hierarchical: topic groups related statements)
 - **Session tags** → `sessions.tags` column, comma-separated, dynamically consolidated each exchange (merges similar, drops irrelevant, adds new)
 - **Tasks** → `tasks` table with native columns for status, priority, horizon
 
 
-**Token usage tracking:** Two hooks capture token usage:
-- **Prompt** — `hooks/prompt.py` estimates user tokens (`~4 chars/token` heuristic), stored in `messages.metadata.usage` on user row
-- **Response** — `hooks/stop.py` extracts API usage from transcript. Output tokens summed from `speed` entries (real API responses); falls back to `~4 chars/token` estimate for text-only turns (flagged with `output_tokens_estimated`). Stored in `messages.metadata.usage` on assistant row.
-- **Analysis** — SDK call usage stored as `role='system'` message with usage in metadata.
-
 **Log format** — JSONL (one JSON object per line) in `.claude/larvling.jsonl`:
 ```jsonl
-{"ts":"2026-02-24T16:16:35","event":"prompt","sid":"6801adcc","n":1,"input_tokens_est":1}
-{"ts":"...","event":"context","sid":"6801adcc","injected":["5 topics, 11 statements","stale summary hint"],"tokens_est":42}
-{"ts":"...","event":"response","sid":"6801adcc","chars":20,"is_dup":false,"cache_read":27953,"input_new":9142,"output":5,"output_estimated":true}
-{"ts":"...","event":"skill","sid":"6801adcc","name":"/larvling:status","input_tokens_est":85}
+{"ts":"2026-02-24T16:16:35","event":"prompt","sid":"6801adcc","n":1}
+{"ts":"...","event":"context","sid":"6801adcc","injected":["5 topics, 11 statements","stale summary hint"]}
+{"ts":"...","event":"response","sid":"6801adcc","chars":20,"is_dup":false}
+{"ts":"...","event":"skill","sid":"6801adcc","name":"/larvling:status"}
 {"ts":"...","event":"knowledge","sid":"6801adcc","topics_inserted":1,"stmts_inserted":2}
 {"ts":"...","event":"tasks","sid":"6801adcc","inserted":1}
-{"ts":"...","event":"analysis","sid":"6801adcc","session_tags":["greeting"],"input_tokens":1234,"output_tokens":567}
+{"ts":"...","event":"analysis","sid":"6801adcc","session_tags":["greeting"]}
 {"ts":"...","event":"session_end","sid":"6801adcc","exchanges":1,"duration":0.2}
 ```
 
