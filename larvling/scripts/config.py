@@ -3,7 +3,10 @@
 import json
 import os
 
-CONFIG_PATH = os.path.join(os.getcwd(), ".claude", "larvling.config.json")
+CONFIG_PATH = os.path.join(
+    os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd(),
+    ".claude", "larvling.config.json",
+)
 
 DEFAULTS = {
     "analysis": True,
@@ -12,7 +15,7 @@ DEFAULTS = {
     "context_hints": True,
     "summary_hints": True,
     "session_tags": True,
-    "geolocation": True,
+    "geolocation": False,
 }
 
 

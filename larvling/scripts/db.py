@@ -10,7 +10,7 @@ import sys
 import time
 from contextlib import contextmanager
 
-PROJECT_ROOT = os.getcwd()
+PROJECT_ROOT = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
 
 
@@ -370,7 +370,7 @@ def fetch_session_tags(conn, session_id):
 def log(event, session_id=None, **data):
     """Append a JSONL entry to .claude/larvling.jsonl for debugging."""
     try:
-        log_path = os.path.join(os.getcwd(), ".claude", "larvling.jsonl")
+        log_path = os.path.join(PROJECT_ROOT, ".claude", "larvling.jsonl")
         entry = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "event": event}
         if session_id:
             entry["sid"] = session_id[:8]

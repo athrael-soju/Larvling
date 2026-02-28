@@ -105,7 +105,13 @@ def run_detached_or_inline(script_path, callback):
         )
         tmp.write(raw)
         tmp.close()
-        spawn_detached(script_path, tmp.name)
+        try:
+            spawn_detached(script_path, tmp.name)
+        except Exception:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
         return
 
     try:

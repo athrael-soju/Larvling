@@ -23,6 +23,16 @@ from transcript import parse_last_user_text, parse_last_turn, wait_for_transcrip
 
 
 # ---------------------------------------------------------------------------
+# Validation constants (used by schema and storage)
+# ---------------------------------------------------------------------------
+
+VALID_DOMAINS = {"personal", "professional", "preferences", "interests", "knowledge", "technical", "workflow"}
+VALID_PRIORITY = {"low", "medium", "high"}
+VALID_HORIZON = {"now", "soon", "later"}
+VALID_STATUS = {"open", "done", "dropped"}
+
+
+# ---------------------------------------------------------------------------
 # Analysis prompt and schema
 # ---------------------------------------------------------------------------
 
@@ -33,9 +43,9 @@ USER said: {user_text}
 
 AGENT responded: {agent_text}
 
-## Knowledge deduplication
+## Database access
 
-Before finalizing knowledge items, query the database to check for existing topics:
+Query the database to check for existing data before deciding actions:
 
 python "{query_script}" "<SQL>" --read-only
 
@@ -47,8 +57,10 @@ Six tables in 3 parent→child pairs:
 - `sessions` (id TEXT PK, started_at, ended_at, duration_min, title, agent_summary, exchange_count, summary_at, summary_msg_count, tags)
 - `messages` (id INTEGER PK, session_id TEXT FK, timestamp, role, content, metadata)
 
+## Knowledge deduplication
+
 For each knowledge item you want to extract:
-1. Search for related topics and statements in the database
+1. Search for related topics and statements using LIKE queries on title and claim
 2. Based on what you find, set the action:
    - **add_topic**: no existing overlap — create a new topic with its first statement
    - **add_statement**: related topic exists — add a new statement to it (include "topic_id")
@@ -112,9 +124,9 @@ EXTRACTION_SCHEMA = {
                 "properties": {
                     "topic_title": {"type": "string"},
                     "claim": {"type": "string"},
-                    "domain": {"type": "string"},
+                    "domain": {"type": "string", "enum": list(VALID_DOMAINS)},
                     "tags": {"type": "string"},
-                    "action": {"type": "string"},
+                    "action": {"type": "string", "enum": ["add_topic", "add_statement", "update_statement", "update_topic"]},
                     "topic_id": {"type": "integer"},
                     "statement_id": {"type": "integer"},
                 },
@@ -128,11 +140,11 @@ EXTRACTION_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "title": {"type": "string"},
-                    "domain": {"type": "string"},
-                    "priority": {"type": "string"},
-                    "horizon": {"type": "string"},
-                    "status": {"type": "string"},
-                    "action": {"type": "string"},
+                    "domain": {"type": "string", "enum": list(VALID_DOMAINS)},
+                    "priority": {"type": "string", "enum": list(VALID_PRIORITY)},
+                    "horizon": {"type": "string", "enum": list(VALID_HORIZON)},
+                    "status": {"type": "string", "enum": list(VALID_STATUS)},
+                    "action": {"type": "string", "enum": ["add_task", "add_update", "update_task"]},
                     "task_id": {"type": "integer"},
                     "content": {"type": "string"},
                 },
@@ -158,11 +170,6 @@ def build_extraction_prompt(user_text, agent_text, session_id=""):
 # ---------------------------------------------------------------------------
 # Storage functions
 # ---------------------------------------------------------------------------
-
-VALID_DOMAINS = {"personal", "professional", "preferences", "interests", "knowledge", "technical", "workflow"}
-VALID_PRIORITY = {"low", "medium", "high"}
-VALID_HORIZON = {"now", "soon", "later"}
-
 
 def _skip(session_id, action, reason, **extra):
     """Log a skipped extraction item."""
@@ -302,9 +309,6 @@ def process_knowledge(conn, knowledge_list, session_id=None):
         stmts_inserted += 1
 
     return topics_inserted, stmts_inserted, stmts_updated, topics_updated
-
-
-VALID_STATUS = {"open", "done", "dropped"}
 
 
 def process_tasks(conn, tasks_list, session_id=None):

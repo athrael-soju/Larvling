@@ -55,15 +55,11 @@ def main():
     as_json = "--json" in sys.argv
     read_only = "--read-only" in sys.argv
 
-    if read_only:
-        stripped = sql.strip().lstrip("(").strip()
-        if not stripped.upper().startswith("SELECT") and not stripped.upper().startswith("PRAGMA") and not stripped.upper().startswith("EXPLAIN"):
-            print("Error: --read-only mode only allows SELECT, PRAGMA, and EXPLAIN statements.", file=sys.stderr)
-            sys.exit(1)
-
     require_db()
 
     with open_db() as conn:
+        if read_only:
+            conn.execute("PRAGMA query_only = ON")
         try:
             cursor = conn.execute(sql)
         except Exception as e:

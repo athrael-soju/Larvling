@@ -24,10 +24,25 @@ async def call_model(prompt, allowed_tools=None, max_turns=None, output_format=N
         from claude_agent_sdk._internal.message_parser import parse_message  # noqa: PLC2701
         from claude_agent_sdk._errors import MessageParseError  # noqa: PLC2701
         import claude_agent_sdk._internal.client as _sdk_client  # noqa: PLC2701
+        import claude_agent_sdk as _sdk_pkg  # noqa: PLC2701
     except ImportError:
         raise RuntimeError(
             "claude_agent_sdk is required but not installed. "
             "Install it with: pip install claude-agent-sdk"
+        )
+
+    # Verify the SDK version is compatible with our monkey-patch.
+    # The patch targets _internal.client.parse_message which may move or
+    # change signature in future SDK releases.
+    _TESTED_SDK_VERSIONS = ("0.1",)
+    sdk_version = getattr(_sdk_pkg, "__version__", "")
+    if sdk_version and not any(sdk_version.startswith(v) for v in _TESTED_SDK_VERSIONS):
+        import warnings
+        warnings.warn(
+            f"claude_agent_sdk {sdk_version} has not been tested with Larvling's "
+            f"parse_message patch (tested: {', '.join(_TESTED_SDK_VERSIONS)}.*). "
+            "If extraction fails, pin claude-agent-sdk to a tested version.",
+            stacklevel=2,
         )
 
     # Patch parse_message to skip unknown message types instead of crashing.

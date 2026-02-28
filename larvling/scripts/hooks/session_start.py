@@ -19,7 +19,10 @@ from db import (
     get_schema_version,
 )
 
-CACHE_PATH = os.path.join(os.getcwd(), ".claude", "larvling-cache.json")
+CACHE_PATH = os.path.join(
+    os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd(),
+    ".claude", "larvling-cache.json",
+)
 CACHE_TTL = 86400  # 24 hours
 
 
