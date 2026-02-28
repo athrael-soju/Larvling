@@ -5,9 +5,9 @@ from db import (
     ensure_session,
     finalize_session,
     record_summary,
-    read_hook_payload,
     log,
 )
+from hooks_util import read_hook_payload
 
 
 def handle(data):

@@ -9,14 +9,15 @@ SDK call, then writes results to SQLite.
 import asyncio
 import os
 
+from config import get_config
 from db import (
     open_db,
     has_table,
     ensure_session,
     record_message,
-    run_detached_or_inline,
     log,
 )
+from hooks_util import run_detached_or_inline
 from sdk import call_model
 from transcript import parse_last_user_text, parse_last_turn, wait_for_transcript_stable
 
@@ -36,7 +37,7 @@ AGENT responded: {agent_text}
 
 Before finalizing knowledge items, query the database to check for existing topics:
 
-python "{query_script}" "<SQL>"
+python "{query_script}" "<SQL>" --read-only
 
 Six tables in 3 parent→child pairs:
 - `topics` (id INTEGER PK, title, domain, tags, created, updated)
@@ -476,6 +477,10 @@ def _run(data):
     if data.get("stop_hook_active"):
         return  # Prevent recursive hook firing
 
+    cfg = get_config()
+    if not cfg["analysis"]:
+        return
+
     session_id = data.get("session_id")
     transcript_path = data.get("transcript_path")
 
@@ -513,17 +518,22 @@ def _run(data):
             ensure_session(conn, session_id)
 
         # Knowledge (topics + statements)
-        knowledge = result.get("knowledge", [])
-        topics_ins, stmts_ins, stmts_upd, topics_upd = process_knowledge(conn, knowledge, session_id)
+        topics_ins = stmts_ins = stmts_upd = topics_upd = 0
+        if cfg["knowledge_extraction"]:
+            knowledge = result.get("knowledge", [])
+            topics_ins, stmts_ins, stmts_upd, topics_upd = process_knowledge(conn, knowledge, session_id)
 
         # Tasks
-        tasks_list = result.get("tasks", [])
-        tasks_ins, updates_ins, tasks_upd = process_tasks(conn, tasks_list, session_id)
+        tasks_ins = updates_ins = tasks_upd = 0
+        if cfg["task_tracking"]:
+            tasks_list = result.get("tasks", [])
+            tasks_ins, updates_ins, tasks_upd = process_tasks(conn, tasks_list, session_id)
 
         # Session tags
-        session_tags = result.get("session_tags", [])
-        if session_id and isinstance(session_tags, list):
-            store_tags(conn, session_id, session_tags)
+        if cfg["session_tags"]:
+            session_tags = result.get("session_tags", [])
+            if session_id and isinstance(session_tags, list):
+                store_tags(conn, session_id, session_tags)
 
         # Record extraction as a system message
         if session_id:

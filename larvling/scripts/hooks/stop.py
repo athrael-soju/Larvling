@@ -4,9 +4,9 @@ from db import (
     open_db,
     ensure_session,
     record_message,
-    read_hook_payload,
     log,
 )
+from hooks_util import read_hook_payload
 from transcript import parse_last_turn, wait_for_transcript_stable
 
 

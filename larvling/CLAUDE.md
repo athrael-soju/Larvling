@@ -47,10 +47,10 @@ Review the context Larvling injects at session start - it's your memory of what 
 
 ### `/query` - Direct SQL Access
 
-Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on conversation context.
+Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on conversation context. Supports `--read-only` flag to restrict to SELECT/PRAGMA/EXPLAIN only (used by the extraction agent).
 
 **Schema:**
-- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, tags TEXT)`
+- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, tags TEXT, summary_offered INT DEFAULT 0)`
 - `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT [user|assistant|system], content TEXT, metadata TEXT)`
 - `topics (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT, updated TEXT)`
 - `statements (id INTEGER PK AUTO, topic_id INTEGER FK→topics(id), claim TEXT NOT NULL, created TEXT, updated TEXT)`

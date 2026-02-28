@@ -3,15 +3,16 @@
 import os
 import re
 
+from config import get_config
 from db import (
     open_db,
     has_table,
     ensure_session,
     record_message,
     record_summary,
-    read_hook_payload,
     log,
 )
+from hooks_util import read_hook_payload
 
 
 def strip_ide_tags(text):
@@ -26,9 +27,10 @@ def strip_ide_tags(text):
 
 def inject_context(conn, session_id):
     """Print context hints (knowledge lookup, summary staleness) for the agent."""
+    cfg = get_config()
     injected = []
 
-    if has_table(conn, "topics"):
+    if cfg["context_hints"] and has_table(conn, "topics"):
         topic_count = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0]
         stmt_count = (
             conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0]
@@ -47,8 +49,13 @@ def inject_context(conn, session_id):
         print(text)
         injected.append(f"{topic_count} topics, {stmt_count} statements")
 
+    if not cfg["summary_hints"]:
+        if injected:
+            log("context", session_id, injected=injected)
+        return
+
     session = conn.execute(
-        "SELECT summary_msg_count, agent_summary FROM sessions WHERE id = ?",
+        "SELECT summary_msg_count, agent_summary, summary_offered FROM sessions WHERE id = ?",
         (session_id,),
     ).fetchone()
     if session:
@@ -58,21 +65,32 @@ def inject_context(conn, session_id):
             (session_id,),
         ).fetchone()[0]
         summarized = session["summary_msg_count"] or 0
+        already_offered = session["summary_offered"] or 0
 
-        if not session["agent_summary"] and msg_count >= 10:
+        if not already_offered and not session["agent_summary"] and msg_count >= 10:
             text = (
                 f"\n## Summary\nNo summary yet ({msg_count} messages). "
                 f"Offer /summarize via AskUserQuestion."
             )
             print(text)
+            conn.execute(
+                "UPDATE sessions SET summary_offered = 1 WHERE id = ?",
+                (session_id,),
+            )
+            conn.commit()
             injected.append("summary hint")
-        elif session["agent_summary"] and msg_count > summarized + 4:
+        elif not already_offered and session["agent_summary"] and msg_count > summarized + 4:
             text = (
                 f"\n## Summary\nStale summary "
                 f"(covers {summarized}/{msg_count} messages). "
                 f"Offer /summarize via AskUserQuestion."
             )
             print(text)
+            conn.execute(
+                "UPDATE sessions SET summary_offered = 1 WHERE id = ?",
+                (session_id,),
+            )
+            conn.commit()
             injected.append("stale summary hint")
 
     if injected:

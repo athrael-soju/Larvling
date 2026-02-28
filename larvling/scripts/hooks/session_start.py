@@ -7,6 +7,7 @@ import sys
 import time
 import urllib.request
 
+from config import get_config
 from db import (
     SCHEMA_VERSION,
     escape_like,
@@ -154,11 +155,12 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=3):
     return results
 
 
-def get_time_and_location():
+def get_time_and_location(enable_geo=True):
     """Return a line with local datetime, UTC offset, and approximate location.
 
     Location comes from a free IP-geolocation API (cached for 24h).
     Falls back gracefully — time is always available, location is best-effort.
+    Set enable_geo=False to skip the geolocation lookup entirely.
     """
     now = time.localtime()
     utc_offset_sec = time.timezone if now.tm_isdst == 0 else time.altzone
@@ -168,6 +170,9 @@ def get_time_and_location():
 
     dt_str = time.strftime("%A, %B %d, %Y at %I:%M %p", now)
     parts = [f"{dt_str} ({offset_str})"]
+
+    if not enable_geo:
+        return " — ".join(parts)
 
     # Best-effort geolocation (cached 24h to avoid repeated API calls)
     geo = _read_cache("geolocation")
@@ -203,8 +208,9 @@ def get_session_context():
         lines = ["# Larvling Session Context", ""]
 
         # Time and location
+        cfg = get_config()
         try:
-            time_loc = get_time_and_location()
+            time_loc = get_time_and_location(enable_geo=cfg["geolocation"])
             lines.append(f"**Now:** {time_loc}")
             lines.append("")
         except Exception:

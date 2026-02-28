@@ -52,6 +52,10 @@ def store_summary(session_id, summary_text):
             summary_at=time.strftime("%Y-%m-%d %H:%M:%S"),
             summary_msg_count=msg_count,
         )
+        conn.execute(
+            "UPDATE sessions SET summary_offered = 0 WHERE id = ?",
+            (session_id,),
+        )
         conn.commit()
     print(f"Session summary stored for session {session_id[:8]} ({msg_count} messages)")
     return session_id
