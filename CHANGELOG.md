@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/athrael-soju/larvling/compare/v0.1.9...v0.1.10) (2026-02-28)
+
+
+### Features
+
+* configuration management and query enhancements ([bde724d](https://github.com/athrael-soju/larvling/commit/bde724d731ae6bf2f1460a442e54c52ca8193ff9))
+
 ## [0.1.9](https://github.com/athrael-soju/Larvling/compare/v0.1.8...v0.1.9) (2026-02-27)
 
 
