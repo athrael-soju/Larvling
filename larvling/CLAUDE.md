@@ -67,6 +67,17 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 /query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
 ```
 
+**Quick Column Reference:**
+
+| Table | Key columns |
+|-------|-------------|
+| topics | id, title, domain, tags |
+| statements | id, topic_id, claim |
+| tasks | id, title, status, priority, horizon, metadata |
+| sessions | id, started_at, title, agent_summary |
+| messages | id, session_id, role, content |
+| updates | id, task_id, content, timestamp |
+
 ### Knowledge, Tasks & Unified Analysis
 
 Larvling stores persistent knowledge in the `topics` + `statements` tables, and action items in the `tasks` + `updates` tables. Multiple mechanisms handle data extraction:
