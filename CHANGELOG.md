@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.11](https://github.com/athrael-soju/larvling/compare/v0.1.10...v0.1.11) (2026-03-02)
+
+
+### Refactoring
+
+* improve formatting and structure of validation constants and extraction phases in analyze.py ([7aafd72](https://github.com/athrael-soju/larvling/commit/7aafd72586555846fba6784a1c06fae2a081e535))
+
+
+### Documentation
+
+* add quick column reference for database tables in CLAUDE.md ([55aa1c8](https://github.com/athrael-soju/larvling/commit/55aa1c8e3e7a1d02599f157cd4ff69b0783b32b8))
+
 ## [0.1.10](https://github.com/athrael-soju/larvling/compare/v0.1.9...v0.1.10) (2026-02-28)
 
 
