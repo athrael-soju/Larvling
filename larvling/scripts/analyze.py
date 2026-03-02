@@ -26,7 +26,15 @@ from transcript import parse_last_user_text, parse_last_turn, wait_for_transcrip
 # Validation constants (used by schema and storage)
 # ---------------------------------------------------------------------------
 
-VALID_DOMAINS = {"personal", "professional", "preferences", "interests", "knowledge", "technical", "workflow"}
+VALID_DOMAINS = {
+    "personal",
+    "professional",
+    "preferences",
+    "interests",
+    "knowledge",
+    "technical",
+    "workflow",
+}
 VALID_PRIORITY = {"low", "medium", "high"}
 VALID_HORIZON = {"now", "soon", "later"}
 VALID_STATUS = {"open", "done", "dropped"}
@@ -57,52 +65,71 @@ Six tables in 3 parent→child pairs:
 - `sessions` (id TEXT PK, started_at, ended_at, duration_min, title, agent_summary, exchange_count, summary_at, summary_msg_count, tags)
 - `messages` (id INTEGER PK, session_id TEXT FK, timestamp, role, content, metadata)
 
-## Knowledge deduplication
+## Workflow — follow these three phases in order
 
-For each knowledge item you want to extract:
-1. Search for related topics and statements using LIKE queries on title and claim
-2. Based on what you find, set the action:
-   - **add_topic**: no existing overlap — create a new topic with its first statement
-   - **add_statement**: related topic exists — add a new statement to it (include "topic_id")
-   - **update_statement**: existing statement needs refinement (include "statement_id")
-   - **update_topic**: existing topic title/domain/tags need updating (include "topic_id")
-   - **skip**: knowledge already exists unchanged — do NOT include it
+### Phase 1 — Identify candidates
+
+Read the exchange and list what is worth extracting. Do NOT assign actions yet.
+
+- **Knowledge candidates**: durable facts worth remembering across sessions.
+  - From USER: personal info, professional info, preferences, interests \
+(asking about ANY topic = an interest), decisions, opinions, workflow habits
+  - From AGENT: key domain knowledge shared with the user (science, history, \
+concepts) — NOT code-level implementation details
+  - Ask: "Is this useful?" If not, do not include it.
+  - Prefer fewer, higher-quality items over many low-value ones.
+- **Task candidates**: commitments, TODOs, or progress on existing tasks.
+- **Session tags**: topics/themes from this exchange (1-4 words each, max ~8 tags).
+
+### Phase 2 — Dedup check (mandatory)
+
+For EACH knowledge candidate, run at least one query against topics and statements \
+to check for overlap. Use LIKE queries on title and claim columns.
+
+For EACH task candidate, run at least one query against tasks and their updates \
+to check for overlap.
+
+For session tags, query the current session's tags:
+`SELECT tags FROM sessions WHERE id = '{session_id}'`
+
+This step is mandatory — skipping it creates duplicates. You must run the queries \
+before proceeding to Phase 3.
+
+### Phase 3 — Decide actions
+
+Based on your query results from Phase 2, assign an action for each candidate.
+
+**Knowledge actions:**
+- **add_topic**: no existing overlap — create a new topic with its first statement
+- **add_statement**: related topic exists — add a new statement to it (include "topic_id")
+- **update_statement**: existing statement needs refinement (include "statement_id")
+- **update_topic**: existing topic title/domain/tags need updating (include "topic_id")
+- **skip**: knowledge already exists unchanged — do NOT include it in the output
+
 Never delete data. To retire knowledge, update the statement or topic instead.
 
-## Extraction
+**Task actions:**
+- **add_task**: new commitment/TODO not yet tracked — create a new task
+- **add_update**: genuinely new context, progress, or notes about an existing task (include "task_id"). If the same fact is already recorded in updates, skip instead.
+- **update_task**: change status/priority/horizon on an existing task (include "task_id"); also records the reason as an update entry
+- **skip**: task already tracked and no new information — do NOT include it in the output
 
-1. **knowledge** - Durable knowledge worth remembering across sessions:
-   - From USER: personal info, professional info, preferences, interests \
-(asking about ANY topic = an interest), decisions, opinions, workflow habits
-   - From AGENT: key domain knowledge shared with the user (science, history, \
-concepts) — NOT code-level implementation details
-   - Each item: {{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "add_topic|add_statement|update_statement|...", "topic_id": N, "statement_id": N}}
-   - Domains: personal, professional, preferences, interests, knowledge, technical, workflow
-   - Tags: short topic label (e.g. "octopuses", "physics", "python")
-   - Ask: "Would this still be useful in 30 days?" If not, skip it.
-   - Prefer fewer, higher-quality items over many low-value ones.
+**Session tags:** return the FULL updated list — merge similar tags, drop tags no longer \
+relevant, and add new tags from this exchange. If current tags is empty, just return \
+new tags from this exchange.
 
-2. **session_tags** - Updated session tag list (1-4 words each, max ~8 tags).
-   Query the current session's tags: `SELECT tags FROM sessions WHERE id = '{session_id}'`
-   Return the FULL updated list — merge similar tags, drop tags no longer
-   relevant, and add new tags from this exchange.
-   If current tags is empty, just return new tags from this exchange.
+## Output schema
 
-3. **tasks** - Commitments, TODOs, or progress on existing tasks:
-   For each task item, query existing tasks and their updates in the database.
+Each knowledge item: {{"topic_title": "...", "claim": "...", "domain": "...", "tags": "...", "action": "add_topic|add_statement|update_statement|update_topic", "topic_id": N, "statement_id": N}}
+- Domains: personal, professional, preferences, interests, knowledge, technical, workflow
+- Tags: short topic label (e.g. "octopuses", "physics", "python")
 
-   Based on what you find, set the action:
-   - **add_task**: new commitment/TODO not yet tracked — create a new task
-   - **add_update**: genuinely new context, progress, or notes about an existing task (include "task_id"). Check existing updates first — **skip** if the same fact is already recorded.
-   - **update_task**: change status/priority/horizon on an existing task (include "task_id"); also records the reason as an update entry
-   - **skip**: task already tracked and no new information — do NOT include it
-
-   Each item: {{"title": "...", "domain": "...", "priority": "low|medium|high", "horizon": "now|soon|later", "status": "open|done|dropped", "action": "add_task|add_update|update_task", "task_id": N, "content": "..."}}
-   - "content" is used for add_update (the fact/note) and update_task (the reason for the change)
-   - domain: same as knowledge domains
-   - priority: how important (low/medium/high)
-   - horizon: when to act (now/soon/later)
-   - status: open (default), done (completed), dropped (no longer relevant)
+Each task item: {{"title": "...", "domain": "...", "priority": "low|medium|high", "horizon": "now|soon|later", "status": "open|done|dropped", "action": "add_task|add_update|update_task", "task_id": N, "content": "..."}}
+- "content" is used for add_update (the fact/note) and update_task (the reason for the change)
+- domain: same as knowledge domains
+- priority: how important (low/medium/high)
+- horizon: when to act (now/soon/later)
+- status: open (default), done (completed), dropped (no longer relevant)
 
 Return JSON:
 {{
@@ -126,7 +153,15 @@ EXTRACTION_SCHEMA = {
                     "claim": {"type": "string"},
                     "domain": {"type": "string", "enum": list(VALID_DOMAINS)},
                     "tags": {"type": "string"},
-                    "action": {"type": "string", "enum": ["add_topic", "add_statement", "update_statement", "update_topic"]},
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "add_topic",
+                            "add_statement",
+                            "update_statement",
+                            "update_topic",
+                        ],
+                    },
                     "topic_id": {"type": "integer"},
                     "statement_id": {"type": "integer"},
                 },
@@ -144,7 +179,10 @@ EXTRACTION_SCHEMA = {
                     "priority": {"type": "string", "enum": list(VALID_PRIORITY)},
                     "horizon": {"type": "string", "enum": list(VALID_HORIZON)},
                     "status": {"type": "string", "enum": list(VALID_STATUS)},
-                    "action": {"type": "string", "enum": ["add_task", "add_update", "update_task"]},
+                    "action": {
+                        "type": "string",
+                        "enum": ["add_task", "add_update", "update_task"],
+                    },
                     "task_id": {"type": "integer"},
                     "content": {"type": "string"},
                 },
@@ -170,6 +208,7 @@ def build_extraction_prompt(user_text, agent_text, session_id=""):
 # ---------------------------------------------------------------------------
 # Storage functions
 # ---------------------------------------------------------------------------
+
 
 def _skip(session_id, action, reason, **extra):
     """Log a skipped extraction item."""
@@ -205,14 +244,21 @@ def process_knowledge(conn, knowledge_list, session_id=None):
 
     for item in knowledge_list:
         action = item.get("action", "").strip().lower()
-        if action not in ("add_topic", "add_statement", "update_statement", "update_topic"):
+        if action not in (
+            "add_topic",
+            "add_statement",
+            "update_statement",
+            "update_topic",
+        ):
             continue
 
         if action == "update_topic":
             topic_id = _parse_id(item.get("topic_id"), "topic_id", action, session_id)
             if topic_id is None:
                 continue
-            if not conn.execute("SELECT 1 FROM topics WHERE id = ?", (topic_id,)).fetchone():
+            if not conn.execute(
+                "SELECT 1 FROM topics WHERE id = ?", (topic_id,)
+            ).fetchone():
                 _skip(session_id, action, "topic not found", topic_id=topic_id)
                 continue
             title = item.get("topic_title", "").strip()
@@ -231,14 +277,18 @@ def process_knowledge(conn, knowledge_list, session_id=None):
             continue
 
         if action == "update_statement":
-            stmt_id = _parse_id(item.get("statement_id"), "statement_id", action, session_id)
+            stmt_id = _parse_id(
+                item.get("statement_id"), "statement_id", action, session_id
+            )
             if stmt_id is None:
                 continue
             claim = item.get("claim", "").strip()
             if not claim:
                 _skip(session_id, action, "missing claim")
                 continue
-            if not conn.execute("SELECT 1 FROM statements WHERE id = ?", (stmt_id,)).fetchone():
+            if not conn.execute(
+                "SELECT 1 FROM statements WHERE id = ?", (stmt_id,)
+            ).fetchone():
                 _skip(session_id, action, "statement not found", statement_id=stmt_id)
                 continue
             conn.execute(
@@ -256,7 +306,9 @@ def process_knowledge(conn, knowledge_list, session_id=None):
             if not claim:
                 _skip(session_id, action, "missing claim")
                 continue
-            if not conn.execute("SELECT 1 FROM topics WHERE id = ?", (topic_id,)).fetchone():
+            if not conn.execute(
+                "SELECT 1 FROM topics WHERE id = ?", (topic_id,)
+            ).fetchone():
                 _skip(session_id, action, "topic not found", topic_id=topic_id)
                 continue
             # Exact-match dedup safety net
@@ -337,7 +389,9 @@ def process_tasks(conn, tasks_list, session_id=None):
             if not content:
                 _skip(session_id, action, "missing content")
                 continue
-            if not conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone():
+            if not conn.execute(
+                "SELECT 1 FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone():
                 _skip(session_id, action, "task not found", task_id=task_id)
                 continue
             # Exact-match dedup safety net
@@ -358,7 +412,9 @@ def process_tasks(conn, tasks_list, session_id=None):
             if task_id is None:
                 continue
             content = task.get("content", "").strip()
-            if not conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone():
+            if not conn.execute(
+                "SELECT 1 FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone():
                 _skip(session_id, action, "task not found", task_id=task_id)
                 continue
 
@@ -447,7 +503,6 @@ def process_tasks(conn, tasks_list, session_id=None):
     return tasks_inserted, updates_inserted, tasks_updated
 
 
-
 def store_tags(conn, session_id, tags):
     """Replace session tags with the model's consolidated list (deduped)."""
     if not tags:
@@ -513,7 +568,12 @@ def _run(data):
         return
 
     if not isinstance(result, dict):
-        log("extraction_error", session_id, context="unexpected type", error=str(type(result)))
+        log(
+            "extraction_error",
+            session_id,
+            context="unexpected type",
+            error=str(type(result)),
+        )
         return
 
     with open_db() as conn:
@@ -525,13 +585,17 @@ def _run(data):
         topics_ins = stmts_ins = stmts_upd = topics_upd = 0
         if cfg["knowledge_extraction"]:
             knowledge = result.get("knowledge", [])
-            topics_ins, stmts_ins, stmts_upd, topics_upd = process_knowledge(conn, knowledge, session_id)
+            topics_ins, stmts_ins, stmts_upd, topics_upd = process_knowledge(
+                conn, knowledge, session_id
+            )
 
         # Tasks
         tasks_ins = updates_ins = tasks_upd = 0
         if cfg["task_tracking"]:
             tasks_list = result.get("tasks", [])
-            tasks_ins, updates_ins, tasks_upd = process_tasks(conn, tasks_list, session_id)
+            tasks_ins, updates_ins, tasks_upd = process_tasks(
+                conn, tasks_list, session_id
+            )
 
         # Session tags
         if cfg["session_tags"]:
@@ -595,7 +659,6 @@ def _run(data):
         analysis_data["tasks"] = len(result["tasks"])
 
     log("analysis", session_id, **analysis_data)
-
 
 
 if __name__ == "__main__":
