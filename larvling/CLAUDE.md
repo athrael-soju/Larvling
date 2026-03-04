@@ -150,6 +150,14 @@ Use **plain text** for:
 - **claude-agent-sdk** (`pip install claude-agent-sdk`) — required for unified analysis (knowledge extraction, session tags, tasks)
 - Install via: `pip install -r "${CLAUDE_PLUGIN_ROOT}/requirements.txt"`
 
+## Troubleshooting
+
+**`python: command not found`** — On Linux systems where only `python3` is available, Larvling hooks will fail. Guide the user to create a symlink:
+
+```bash
+sudo ln -s /usr/bin/python3 /usr/bin/python
+```
+
 ## Run End
 
 - Session timing and exchange count are recorded automatically

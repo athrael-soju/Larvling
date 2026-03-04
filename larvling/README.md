@@ -26,8 +26,19 @@ claude --plugin-dir ./larvling
 
 ### Dependencies
 
+- **Python 3.10+**
+- **claude-agent-sdk** — install via:
+
 ```bash
 pip install -r larvling/requirements.txt
+```
+
+### Troubleshooting
+
+**`python: command not found` on Linux** — Larvling hooks use `python`. On systems where only `python3` is available, create a symlink:
+
+```bash
+sudo ln -s /usr/bin/python3 /usr/bin/python
 ```
 
 ## Skills
