@@ -73,10 +73,31 @@ def ensure_schema():
     return "migrate"
 
 
+def check_dependencies():
+    """Check if required Python packages are installed.
+
+    Returns True if all dependencies are satisfied, False otherwise.
+    When False, prints installation instructions for Claude to act on.
+    """
+    try:
+        import claude_agent_sdk  # noqa: F401
+        return True
+    except ImportError:
+        print("# Larvling - Missing Dependency\n")
+        print("`claude-agent-sdk` is not installed. Install it now:\n")
+        print("```bash")
+        print('pip install -r "${CLAUDE_PLUGIN_ROOT}/requirements.txt"')
+        print("```\n")
+        print("Without it, knowledge extraction, session tags, and task tracking are disabled.")
+        return False
+
+
 def main():
     if os.environ.get("LARVLING_INTERNAL"):
         return
     reconfigure_stdout()
+
+    check_dependencies()
 
     result = ensure_schema()
 
