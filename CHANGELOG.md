@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.12](https://github.com/athrael-soju/larvling/compare/v0.1.11...v0.1.12) (2026-03-05)
+
+
+### Features
+
+* add dependency check for claude_agent_sdk in preflight.py and update troubleshooting instructions in CLAUDE.md ([16ef6c9](https://github.com/athrael-soju/larvling/commit/16ef6c9f32dc79fa32a1dd1544ce7fc61cc91640))
+
+
+### Documentation
+
+* add troubleshooting section for Python command issues in README.md and CLAUDE.md ([c6d5928](https://github.com/athrael-soju/larvling/commit/c6d592896513eadce347a946d7925bbad3f56785))
+
 ## [0.1.11](https://github.com/athrael-soju/larvling/compare/v0.1.10...v0.1.11) (2026-03-02)
 
 
