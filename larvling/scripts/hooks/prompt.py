@@ -111,37 +111,46 @@ def handle(data):
         "permission_mode": data.get("permission_mode"),
     }
 
+    # System-injected messages (e.g. task-notification) arrive through the
+    # UserPromptSubmit hook but are not actual user input.
+    role = "system" if prompt.startswith("<task-notification>") else "user"
+
     with open_db() as conn:
         ensure_session(conn, session_id)
-        record_message(conn, session_id, "user", prompt, meta)
+        record_message(conn, session_id, role, prompt, meta)
 
-        count = conn.execute(
-            "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
-            (session_id,),
-        ).fetchone()[0]
-        if count == 1:
-            record_summary(conn, session_id, title=prompt)
+        if role == "user":
+            count = conn.execute(
+                "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
+                (session_id,),
+            ).fetchone()[0]
+            if count == 1:
+                record_summary(conn, session_id, title=prompt)
 
         conn.commit()
 
-        # Detect skill/command invocations:
-        # - Raw slash command: "/status", "/recall"
-        # - XML tags: <command-message>plugin:skill</command-message>
-        cmd_match = re.search(
-            r"<command-(?:message|name)>\s*/?(.+?)\s*</command-(?:message|name)>",
-            prompt,
-        )
-        if not cmd_match and re.fullmatch(r"/[\w:/-]+", prompt.strip()):
-            cmd_match = re.fullmatch(r"/([\w:/-]+)", prompt.strip())
-        if cmd_match:
-            log("skill", session_id, name=f"/{cmd_match.group(1)}")
+        if role != "user":
+            log("system-passthrough", session_id)
         else:
-            log("prompt", session_id, n=count)
+            # Detect skill/command invocations:
+            # - Raw slash command: "/status", "/recall"
+            # - XML tags: <command-message>plugin:skill</command-message>
+            cmd_match = re.search(
+                r"<command-(?:message|name)>\s*/?(.+?)\s*</command-(?:message|name)>",
+                prompt,
+            )
+            if not cmd_match and re.fullmatch(r"/[\w:/-]+", prompt.strip()):
+                cmd_match = re.fullmatch(r"/([\w:/-]+)", prompt.strip())
+            if cmd_match:
+                log("skill", session_id, name=f"/{cmd_match.group(1)}")
+            else:
+                log("prompt", session_id, n=count)
 
-        try:
-            inject_context(conn, session_id)
-        except Exception:
-            pass  # Context injection is non-critical
+        if role == "user":
+            try:
+                inject_context(conn, session_id)
+            except Exception:
+                pass  # Context injection is non-critical
 
 
 if __name__ == "__main__":
