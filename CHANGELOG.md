@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.13](https://github.com/athrael-soju/larvling/compare/v0.1.12...v0.1.13) (2026-03-22)
+
+
+### Bug Fixes
+
+* use python3 instead of python in all hooks and scripts ([0b80d7e](https://github.com/athrael-soju/larvling/commit/0b80d7ead428b1e536daf8a74179dd0d8b524675))
+* use python3 instead of python in all hooks, scripts, and docs ([ec386fe](https://github.com/athrael-soju/larvling/commit/ec386fe80769d2743cc7530ef7df5bb4b0033338))
+
 ## [0.1.12](https://github.com/athrael-soju/larvling/compare/v0.1.11...v0.1.12) (2026-03-05)
 
 
