@@ -12,5 +12,5 @@ Search sessions by date, keyword, topic, or any available context. Search across
 
 Run SQL via:
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```

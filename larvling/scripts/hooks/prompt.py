@@ -43,7 +43,7 @@ def inject_context(conn, session_id):
         )
         text = (
             f"\n## Knowledge Context\n{topic_count} topic(s), {stmt_count} statement(s). "
-            f'query: python "{query_script}" "<SQL>"\n'
+            f'query: python3 "{query_script}" "<SQL>"\n'
             f"Search for relevant knowledge and weave it into your response naturally."
         )
         print(text)

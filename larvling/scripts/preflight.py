@@ -67,7 +67,7 @@ def ensure_schema():
     )
     print("Preserve all existing data. After migrating, run:")
     print(
-        f"```python\npython -c \"import sqlite3; c=sqlite3.connect('{safe_path}'); c.execute('PRAGMA user_version={SCHEMA_VERSION}'); c.close()\"\n```"
+        f"```bash\npython3 -c \"import sqlite3; c=sqlite3.connect('{safe_path}'); c.execute('PRAGMA user_version={SCHEMA_VERSION}'); c.close()\"\n```"
     )
 
     return "migrate"
