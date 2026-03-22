@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/athrael-soju/larvling/compare/v0.1.13...v0.1.14) (2026-03-22)
+
+
+### Bug Fixes
+
+* classify task-notification messages as system role ([4202b9b](https://github.com/athrael-soju/larvling/commit/4202b9b98bae806c6a6be69c48cf9c21796f7167))
+
 ## [0.1.13](https://github.com/athrael-soju/larvling/compare/v0.1.12...v0.1.13) (2026-03-22)
 
 
