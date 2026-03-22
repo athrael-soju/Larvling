@@ -113,7 +113,7 @@ def handle(data):
 
     # System-injected messages (e.g. task-notification) arrive through the
     # UserPromptSubmit hook but are not actual user input.
-    role = "system" if prompt.lstrip().startswith("<task-notification>") else "user"
+    role = "system" if prompt.startswith("<task-notification>") else "user"
 
     with open_db() as conn:
         ensure_session(conn, session_id)
