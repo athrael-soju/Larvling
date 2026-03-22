@@ -55,7 +55,7 @@ AGENT responded: {agent_text}
 
 Query the database to check for existing data before deciding actions:
 
-python "{query_script}" "<SQL>" --read-only
+python3 "{query_script}" "<SQL>" --read-only
 
 Six tables in 3 parent→child pairs:
 - `topics` (id INTEGER PK, title, domain, tags, created, updated)

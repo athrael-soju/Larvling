@@ -13,5 +13,5 @@ Find the knowledge to remove — by ID, keyword, or by asking the user to clarif
 
 Run SQL via:
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```

@@ -12,5 +12,5 @@ Search for relevant knowledge by keyword, topic, or any available context. Use J
 
 Run SQL via:
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
