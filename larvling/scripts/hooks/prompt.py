@@ -146,10 +146,11 @@ def handle(data):
             else:
                 log("prompt", session_id, n=count)
 
-        try:
-            inject_context(conn, session_id)
-        except Exception:
-            pass  # Context injection is non-critical
+        if role == "user":
+            try:
+                inject_context(conn, session_id)
+            except Exception:
+                pass  # Context injection is non-critical
 
 
 if __name__ == "__main__":
