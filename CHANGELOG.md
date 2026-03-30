@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/athrael-soju/larvling/compare/v0.1.14...v0.1.15) (2026-03-30)
+
+
+### Bug Fixes
+
+* update command execution to use dynamic Python version ([66612ad](https://github.com/athrael-soju/larvling/commit/66612ad34e6eaf1450a9704b8001bd7c10bd7e15))
+
 ## [0.1.14](https://github.com/athrael-soju/larvling/compare/v0.1.13...v0.1.14) (2026-03-22)
 
 
