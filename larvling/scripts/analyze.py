@@ -8,6 +8,7 @@ SDK call, then writes results to SQLite.
 
 import asyncio
 import os
+import sys
 
 from config import get_config
 from db import (
@@ -55,7 +56,7 @@ AGENT responded: {agent_text}
 
 Query the database to check for existing data before deciding actions:
 
-python3 "{query_script}" "<SQL>" --read-only
+{python} "{query_script}" "<SQL>" --read-only
 
 Six tables in 3 parent→child pairs:
 - `topics` (id INTEGER PK, title, domain, tags, created, updated)
@@ -202,6 +203,7 @@ def build_extraction_prompt(user_text, agent_text, session_id=""):
         agent_text=agent_text,
         session_id=session_id or "",
         query_script=query_script.replace("\\", "/"),
+        python=os.path.basename(sys.executable),
     )
 
 

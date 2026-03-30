@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 
 from config import get_config
 from db import (
@@ -41,9 +42,10 @@ def inject_context(conn, session_id):
         query_script = os.path.normpath(os.path.join(scripts_dir, "query.py")).replace(
             "\\", "/"
         )
+        py = os.path.basename(sys.executable)
         text = (
             f"\n## Knowledge Context\n{topic_count} topic(s), {stmt_count} statement(s). "
-            f'query: python3 "{query_script}" "<SQL>"\n'
+            f'query: {py} "{query_script}" "<SQL>"\n'
             f"Search for relevant knowledge and weave it into your response naturally."
         )
         print(text)

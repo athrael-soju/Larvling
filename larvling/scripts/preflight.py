@@ -5,6 +5,7 @@ Ensures the database and schema exist before any other hooks run.
 
 import os
 import shutil
+import sys
 
 from db import (
     DB_PATH,
@@ -60,6 +61,7 @@ def ensure_schema():
     print("## Desired Schema")
     print(f"```sql\n{new_schema}\n```\n")
     safe_path = DB_PATH.replace("\\", "/")
+    py = os.path.basename(sys.executable)
     print(
         "Please migrate the database at `"
         + safe_path
@@ -67,7 +69,7 @@ def ensure_schema():
     )
     print("Preserve all existing data. After migrating, run:")
     print(
-        f"```bash\npython3 -c \"import sqlite3; c=sqlite3.connect('{safe_path}'); c.execute('PRAGMA user_version={SCHEMA_VERSION}'); c.close()\"\n```"
+        f"```bash\n{py} -c \"import sqlite3; c=sqlite3.connect('{safe_path}'); c.execute('PRAGMA user_version={SCHEMA_VERSION}'); c.close()\"\n```"
     )
 
     return "migrate"
