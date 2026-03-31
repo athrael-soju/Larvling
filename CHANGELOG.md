@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/athrael-soju/larvling/compare/v0.1.17...v0.1.18) (2026-03-31)
+
+
+### Bug Fixes
+
+* add completion instructions for knowledge maintenance and summary agents ([66599f6](https://github.com/athrael-soju/larvling/commit/66599f6d27604ca6aaea4fb7b40f0ea13d6a7955))
+
 ## [0.1.17](https://github.com/athrael-soju/larvling/compare/v0.1.16...v0.1.17) (2026-03-31)
 
 
