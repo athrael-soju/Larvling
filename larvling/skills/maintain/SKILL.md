@@ -13,3 +13,5 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
 
 Delegate to the `knowledge-maintenance` agent. It will audit all topics and statements, identify issues (duplicates, stale entries, misclassifications, contradictions), propose changes, and apply only what the user approves.
+
+Once the agent completes, summarize its results to the user. Do not send follow-up messages to the agent after it finishes.
