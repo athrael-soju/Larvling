@@ -10,7 +10,7 @@ argument-hint: "[session-id or --list or all]"
 
 Run SQL via:
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
 
 Delegate to the `summary-manager` agent. Pass along the session ID if provided, or the current session if not.

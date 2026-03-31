@@ -10,7 +10,7 @@ argument-hint: "[knowledge to remember]"
 
 Run SQL via:
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
 
 Delegate to the `knowledge-manager` agent. Pass along the knowledge to store, or the conversation context if nothing specific was given.

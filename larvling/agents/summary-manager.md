@@ -18,7 +18,7 @@ SQLite database at `.claude/larvling.db`.
 ## Query Tool
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
 
 Append `--json` for JSON output.
@@ -26,9 +26,9 @@ Append `--json` for JSON output.
 ## Summary Tool
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" --list
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --get
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --store "SUMMARY"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" --list
+python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --get
+python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --store "SUMMARY"
 ```
 
 ## Guidelines

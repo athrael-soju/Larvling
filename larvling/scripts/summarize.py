@@ -2,9 +2,9 @@
 Larvling Summarize - manage session summaries.
 
 Usage:
-    python3 summarize.py --list                       # list sessions
-    python3 summarize.py <session_id> --get           # get existing session summary
-    python3 summarize.py <session_id> --store "text"  # store/replace session summary
+    python summarize.py --list                       # list sessions
+    python summarize.py <session_id> --get           # get existing session summary
+    python summarize.py <session_id> --store "text"  # store/replace session summary
 """
 
 import sys

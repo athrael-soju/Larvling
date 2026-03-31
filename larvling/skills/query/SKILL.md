@@ -16,5 +16,5 @@ disable-model-invocation: true
 Execute the SQL directly. Append `--json` for JSON output.
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "$ARGUMENTS"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "$ARGUMENTS"
 ```

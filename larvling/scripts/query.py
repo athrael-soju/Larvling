@@ -2,9 +2,9 @@
 Larvling Query - run arbitrary SQL against larvling.db.
 
 Usage:
-    python3 query.py "SQL"               # run SQL, table output
-    python3 query.py "SQL" --json        # run SQL, JSON output
-    python3 query.py "SQL" --read-only   # reject non-SELECT statements
+    python query.py "SQL"               # run SQL, table output
+    python query.py "SQL" --json        # run SQL, JSON output
+    python query.py "SQL" --read-only   # reject non-SELECT statements
 """
 
 import json

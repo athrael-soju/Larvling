@@ -8,8 +8,8 @@ argument-hint: "[session-id or --list or --all]"
 
 Run via:
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" <session_id>           # prints to stdout
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" <session_id> <outfile> # writes to file
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" --list
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" --all [<outdir>]       # default: .claude/exports/
+python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" <session_id>           # prints to stdout
+python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" <session_id> <outfile> # writes to file
+python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" --list
+python "${CLAUDE_PLUGIN_ROOT}/scripts/export.py" --all [<outdir>]       # default: .claude/exports/
 ```

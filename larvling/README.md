@@ -35,7 +35,7 @@ pip install -r larvling/requirements.txt
 
 ### Troubleshooting
 
-**`python3: command not found`** — Larvling requires Python 3. Ensure `python3` is on the system PATH.
+**`python: command not found`** — Larvling requires Python 3. Ensure `python` is on the system PATH.
 
 ## Skills
 

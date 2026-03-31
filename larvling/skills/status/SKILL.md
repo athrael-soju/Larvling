@@ -15,5 +15,5 @@ Gather and present a brief overview: session count, message count, topic count, 
 
 Run SQL via:
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```

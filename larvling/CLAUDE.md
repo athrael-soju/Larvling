@@ -154,7 +154,7 @@ Use **plain text** for:
 
 **`claude_agent_sdk is required but not installed`** — On new installs, `preflight.py` detects the missing SDK and prints installation instructions. Run the `pip install` command shown in the SessionStart context. Without it, knowledge extraction, session tags, and task tracking are disabled (basic session logging still works).
 
-**`python3: command not found`** — Larvling requires Python 3. Ensure `python3` is on the system PATH.
+**`python: command not found`** — Larvling requires Python 3. Ensure `python` is on the system PATH.
 
 ## Run End
 

@@ -2,10 +2,10 @@
 Larvling Export - export a session's conversation to markdown.
 
 Usage:
-    python3 export.py <session_id>            # prints markdown to stdout
-    python3 export.py <session_id> <outfile>  # writes to file
-    python3 export.py --list                  # list available sessions
-    python3 export.py --all <outdir>          # export all sessions to a directory
+    python export.py <session_id>            # prints markdown to stdout
+    python export.py <session_id> <outfile>  # writes to file
+    python export.py --list                  # list available sessions
+    python export.py --all <outdir>          # export all sessions to a directory
 """
 
 import os
