@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/athrael-soju/larvling/compare/v0.1.16...v0.1.17) (2026-03-31)
+
+
+### Bug Fixes
+
+* update documentation and scripts to use 'python' instead of 'python3' ([2a17760](https://github.com/athrael-soju/larvling/commit/2a17760fb5fb7450a8ce70d2b4d7306c98b7dca3))
+
 ## [0.1.16](https://github.com/athrael-soju/larvling/compare/v0.1.15...v0.1.16) (2026-03-30)
 
 
