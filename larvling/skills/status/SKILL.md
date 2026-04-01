@@ -4,7 +4,7 @@ description: Show a quick overview of Larvling's state
 ---
 
 **Schema:**
-- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, tags TEXT)`
+- `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, tags TEXT, summary_offered INT DEFAULT 0)`
 - `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT, content TEXT, metadata TEXT)`
 - `topics (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT, updated TEXT)`
 - `statements (id INTEGER PK AUTO, topic_id INTEGER FK→topics(id), claim TEXT NOT NULL, created TEXT, updated TEXT)`
@@ -17,3 +17,28 @@ Run SQL via:
 ```
 $PY "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
+
+## Output Format
+
+Present as a compact dashboard:
+
+```
+**Larvling Status**
+
+| Metric     | Value            |
+|------------|------------------|
+| Sessions   | 42               |
+| Messages   | 318              |
+| Topics     | 5 (3 domains)    |
+| Statements | 22               |
+| Tasks      | 3 open, 1 done   |
+| DB size    | 156 KB           |
+| Version    | 0.1.21           |
+```
+
+## Final Step
+
+**REQUIRED:** You MUST call AskUserQuestion (type: Decision) with these options after presenting the dashboard. Do not end your response without this menu:
+- **Browse sessions** — view recent session history
+- **View knowledge** — recall stored topics and statements
+- **Check tasks** — list open tasks and recent updates

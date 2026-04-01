@@ -274,7 +274,7 @@ def get_session_context():
                 recent = conn.execute(
                     "SELECT t.id, t.title, s.id as sid, s.claim "
                     "FROM topics t JOIN statements s ON s.topic_id = t.id "
-                    "ORDER BY s.updated DESC, s.created DESC LIMIT 10"
+                    "ORDER BY s.updated DESC, s.created DESC LIMIT 5"
                 ).fetchall()
                 lines.append(f"## Stored Knowledge ({topic_count} topics, {stmt_count} statements)")
                 lines.append(f"Domains: {domains}")
@@ -284,10 +284,10 @@ def get_session_context():
 
         # Maintenance hint for large knowledge bases
         if topic_count >= 50 or stmt_count >= 100:
-            lines.append("## Maintenance")
+            lines.append(f"## Maintenance Suggested")
             lines.append(
-                f"Knowledge base has grown ({topic_count} topics, {stmt_count} statements). "
-                "Consider offering /maintain."
+                f"Knowledge base is large ({topic_count} topics, {stmt_count} statements) "
+                "and may benefit from consolidation."
             )
             lines.append("")
 

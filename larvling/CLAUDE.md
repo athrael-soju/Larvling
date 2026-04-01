@@ -18,7 +18,17 @@ When the SessionStart context contains "Larvling update available", mention it o
 
 ## During a Session
 
-Review the context Larvling injects at session start - it's your memory of what came before. Recording is automatic - just focus on the work.
+Review the context Larvling injects at session start — it's your memory of what came before. Recording is automatic — just focus on the work.
+
+### Session Start Menu
+
+After reviewing the injected context, offer a welcome menu on the **first user message** using AskUserQuestion (type: Decision). Tailor the options to what's in the context:
+
+- If there are **open tasks**, include: **Pick up a task** — resume work on an open task
+- If there are **recent sessions**, include: **Continue where I left off** — pick up from the last session's topic
+- Always include: **Start fresh** — begin something new
+
+Keep the greeting brief (one sentence acknowledging the context), then present the menu. Skip the menu if the user's first message is already a specific question or command — don't interrupt them.
 
 ### Schema Migration
 
@@ -83,7 +93,7 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 
 Larvling stores persistent knowledge in the `topics` + `statements` tables, and action items in the `tasks` + `updates` tables. Multiple mechanisms handle data extraction:
 
-**UserPromptSubmit → Knowledge Context (read):** The `## Knowledge Context` directive prints on every exchange with the `query.py` path and topic/statement counts. Search for relevant knowledge and weave it into your response naturally.
+**UserPromptSubmit → Knowledge Context (read):** The `## Knowledge Context` directive prints on every exchange with the `query.py` path and topic/statement counts. Search for relevant knowledge and weave it into your response naturally. When there's a `Last learned:` line, the previous exchange produced new knowledge — mention it naturally if relevant to the conversation.
 
 **Stop → Unified analysis (write):** `analyze.py` runs as a command hook after every response, calling `sdk.py` (`call_model()`) for Agent SDK integration. The extraction agent has Bash tool access to query all 6 tables for dedup — given the full schema, it decides what queries to run. A single SDK call extracts multiple data types from the last exchange:
 - **Knowledge** → `topics` + `statements` tables (hierarchical: topic groups related statements). Actions: `add_topic`, `add_statement`, `update_statement`, `update_topic`.
@@ -103,7 +113,48 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 {"ts":"...","event":"session_end","sid":"6801adcc","exchanges":1,"duration":0.2}
 ```
 
+**Extraction feedback:** When the `Last learned:` line shows 3+ new items (topics or statements), offer a quick review using AskUserQuestion (type: Knowledge) with options:
+- **Review what I learned** — show the new items so the user can verify
+- **Looks good** — acknowledge and move on
+- **Forget something** — remove an incorrect extraction
+
+Only offer this once per exchange, and only when there's substantial new knowledge — don't prompt for minor updates or single statements.
+
 **Manual skills** (`/remember`, `/recall`, `/forget`) still work for explicit user-initiated knowledge management.
+
+### Proactive Task Nudges
+
+When the SessionStart context shows **Open Tasks** and the user's message relates to one of them, surface it proactively. Use AskUserQuestion (type: Decision):
+- **Work on this task** — start or continue the matching task
+- **Update task** — add a note or change status/priority
+- **Not now** — dismiss and continue with the user's original request
+
+Rules:
+- Only nudge when there's a clear match between the user's message and an open task (shared keywords, same topic area)
+- Maximum one nudge per session — don't nag
+- Never nudge when the user is mid-flow on unrelated work
+- If the user picks "Not now", don't nudge about that task again this session
+
+### Skill Discovery Hints
+
+When you notice the user doing something manually that a Larvling skill handles more efficiently, mention it briefly **after completing their request** — not before. Examples:
+
+- User writes SQL against larvling.db → "Tip: `/query` can run that directly"
+- User asks "what do you know about X?" → "Tip: `/recall X` searches stored knowledge"
+- User says "remember that..." in conversation → "Tip: `/remember` stores knowledge permanently"
+- User asks about past conversations → "Tip: `/sessions` can search past sessions by topic"
+
+Rules:
+- Only hint once per skill per session — after that, assume the user knows
+- Keep hints to one short sentence, appended after your actual response
+- Never hint when the user just used a skill (they already know)
+- Don't hint about `/query` when the user is doing non-Larvling SQL work
+
+### Skill Follow-Up Menus
+
+All skills include a `## Final Step` section with a **REQUIRED** AskUserQuestion call. After presenting skill results, you MUST call the follow-up menu — do not end your response without it. The menus use type `Decision` with 2-3 concise options relevant to what was just shown.
+
+AskUserQuestion automatically includes an "Other" option that lets the user type freeform input. If the user picks "Other", treat their text as a natural-language request and handle it accordingly — don't force them back into the menu.
 
 ### Session Summaries
 
@@ -111,13 +162,33 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 - **No summary yet:** shown when the session reaches 10+ messages
 - **Stale summary:** shown when 5+ new messages have been added since the last summary
 
-When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines. The `summary-manager` agent handles the actual summarization work.
+When you see the `## Summary` hint, offer `/summarize` via AskUserQuestion. Keep the offer brief and non-intrusive — a single sentence is enough. The hint itself is clean (no agent directives); CLAUDE.md is the authority on what to do when you see it. Don't ask repeatedly if the user declines. The `summary-manager` agent handles the actual summarization work.
 
 ### Agents
 
 **`summary-manager`** — Session summarization. Delegated to when the user accepts a `/summarize` offer or when the summary hint fires. Reads conversation pairs, writes a concise summary, and stores it.
 
 **`knowledge-maintenance`** — Periodic knowledge base audit and consolidation. Delegated to when the user invokes `/maintain` or when the maintenance hint fires (50+ topics or 100+ statements). Identifies duplicate topics, redundant/stale statements, misclassified domains, and contradictions. Proposes changes via AskUserQuestion, applies only what the user approves. Never deletes — merges via statement reassignment and topic title updates.
+
+### Progress Tracking with Tasks
+
+Use **TaskCreate** and **TaskUpdate** to give the user visibility into multi-step operations. This is especially valuable for skills that involve several sequential actions.
+
+**When to create tasks:**
+- Multi-step skill operations (e.g., `/maintain` audit phases, batch `/export`, multi-session `/summarize`)
+- Any user request that will take 3+ distinct steps
+- When the user explicitly asks to track progress
+
+**How to use:**
+- Create tasks before starting work, with clear subjects in imperative form
+- Mark each task `in_progress` when you start it (shows a spinner to the user)
+- Mark `completed` as soon as you finish each step — don't batch completions
+- Use `activeForm` for natural spinner text (e.g., "Auditing knowledge base")
+
+**When NOT to create tasks:**
+- Single-step skills (`/status`, simple `/recall`, `/query`)
+- Trivial operations that complete in one tool call
+- When the user is in a fast back-and-forth conversation (tasks would slow things down)
 
 ## Interaction Protocol
 

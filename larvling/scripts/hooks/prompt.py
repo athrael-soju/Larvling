@@ -43,7 +43,7 @@ def _last_context_counts():
                     last = entry
         if last:
             for item in last["injected"]:
-                m = re.match(r"(\d+) topics, (\d+) statements", item)
+                m = re.match(r"(\d+)(?:\s*\([^)]*\))?\s*topics,\s*(\d+)(?:\s*\([^)]*\))?\s*statements", item)
                 if m:
                     return int(m.group(1)), int(m.group(2))
     except Exception:
@@ -58,6 +58,52 @@ def _fmt_delta(current, previous):
     diff = current - previous
     sign = "+" if diff > 0 else ""
     return f"{current} ({sign}{diff})"
+
+
+def _recent_extraction(conn):
+    """Build a brief summary of what was learned since the last prompt.
+
+    Compares current topic/statement/task counts against the last context
+    event and, when there's growth, fetches the most recently added items
+    from the database so the agent can mention them naturally.
+    """
+    prev_topics, prev_stmts = _last_context_counts()
+    if prev_topics is None:
+        return None
+
+    cur_topics = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0] if has_table(conn, "topics") else 0
+    cur_stmts = conn.execute("SELECT COUNT(*) FROM statements").fetchone()[0] if has_table(conn, "statements") else 0
+
+    new_topics = cur_topics - (prev_topics or 0)
+    new_stmts = cur_stmts - (prev_stmts or 0)
+
+    if new_topics <= 0 and new_stmts <= 0:
+        return None
+
+    # Fetch recently added items for context
+    parts = []
+    if new_stmts > 0 and has_table(conn, "statements"):
+        recent = conn.execute(
+            "SELECT t.title, s.claim FROM topics t "
+            "JOIN statements s ON s.topic_id = t.id "
+            "ORDER BY s.id DESC LIMIT ?",
+            (min(new_stmts, 3),),
+        ).fetchall()
+        for r in recent:
+            claim = r["claim"]
+            if len(claim) > 80:
+                claim = claim[:77] + "..."
+            parts.append(f"{r['title']}: {claim}")
+
+    if not parts:
+        counts = []
+        if new_topics > 0:
+            counts.append(f"+{new_topics} topic{'s' if new_topics != 1 else ''}")
+        if new_stmts > 0:
+            counts.append(f"+{new_stmts} statement{'s' if new_stmts != 1 else ''}")
+        return ", ".join(counts)
+
+    return "; ".join(parts)
 
 
 def inject_context(conn, session_id):
@@ -78,11 +124,18 @@ def inject_context(conn, session_id):
         )
         py = os.path.basename(sys.executable)
         text = (
-            f"\n## Knowledge Context\n{topic_count} topic(s), {stmt_count} statement(s). "
+            f"\n## Knowledge Context\n"
+            f"{topic_count} topic(s), {stmt_count} statement(s). "
             f'query: {py} "{query_script}" "<SQL>"\n'
             f"Search for relevant knowledge and weave it into your response naturally."
         )
         print(text)
+
+        # Show what was learned from the last exchange (extraction feedback)
+        extraction = _recent_extraction(conn)
+        if extraction:
+            print(f"Last learned: {extraction}")
+            injected.append(f"learned: {extraction}")
 
         prev_topics, prev_stmts = _last_context_counts()
         t_str = _fmt_delta(topic_count, prev_topics)
@@ -108,10 +161,7 @@ def inject_context(conn, session_id):
         already_offered = session["summary_offered"] or 0
 
         if not already_offered and not session["agent_summary"] and msg_count >= 10:
-            text = (
-                f"\n## Summary\nNo summary yet ({msg_count} messages). "
-                f"Offer /summarize via AskUserQuestion."
-            )
+            text = f"\n## Summary\nNo summary yet ({msg_count} messages)."
             print(text)
             conn.execute(
                 "UPDATE sessions SET summary_offered = 1 WHERE id = ?",
@@ -122,8 +172,7 @@ def inject_context(conn, session_id):
         elif not already_offered and session["agent_summary"] and msg_count > summarized + 4:
             text = (
                 f"\n## Summary\nStale summary "
-                f"(covers {summarized}/{msg_count} messages). "
-                f"Offer /summarize via AskUserQuestion."
+                f"(covers {summarized}/{msg_count} messages)."
             )
             print(text)
             conn.execute(

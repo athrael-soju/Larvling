@@ -42,7 +42,12 @@ Classify knowledge into one of: `personal`, `professional`, `preferences`, `inte
    - New statement: `INSERT INTO statements (topic_id, claim) VALUES (N, '...')`
    - Update statement: `UPDATE statements SET claim = '...', updated = datetime('now') WHERE id = N`
    - Update topic: `UPDATE topics SET title = '...', tags = '...', updated = datetime('now') WHERE id = N`
-4. **Confirm** — use AskUserQuestion (type: Knowledge) to show the user what was stored or updated
+4. **Confirm** — use AskUserQuestion (type: Knowledge) to show what was stored:
+   ```
+   Stored in **[Topic Title]** ([domain]):
+   > "[claim text]"
+   ```
+   For updates, show the before/after briefly.
 
 ## Guidelines
 
@@ -50,3 +55,10 @@ Classify knowledge into one of: `personal`, `professional`, `preferences`, `inte
 - Keep claims concise and self-contained — each should make sense without context
 - Tags should be lowercase, comma-separated, 2-5 per topic
 - When in doubt about whether something is worth storing, store it — knowledge is cheap
+
+## Final Step
+
+**REQUIRED:** You MUST call AskUserQuestion (type: Decision) with these options after confirming what was stored. Do not end your response without this menu:
+- **Remember more** — store additional knowledge
+- **View topic** — show all statements under the topic that was just updated
+- **Done** — no further action needed

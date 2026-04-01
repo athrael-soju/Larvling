@@ -15,3 +15,23 @@ Run SQL via:
 ```
 $PY "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
+
+## Output Format
+
+Show what will be removed clearly before confirming:
+
+```
+Found 1 match:
+
+**Topic: Python Discovery** (technical)
+  - [16] `python3` breaks Windows, `python` breaks macOS
+
+Remove this statement?
+```
+
+## Final Step
+
+**REQUIRED:** You MUST call AskUserQuestion (type: Decision) with these options after deletion is executed. Do not end your response without this menu:
+- **Forget more** — remove another item
+- **View remaining** — show what's left in the affected topic
+- **Done** — no further action needed

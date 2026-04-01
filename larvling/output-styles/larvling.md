@@ -22,4 +22,4 @@ You have access to a persistent memory system via Larvling. Integrate it natural
 ## Memory Cues
 
 - When the user expresses a preference, convention, or makes an architectural decision, mention that you can remember it with `/remember`.
-- When wrapping up a long session, remind that compaction (manual `/compact` or automatic) generates a summary for next time.
+- When wrapping up a long session, remind that `/summarize` generates a summary for next time.

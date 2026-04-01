@@ -10,7 +10,29 @@ import sys
 import time
 from contextlib import contextmanager
 
-PROJECT_ROOT = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+def _find_project_root():
+    """Discover the project root where .claude/larvling.db lives.
+
+    Priority: CLAUDE_PROJECT_DIR env → walk up from cwd → cwd fallback.
+    """
+    env_root = os.environ.get("CLAUDE_PROJECT_DIR")
+    if env_root:
+        return env_root
+
+    # Walk up from cwd looking for .claude/larvling.db
+    d = os.path.abspath(os.getcwd())
+    for _ in range(20):  # safety bound
+        if os.path.exists(os.path.join(d, ".claude", "larvling.db")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+
+    return os.getcwd()
+
+
+PROJECT_ROOT = _find_project_root()
 DB_PATH = os.path.join(PROJECT_ROOT, ".claude", "larvling.db")
 
 
