@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "export PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/scripts\" && PY=$(python3 --version >/dev/null 2>&1 && echo python3 || echo python) && $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py\" && $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session_start.py\"",
+            "command": "export PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/scripts\" && PY=$(for p in python3.13 python3.12 python3.11 python3.10; do command -v $p >/dev/null 2>&1 && echo $p && break; done); PY=${PY:-python3} && $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py\" && $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session_start.py\"",
             "timeout": 10
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "export PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/scripts\" && PY=$(python3 --version >/dev/null 2>&1 && echo python3 || echo python) && $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/prompt.py\"",
+            "command": "export PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/scripts\" && PY=$(for p in python3.13 python3.12 python3.11 python3.10; do command -v $p >/dev/null 2>&1 && echo $p && break; done); PY=${PY:-python3} && $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/prompt.py\"",
             "timeout": 15
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "export PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/scripts\" && PY=$(python3 --version >/dev/null 2>&1 && echo python3 || echo python) && _TMP=$(mktemp) && cat >\"$_TMP\" && $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/stop.py\" <\"$_TMP\"; $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/analyze.py\" <\"$_TMP\"; rm -f \"$_TMP\"",
+            "command": "export PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/scripts\" && PY=$(for p in python3.13 python3.12 python3.11 python3.10; do command -v $p >/dev/null 2>&1 && echo $p && break; done); PY=${PY:-python3} && _TMP=$(mktemp) && cat >\"$_TMP\" && $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/stop.py\" <\"$_TMP\"; $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/analyze.py\" <\"$_TMP\"; rm -f \"$_TMP\"",
             "timeout": 15
           }
         ]
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "export PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/scripts\" && PY=$(python3 --version >/dev/null 2>&1 && echo python3 || echo python) && $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session_end.py\"",
+            "command": "export PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/scripts\" && PY=$(for p in python3.13 python3.12 python3.11 python3.10; do command -v $p >/dev/null 2>&1 && echo $p && break; done); PY=${PY:-python3} && $PY \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session_end.py\"",
             "timeout": 10
           }
         ]

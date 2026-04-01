@@ -91,6 +91,13 @@ def check_dependencies():
     plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
     req_file = os.path.join(plugin_root, "requirements.txt") if plugin_root else ""
 
+    if sys.version_info < (3, 10):
+        print("# Larvling - Python Version Too Old\n")
+        print(f"Running Python **{sys.version_info.major}.{sys.version_info.minor}**, but `claude-agent-sdk` requires **3.10+**.\n")
+        print("Install Python 3.10+ and ensure it is on your PATH (e.g. `brew install python@3.11`).")
+        print("Without it, knowledge extraction, session tags, and task tracking are disabled.")
+        return False
+
     import subprocess
     try:
         cmd = [sys.executable, "-m", "pip", "install", "--quiet"]
@@ -98,13 +105,17 @@ def check_dependencies():
             cmd += ["-r", req_file]
         else:
             cmd += ["claude-agent-sdk"]
-        subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except subprocess.CalledProcessError:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
+    except subprocess.CalledProcessError as e:
         print("# Larvling - Missing Dependency\n")
         print("`claude-agent-sdk` could not be auto-installed. Install it manually:\n")
         print("```bash")
         print(f"{sys.executable} -m pip install claude-agent-sdk")
         print("```\n")
+        if e.stderr:
+            print(f"Error: {e.stderr.strip()}\n")
         print("Without it, knowledge extraction, session tags, and task tracking are disabled.")
         return False
 
