@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/athrael-soju/larvling/compare/v0.1.20...v0.1.21) (2026-04-01)
+
+
+### Bug Fixes
+
+* improve formatting in README for skills and files sections ([eeb5e26](https://github.com/athrael-soju/larvling/commit/eeb5e2625941375ab4b62491f2ffc6d54562f434))
+
 ## [0.1.20](https://github.com/athrael-soju/larvling/compare/v0.1.19...v0.1.20) (2026-04-01)
 
 
