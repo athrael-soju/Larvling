@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20](https://github.com/athrael-soju/larvling/compare/v0.1.19...v0.1.20) (2026-04-01)
+
+
+### Bug Fixes
+
+* improve Python version check and enhance dependency installation error handling ([80cc024](https://github.com/athrael-soju/larvling/commit/80cc024713bec9063abe7a0ef78ad9784d273dab))
+
 ## [0.1.19](https://github.com/athrael-soju/larvling/compare/v0.1.18...v0.1.19) (2026-04-01)
 
 
