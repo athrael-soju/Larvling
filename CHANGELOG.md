@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/athrael-soju/larvling/compare/v0.1.18...v0.1.19) (2026-04-01)
+
+
+### Bug Fixes
+
+* enhance dependency check and installation for claude-agent-sdk ([ec7ed82](https://github.com/athrael-soju/larvling/commit/ec7ed82df5855f0858f08bd922bed6e5632c6a03))
+
 ## [0.1.18](https://github.com/athrael-soju/larvling/compare/v0.1.17...v0.1.18) (2026-03-31)
 
 
