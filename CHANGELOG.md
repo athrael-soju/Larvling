@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/athrael-soju/larvling/compare/v0.1.22...v0.1.23) (2026-04-01)
+
+
+### Features
+
+* enhance documentation and improve session management features ([b1836ee](https://github.com/athrael-soju/larvling/commit/b1836ee62d68f47369a106ea681d0e83c9386a53))
+
 ## [0.1.22](https://github.com/athrael-soju/larvling/compare/v0.1.21...v0.1.22) (2026-04-01)
 
 
