@@ -22,11 +22,11 @@ Review the context Larvling injects at session start - it's your memory of what 
 
 ### Schema Migration
 
-Schema migrations are handled automatically by `preflight.py` at session start via `larvling/scripts/migrations.py`. No manual intervention is needed.
+When the SessionStart context contains "Schema Migration Required", the database schema needs updating.
+Read the current and desired schemas provided, write and run the SQL to migrate (preserving all data), then bump the version in `larvling/db.py` with the provided command.
+A backup of the database has already been created.
 
-If the SessionStart context contains "Schema Migration Failed", the automated migration could not complete. A backup of the database has been saved. Review the error message and fix the migration function in `larvling/scripts/migrations.py`.
-
-**SQLite migration rules (reference for writing migration functions):**
+**SQLite migration rules (MUST follow):**
 
 1. **Simple additions** (new column, new table, new index) — use `ALTER TABLE ADD COLUMN` or `CREATE TABLE/INDEX IF NOT EXISTS` directly. No table rebuild needed.
 2. **Column rename/type change/FK change** — SQLite requires the 12-step rebuild pattern:
