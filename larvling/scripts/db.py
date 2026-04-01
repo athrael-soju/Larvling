@@ -38,10 +38,19 @@ def get_db():
 
 @contextmanager
 def open_db():
-    """Context manager for database connections."""
+    """Context manager for database connections.
+
+    Commits on clean exit, rolls back on exception, always closes.
+    Callers may still call conn.commit() explicitly for intermediate
+    checkpoints — the final commit on exit is a safe no-op in that case.
+    """
     conn = get_db()
     try:
         yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -87,7 +96,7 @@ def has_table(conn, name):
 # Schema creation and versioning
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 
 def get_schema_version(conn):
@@ -199,6 +208,9 @@ def create_schema(conn):
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_messages_session_role ON messages(session_id, role)"
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_statements_topic ON statements(topic_id)"

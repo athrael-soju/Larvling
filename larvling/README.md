@@ -56,7 +56,7 @@ pip install -r larvling/requirements.txt
 - **Database**: SQLite (`.claude/larvling.db`) with WAL mode
 - **Tables**: `sessions`, `messages`, `topics`, `statements`, `tasks`, `updates`
 - **Hooks**: SessionStart, UserPromptSubmit, Stop, SessionEnd
-- **Agents**: `knowledge-manager` (proactive knowledge dedup), `summary-manager` (session summaries), `knowledge-maintenance` (periodic knowledge audit)
+- **Agents**: `summary-manager` (session summaries), `knowledge-maintenance` (periodic knowledge audit)
 - **Analysis**: Unified Sonnet SDK call at Stop extracts knowledge, tags, and tasks — agent queries the DB dynamically for dedup
 
 ## License

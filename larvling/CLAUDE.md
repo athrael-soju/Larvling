@@ -22,9 +22,9 @@ Review the context Larvling injects at session start - it's your memory of what 
 
 ### Schema Migration
 
-- When the SessionStart context contains "Schema Migration Required", the database schema needs updating.
-- Read the current and desired schemas provided, write and run the SQL to migrate (preserving all data), then bump the version in `larvling/db.py` with the provided command.
-- A backup of the database has already been created.
+When the SessionStart context contains "Schema Migration Required", the database schema needs updating.
+Read the current and desired schemas provided, write and run the SQL to migrate (preserving all data), then bump the version in `larvling/db.py` with the provided command.
+A backup of the database has already been created.
 
 **SQLite migration rules (MUST follow):**
 
@@ -41,9 +41,9 @@ Review the context Larvling injects at session start - it's your memory of what 
    - `PRAGMA foreign_key_check` — must return zero rows
    - `COMMIT`
    - `PRAGMA foreign_keys = ON`
-3. **Never leave temp tables behind** — no `_old`, `_backup`, `_temp` tables should exist after migration. `DROP TABLE` the originals, rename the new ones.
-4. **Always verify FKs after migration** — run `PRAGMA foreign_key_check` and confirm empty result. If it returns rows, the migration is broken.
-5. **Verify with `get_current_schema()`** — after migration, compare the live schema against `get_desired_schema()`. They must match (ignoring whitespace).
+3. **Never leave temp tables behind** — no `_old`, `_backup`, `_temp` tables should exist after migration.
+4. **Always verify FKs** — run `PRAGMA foreign_key_check` and confirm empty result.
+5. **Verify with `get_current_schema()`** — after migration, compare live schema against `get_desired_schema()`. They must match (ignoring whitespace).
 
 ### `/query` - Direct SQL Access
 
@@ -113,8 +113,6 @@ Larvling stores persistent knowledge in the `topics` + `statements` tables, and 
 When you see the hint, offer `/summarize` via AskUserQuestion. Keep the offer brief and non-intrusive - a single sentence is enough. Don't ask repeatedly if the user declines. The `summary-manager` agent handles the actual summarization work.
 
 ### Agents
-
-**`knowledge-manager`** — Autonomous knowledge management. Claude can delegate to it proactively when the conversation reveals a preference, convention, decision, or knowledge worth persisting. It handles deduplication, consolidation, and domain classification autonomously — searching existing topics and statements before deciding whether to add, update, or skip.
 
 **`summary-manager`** — Session summarization. Delegated to when the user accepts a `/summarize` offer or when the summary hint fires. Reads conversation pairs, writes a concise summary, and stores it.
 

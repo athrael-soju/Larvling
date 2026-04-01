@@ -62,7 +62,11 @@ def format_session_line(started_at, duration_min, summary):
 
 
 def get_recent_summaries(conn, limit=5):
-    """Get summaries from the most recent sessions."""
+    """Get summaries from the most recent sessions.
+
+    Returns (summary_lines, session_ids) so callers can reuse the IDs
+    without re-querying.
+    """
     rows = conn.execute(
         """
         SELECT id, started_at, duration_min, agent_summary, title
@@ -75,11 +79,13 @@ def get_recent_summaries(conn, limit=5):
     ).fetchall()
 
     summaries = []
+    sids = set()
     for row in rows:
         summary = row["agent_summary"] or row["title"]
         if summary:
             summaries.append(format_session_line(row["started_at"], row["duration_min"], summary))
-    return summaries
+            sids.add(row["id"])
+    return summaries, sids
 
 
 def get_git_context():
@@ -118,9 +124,24 @@ def get_git_context():
 
 
 def find_relevant_sessions(conn, file_names, exclude_sids, limit=3):
-    """Find sessions that reference any of the given file names."""
+    """Find sessions that reference any of the given file names.
+
+    Scopes the LIKE search to the 50 most recent sessions to avoid
+    full table scans on messages.content.
+    """
     if not file_names:
         return []
+
+    # Pre-fetch recent session IDs to bound the LIKE scan
+    recent_sids = [
+        r[0] for r in conn.execute(
+            "SELECT id FROM sessions ORDER BY started_at DESC LIMIT 50"
+        ).fetchall()
+    ]
+    if not recent_sids:
+        return []
+
+    placeholders = ",".join("?" * len(recent_sids))
 
     session_hits = {}
     for fname in file_names:
@@ -129,10 +150,11 @@ def find_relevant_sessions(conn, file_names, exclude_sids, limit=3):
             continue
         safe_name = escape_like(basename)
         rows = conn.execute(
-            "SELECT DISTINCT session_id FROM messages "
-            "WHERE content LIKE ? ESCAPE '\\' "
-            "AND role IN ('user', 'assistant')",
-            (f"%{safe_name}%",),
+            f"SELECT DISTINCT session_id FROM messages "
+            f"WHERE session_id IN ({placeholders}) "
+            f"AND content LIKE ? ESCAPE '\\' "
+            f"AND role IN ('user', 'assistant')",
+            (*recent_sids, f"%{safe_name}%"),
         ).fetchall()
         for row in rows:
             sid = row["session_id"]
@@ -220,20 +242,11 @@ def get_session_context():
             pass
 
         # Recent session summaries
-        summaries = get_recent_summaries(conn)
-        recent_sids = set()
+        summaries, recent_sids = get_recent_summaries(conn)
         if summaries:
             lines.append("## Recent Sessions")
             lines.extend(summaries)
             lines.append("")
-            rows = conn.execute(
-                """
-                SELECT id FROM sessions
-                WHERE agent_summary IS NOT NULL OR title IS NOT NULL
-                ORDER BY started_at DESC LIMIT 5
-                """
-            ).fetchall()
-            recent_sids = {row["id"] for row in rows}
 
         # Git-aware relevant sessions
         git_files = get_git_context()

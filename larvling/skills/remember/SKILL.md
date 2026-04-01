@@ -4,13 +4,49 @@ description: Store knowledge that Larvling will remember across sessions
 argument-hint: "[knowledge to remember]"
 ---
 
+Store the given knowledge in Larvling's database. Do NOT delegate to any subagent — handle this directly.
+
+## Database
+
+SQLite database at `.claude/larvling.db`.
+
 **Schema:**
 - `topics (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT, updated TEXT)`
 - `statements (id INTEGER PK AUTO, topic_id INTEGER FK→topics(id), claim TEXT NOT NULL, created TEXT, updated TEXT)`
 
-Run SQL via:
+## Query Tool
+
 ```
 python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
 
-Delegate to the `knowledge-manager` agent. Pass along the knowledge to store, or the conversation context if nothing specific was given.
+Append `--json` for JSON output.
+
+## Domains
+
+Classify knowledge into one of: `personal`, `professional`, `preferences`, `interests`, `knowledge`, `technical`, `workflow`
+
+## Steps
+
+1. **Search for overlap** — query existing topics and statements to check for semantic duplicates:
+   ```
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "SELECT t.id, t.title, t.domain, t.tags, s.id AS stmt_id, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id" --json
+   ```
+2. **Decide** the right action:
+   - **New topic + statement** — knowledge is genuinely new, no existing topic covers it
+   - **Add statement to existing topic** — an existing topic covers this area, but the specific claim is new
+   - **Update existing statement** — the new knowledge refines or supersedes an existing claim
+   - **Skip** — already covered by existing statements
+3. **Execute** the appropriate SQL:
+   - New topic: `INSERT INTO topics (title, domain, tags) VALUES ('...', '...', '...')`  then `INSERT INTO statements (topic_id, claim) VALUES (last_insert_rowid(), '...')`
+   - New statement: `INSERT INTO statements (topic_id, claim) VALUES (N, '...')`
+   - Update statement: `UPDATE statements SET claim = '...', updated = datetime('now') WHERE id = N`
+   - Update topic: `UPDATE topics SET title = '...', tags = '...', updated = datetime('now') WHERE id = N`
+4. **Confirm** — use AskUserQuestion (type: Knowledge) to show the user what was stored or updated
+
+## Guidelines
+
+- Never delete data — update claims or retire topic titles instead
+- Keep claims concise and self-contained — each should make sense without context
+- Tags should be lowercase, comma-separated, 2-5 per topic
+- When in doubt about whether something is worth storing, store it — knowledge is cheap

@@ -350,11 +350,11 @@ def process_knowledge(conn, knowledge_list, session_id=None):
         ).fetchone():
             continue
 
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO topics (title, domain, tags) VALUES (?, ?, ?)",
             (topic_title, domain, tags),
         )
-        topic_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        topic_id = cur.lastrowid
         conn.execute(
             "INSERT INTO statements (topic_id, claim) VALUES (?, ?)",
             (topic_id, claim),

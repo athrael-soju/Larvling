@@ -1,13 +1,10 @@
 {
   "agent": {
-    "knowledge-manager": {
-      "model": "sonnet"
-    },
     "summary-manager": {
-      "model": "sonnet"
+      "model": "opus"
     },
     "knowledge-maintenance": {
-      "model": "sonnet"
+      "model": "opus"
     }
   }
 }
