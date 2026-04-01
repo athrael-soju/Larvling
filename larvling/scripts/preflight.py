@@ -15,9 +15,8 @@ from db import (
     create_schema,
     get_schema_version,
     set_schema_version,
-    get_current_schema,
-    get_desired_schema,
 )
+from migrations import run_migrations, MigrationError
 
 
 def ensure_schema():
@@ -44,35 +43,21 @@ def ensure_schema():
         if db_version == SCHEMA_VERSION:
             return "current"
 
-        # Version mismatch - backup DB, then dump both schemas for Claude to handle
-        old_schema = get_current_schema(conn)
-        new_schema = get_desired_schema()
-
+    # Version mismatch — backup then migrate automatically
     backup_path = DB_PATH + f".v{db_version}.bak"
     shutil.copy2(DB_PATH, backup_path)
 
-    print("# Larvling - Schema Migration Required\n")
-    print(
-        f"Database schema is version **{db_version}**, expected **{SCHEMA_VERSION}**."
-    )
-    print(f"A backup has been saved to `{backup_path}`.\n")
-    print("## Current Schema (in database)")
-    print(f"```sql\n{old_schema}\n```\n")
-    print("## Desired Schema")
-    print(f"```sql\n{new_schema}\n```\n")
-    safe_path = DB_PATH.replace("\\", "/")
-    py = os.path.basename(sys.executable)
-    print(
-        "Please migrate the database at `"
-        + safe_path
-        + "` from the current schema to the desired schema."
-    )
-    print("Preserve all existing data. After migrating, run:")
-    print(
-        f"```bash\n{py} -c \"import sqlite3; c=sqlite3.connect('{safe_path}'); c.execute('PRAGMA user_version={SCHEMA_VERSION}'); c.close()\"\n```"
-    )
-
-    return "migrate"
+    try:
+        with open_db() as conn:
+            run_migrations(conn)
+        return "current"
+    except MigrationError as e:
+        print("# Larvling - Schema Migration Failed\n")
+        print(f"Automated migration from v{db_version} to v{SCHEMA_VERSION} failed:")
+        print(f"```\n{e}\n```\n")
+        print(f"A backup has been saved to `{backup_path}`.")
+        print("Please check the migration in `larvling/scripts/migrations.py`.")
+        return "migrate"
 
 
 def check_dependencies():

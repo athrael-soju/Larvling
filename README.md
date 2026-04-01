@@ -133,7 +133,6 @@ Copy your changed files into the cache directory. Restart the session to pick up
 | `larvling/scripts/export.py`              | Exports a session conversation to markdown                  |
 | `larvling/scripts/query.py`               | Runs arbitrary SQL against larvling.db                      |
 | `larvling/skills/*.md`                    | Skill definitions (remember, recall, forget, etc.)          |
-| `larvling/agents/knowledge-manager.md`    | Subagent for autonomous knowledge management                |
 | `larvling/CLAUDE.md`                      | Instructions for the agent                                  |
 
 ## Uninstall
