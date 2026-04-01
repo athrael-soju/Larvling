@@ -103,37 +103,37 @@ Copy your changed files into the cache directory. Restart the session to pick up
 
 ## Skills
 
-| Skill                 | What it does                                                        |
-| --------------------- | ------------------------------------------------------------------- |
-| `/remember`           | Store knowledge that persists across sessions                       |
-| `/recall`             | Search stored knowledge by keyword, topic, or context               |
-| `/forget`             | Remove stored knowledge (with confirmation)                         |
-| `/sessions`           | Browse and search past sessions by date, keyword, or topic          |
-| `/summarize`          | Generate or view an LLM-written session summary                     |
-| `/export`             | Export a session conversation to markdown                           |
-| `/status`             | Quick overview of Larvling's state (counts, DB size, version)       |
-| `/query`              | Run arbitrary SQL against larvling.db                               |
+| Skill        | What it does                                                  |
+| ------------ | ------------------------------------------------------------- |
+| `/remember`  | Store knowledge that persists across sessions                 |
+| `/recall`    | Search stored knowledge by keyword, topic, or context         |
+| `/forget`    | Remove stored knowledge (with confirmation)                   |
+| `/sessions`  | Browse and search past sessions by date, keyword, or topic    |
+| `/summarize` | Generate or view an LLM-written session summary               |
+| `/export`    | Export a session conversation to markdown                     |
+| `/status`    | Quick overview of Larvling's state (counts, DB size, version) |
+| `/query`     | Run arbitrary SQL against larvling.db                         |
 
 ## Files
 
-| File                                      | What it does                                                |
-| ----------------------------------------- | ----------------------------------------------------------- |
-| `larvling/.claude-plugin/plugin.json`     | Plugin manifest - name and description                      |
-| `larvling/hooks/hooks.json`               | Hook definitions - tells Claude Code when to call Larvling  |
-| `larvling/scripts/db.py`                  | Database helpers, schema creation, and version management   |
-| `larvling/scripts/transcript.py`          | Transcript parsing utilities for hook scripts               |
-| `larvling/scripts/preflight.py`           | Schema bootstrap — ensures DB and tables exist              |
-| `larvling/scripts/hooks/session_start.py` | Injects session context, checks for updates                 |
-| `larvling/scripts/hooks/prompt.py`        | Logs user prompts and injects context hints                 |
-| `larvling/scripts/hooks/stop.py`          | Logs responses and computes quality signals                 |
-| `larvling/scripts/hooks/failure.py`       | Records tool failures as quality signals                    |
-| `larvling/scripts/hooks/session_end.py`   | Finalizes session timing and exchange count                 |
-| `larvling/scripts/analyze.py`             | Unified extraction - knowledge, session tags, tasks         |
-| `larvling/scripts/summarize.py`           | Fetches conversation pairs and stores session summaries     |
-| `larvling/scripts/export.py`              | Exports a session conversation to markdown                  |
-| `larvling/scripts/query.py`               | Runs arbitrary SQL against larvling.db                      |
-| `larvling/skills/*.md`                    | Skill definitions (remember, recall, forget, etc.)          |
-| `larvling/CLAUDE.md`                      | Instructions for the agent                                  |
+| File                                      | What it does                                               |
+| ----------------------------------------- | ---------------------------------------------------------- |
+| `larvling/.claude-plugin/plugin.json`     | Plugin manifest - name and description                     |
+| `larvling/hooks/hooks.json`               | Hook definitions - tells Claude Code when to call Larvling |
+| `larvling/scripts/db.py`                  | Database helpers, schema creation, and version management  |
+| `larvling/scripts/transcript.py`          | Transcript parsing utilities for hook scripts              |
+| `larvling/scripts/preflight.py`           | Schema bootstrap — ensures DB and tables exist             |
+| `larvling/scripts/hooks/session_start.py` | Injects session context, checks for updates                |
+| `larvling/scripts/hooks/prompt.py`        | Logs user prompts and injects context hints                |
+| `larvling/scripts/hooks/stop.py`          | Logs responses and computes quality signals                |
+| `larvling/scripts/hooks/failure.py`       | Records tool failures as quality signals                   |
+| `larvling/scripts/hooks/session_end.py`   | Finalizes session timing and exchange count                |
+| `larvling/scripts/analyze.py`             | Unified extraction - knowledge, session tags, tasks        |
+| `larvling/scripts/summarize.py`           | Fetches conversation pairs and stores session summaries    |
+| `larvling/scripts/export.py`              | Exports a session conversation to markdown                 |
+| `larvling/scripts/query.py`               | Runs arbitrary SQL against larvling.db                     |
+| `larvling/skills/*.md`                    | Skill definitions (remember, recall, forget, etc.)         |
+| `larvling/CLAUDE.md`                      | Instructions for the agent                                 |
 
 ## Uninstall
 
