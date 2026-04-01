@@ -29,7 +29,8 @@ A backup of the database has already been created.
 **SQLite migration rules (MUST follow):**
 
 1. **Simple additions** (new column, new table, new index) — use `ALTER TABLE ADD COLUMN` or `CREATE TABLE/INDEX IF NOT EXISTS` directly. No table rebuild needed.
-2. **Column rename/type change/FK change** — SQLite requires the 12-step rebuild pattern:
+2. **Adding CHECK constraints to existing columns** — existing data may not conform to the new constraint. Always `SELECT DISTINCT <column>` first and `UPDATE` non-conforming values before rebuilding the table with the constraint. Use the 12-step rebuild pattern below.
+3. **Column rename/type change/FK change** — SQLite requires the 12-step rebuild pattern:
    - `PRAGMA foreign_keys = OFF`
    - `BEGIN TRANSACTION`
    - `CREATE TABLE <new_table> (...)` with the correct schema
@@ -41,9 +42,9 @@ A backup of the database has already been created.
    - `PRAGMA foreign_key_check` — must return zero rows
    - `COMMIT`
    - `PRAGMA foreign_keys = ON`
-3. **Never leave temp tables behind** — no `_old`, `_backup`, `_temp` tables should exist after migration.
-4. **Always verify FKs** — run `PRAGMA foreign_key_check` and confirm empty result.
-5. **Verify with `get_current_schema()`** — after migration, compare live schema against `get_desired_schema()`. They must match (ignoring whitespace).
+4. **Never leave temp tables behind** — no `_old`, `_backup`, `_temp` tables should exist after migration.
+5. **Always verify FKs** — run `PRAGMA foreign_key_check` and confirm empty result.
+6. **Verify with `get_current_schema()`** — after migration, compare live schema against `get_desired_schema()`. They must match (ignoring whitespace).
 
 ### `/query` - Direct SQL Access
 
@@ -142,6 +143,19 @@ Use **plain text** for:
 - Explaining rationale
 - Summarizing captured information
 
+## Running Python Scripts
+
+Skills reference `python3` in their examples, but the correct executable varies by platform. Before running any Larvling Python script, discover the right binary:
+
+```bash
+PY=$(for p in python3.13 python3.12 python3.11 python3.10 python3; do command -v "$p" >/dev/null 2>&1 && echo "$p" && break; done); PY=${PY:-python}
+```
+
+Then use `$PY` in place of `python3`:
+```bash
+$PY "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
+```
+
 ## Dependencies
 
 - **Python 3.10+** — all scripts use standard library except `claude_agent_sdk`
@@ -152,7 +166,7 @@ Use **plain text** for:
 
 **`claude_agent_sdk is required but not installed`** — On new installs, `preflight.py` detects the missing SDK and prints installation instructions. Run the `pip install` command shown in the SessionStart context. Without it, knowledge extraction, session tags, and task tracking are disabled (basic session logging still works).
 
-**`python: command not found`** — Larvling requires Python 3. Ensure `python` is on the system PATH.
+**`python: command not found`** — Larvling requires Python 3.10+. Use the discovery pattern from the "Running Python Scripts" section above. Ensure at least `python3` (Unix) or `python` (Windows) is on the system PATH.
 
 ## Run End
 

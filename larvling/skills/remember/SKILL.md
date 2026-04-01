@@ -17,7 +17,7 @@ SQLite database at `.claude/larvling.db`.
 ## Query Tool
 
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
+$PY "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
 
 Append `--json` for JSON output.
@@ -30,7 +30,7 @@ Classify knowledge into one of: `personal`, `professional`, `preferences`, `inte
 
 1. **Search for overlap** — query existing topics and statements to check for semantic duplicates:
    ```
-   python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "SELECT t.id, t.title, t.domain, t.tags, s.id AS stmt_id, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id" --json
+   $PY "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "SELECT t.id, t.title, t.domain, t.tags, s.id AS stmt_id, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id" --json
    ```
 2. **Decide** the right action:
    - **New topic + statement** — knowledge is genuinely new, no existing topic covers it

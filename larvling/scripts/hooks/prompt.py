@@ -1,5 +1,6 @@
 """UserPromptSubmit hook — logs the user's prompt and injects context hints."""
 
+import json
 import os
 import re
 import sys
@@ -12,6 +13,7 @@ from db import (
     record_message,
     record_summary,
     log,
+    PROJECT_ROOT,
 )
 from hooks_util import read_hook_payload
 
@@ -24,6 +26,38 @@ def strip_ide_tags(text):
         text,
         flags=re.DOTALL,
     ).strip()
+
+
+def _last_context_counts():
+    """Read the last context event from the JSONL log and return (topics, stmts)."""
+    try:
+        log_path = os.path.join(PROJECT_ROOT, ".claude", "larvling.jsonl")
+        last = None
+        with open(log_path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    entry = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if entry.get("event") == "context" and entry.get("injected"):
+                    last = entry
+        if last:
+            for item in last["injected"]:
+                m = re.match(r"(\d+) topics, (\d+) statements", item)
+                if m:
+                    return int(m.group(1)), int(m.group(2))
+    except Exception:
+        pass
+    return None, None
+
+
+def _fmt_delta(current, previous):
+    """Format a count with optional delta suffix, e.g. '17 (+2)'."""
+    if previous is None or current == previous:
+        return str(current)
+    diff = current - previous
+    sign = "+" if diff > 0 else ""
+    return f"{current} ({sign}{diff})"
 
 
 def inject_context(conn, session_id):
@@ -49,7 +83,11 @@ def inject_context(conn, session_id):
             f"Search for relevant knowledge and weave it into your response naturally."
         )
         print(text)
-        injected.append(f"{topic_count} topics, {stmt_count} statements")
+
+        prev_topics, prev_stmts = _last_context_counts()
+        t_str = _fmt_delta(topic_count, prev_topics)
+        s_str = _fmt_delta(stmt_count, prev_stmts)
+        injected.append(f"{t_str} topics, {s_str} statements")
 
     if not cfg["summary_hints"]:
         if injected:

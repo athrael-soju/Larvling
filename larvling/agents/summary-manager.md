@@ -17,8 +17,14 @@ SQLite database at `.claude/larvling.db`.
 
 ## Query Tool
 
+First, discover the correct Python executable:
+```bash
+PY=$(for p in python3.13 python3.12 python3.11 python3.10 python3; do command -v "$p" >/dev/null 2>&1 && echo "$p" && break; done); PY=${PY:-python}
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
+
+Then use `$PY` for all queries:
+```
+$PY "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
 ```
 
 Append `--json` for JSON output.
@@ -26,9 +32,9 @@ Append `--json` for JSON output.
 ## Summary Tool
 
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" --list
-python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --get
-python "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --store "SUMMARY"
+$PY "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" --list
+$PY "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --get
+$PY "${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py" <session_id> --store "SUMMARY"
 ```
 
 ## Guidelines
