@@ -78,19 +78,46 @@ def ensure_schema():
 def check_dependencies():
     """Check if required Python packages are installed.
 
+    Auto-installs from requirements.txt if missing.
     Returns True if all dependencies are satisfied, False otherwise.
-    When False, prints installation instructions for Claude to act on.
     """
     try:
         import claude_agent_sdk  # noqa: F401
         return True
     except ImportError:
+        pass
+
+    # Auto-install missing dependency
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+    req_file = os.path.join(plugin_root, "requirements.txt") if plugin_root else ""
+
+    import subprocess
+    try:
+        cmd = [sys.executable, "-m", "pip", "install", "--quiet"]
+        if req_file and os.path.isfile(req_file):
+            cmd += ["-r", req_file]
+        else:
+            cmd += ["claude-agent-sdk"]
+        subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
         print("# Larvling - Missing Dependency\n")
-        print("`claude-agent-sdk` is not installed. Install it now:\n")
+        print("`claude-agent-sdk` could not be auto-installed. Install it manually:\n")
         print("```bash")
-        print('pip install -r "${CLAUDE_PLUGIN_ROOT}/requirements.txt"')
+        print(f"{sys.executable} -m pip install claude-agent-sdk")
         print("```\n")
         print("Without it, knowledge extraction, session tags, and task tracking are disabled.")
+        return False
+
+    # Verify import after install
+    try:
+        import claude_agent_sdk  # noqa: F401
+        return True
+    except ImportError:
+        print("# Larvling - Missing Dependency\n")
+        print("`claude-agent-sdk` was installed but cannot be imported. Try manually:\n")
+        print("```bash")
+        print(f"{sys.executable} -m pip install claude-agent-sdk")
+        print("```\n")
         return False
 
 
