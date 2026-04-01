@@ -107,5 +107,11 @@ def run_migrations(conn: sqlite3.Connection) -> int:
 
 
 def _normalize(sql: str) -> str:
-    """Normalize SQL for comparison (collapse whitespace)."""
-    return " ".join(sql.split())
+    """Normalize SQL for comparison (collapse whitespace, sort statements).
+
+    Sorting ensures that index/table creation order in sqlite_master
+    (which reflects insertion order) doesn't cause false mismatches
+    against the desired schema (which reflects source-code order).
+    """
+    stmts = [" ".join(s.split()) for s in sql.strip().split(";") if s.strip()]
+    return "\n".join(sorted(stmts))

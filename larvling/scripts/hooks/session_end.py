@@ -47,6 +47,10 @@ def handle(data):
             (session_id,),
         ).fetchone()
         dur = round(row["duration_min"], 1) if row and row["duration_min"] else None
+
+        # Reclaim WAL/SHM space at end of session
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
         log("session_end", session_id, exchanges=exchange_count, duration=dur)
 
 
