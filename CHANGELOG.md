@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.22](https://github.com/athrael-soju/larvling/compare/v0.1.21...v0.1.22) (2026-04-01)
+
+
+### Bug Fixes
+
+* update Python executable references in documentation and scripts ([17968c2](https://github.com/athrael-soju/larvling/commit/17968c2f0fa014122a5a9ad666efa393f503da86))
+
 ## [0.1.21](https://github.com/athrael-soju/larvling/compare/v0.1.20...v0.1.21) (2026-04-01)
 
 
