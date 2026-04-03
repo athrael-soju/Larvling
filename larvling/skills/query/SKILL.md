@@ -1,6 +1,6 @@
 ---
 name: query
-description: Run arbitrary SQL against larvling.db
+description: "Query, insert, update, or inspect tables in the larvling SQLite database (larvling.db). Use when the user asks to search sessions, messages, topics, statements, tasks, or updates, run reports, or interact with the larvling database."
 argument-hint: "[SQL query]"
 disable-model-invocation: true
 ---
