@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.24](https://github.com/athrael-soju/larvling/compare/v0.1.23...v0.1.24) (2026-04-22)
+
+
+### Features
+
+* update knowledge maintenance process and introduce tidy skill for auditing ([11a60f5](https://github.com/athrael-soju/larvling/commit/11a60f5d2364be7ba510d90a521c1ed388bd2b35))
+
 ## [0.1.23](https://github.com/athrael-soju/larvling/compare/v0.1.22...v0.1.23) (2026-04-01)
 
 
