@@ -48,7 +48,7 @@ pip install -r larvling/requirements.txt
 | `/summarize` | Generate session summaries |
 | `/export` | Export conversations to markdown |
 | `/status` | Quick overview of Larvling's state |
-| `/maintain` | Audit and consolidate the knowledge base |
+| `/tidy` | Audit and consolidate knowledge, tasks, and sessions |
 | `/query` | Direct SQL access to larvling.db |
 
 ## Architecture
@@ -56,7 +56,7 @@ pip install -r larvling/requirements.txt
 - **Database**: SQLite (`.claude/larvling.db`) with WAL mode
 - **Tables**: `sessions`, `messages`, `topics`, `statements`, `tasks`, `updates`
 - **Hooks**: SessionStart, UserPromptSubmit, Stop, SessionEnd
-- **Agents**: `summary-manager` (session summaries), `knowledge-maintenance` (periodic knowledge audit)
+- **Agents**: `summary-manager` (session summaries), `knowledge-maintenance` (periodic audit of knowledge, tasks, and sessions)
 - **Analysis**: Unified Sonnet SDK call at Stop extracts knowledge, tags, and tasks — agent queries the DB dynamically for dedup
 
 ## License

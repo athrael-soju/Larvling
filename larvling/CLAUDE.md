@@ -9,7 +9,7 @@ Everything lives in `.claude/larvling.db` (SQLite, WAL mode).
 When the SessionStart context contains "Larvling - First Run", this is the very first time Larvling has been installed. You MUST welcome the user before doing anything else. Keep it warm, brief, and conversational - something like a friendly companion introducing itself. Include:
 - That Larvling is now installed and will quietly remember their sessions
 - That everything is automatic - no setup or extra effort needed
-- Mention the available skills naturally: `/remember` to store knowledge, `/recall` to search it, `/forget` to remove it, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/maintain` to audit and consolidate knowledge, `/query` for direct SQL access
+- Mention the available skills naturally: `/remember` to store knowledge, `/recall` to search it, `/forget` to remove it, `/sessions` to browse past sessions, `/summarize` for session summaries, `/export` to save a conversation as markdown, `/status` for a quick overview, `/tidy` to audit and consolidate knowledge, tasks, and sessions, `/query` for direct SQL access
 - Do NOT list technical details, hook names, or internal architecture. Keep the magic behind the curtain.
 
 ## Update Notice
@@ -168,14 +168,14 @@ When you see the `## Summary` hint, offer `/summarize` via AskUserQuestion. Keep
 
 **`summary-manager`** — Session summarization. Delegated to when the user accepts a `/summarize` offer or when the summary hint fires. Reads conversation pairs, writes a concise summary, and stores it.
 
-**`knowledge-maintenance`** — Periodic knowledge base audit and consolidation. Delegated to when the user invokes `/maintain` or when the maintenance hint fires (50+ topics or 100+ statements). Identifies duplicate topics, redundant/stale statements, misclassified domains, and contradictions. Proposes changes via AskUserQuestion, applies only what the user approves. Never deletes — merges via statement reassignment and topic title updates.
+**`knowledge-maintenance`** — Periodic audit and consolidation of knowledge (topics/statements), tasks (tasks/updates), and sessions. Delegated to when the user invokes `/tidy` or when the maintenance hint fires (50+ topics or 100+ statements). Identifies duplicates, stale entries, misclassified domains, contradictions, stale open tasks, and sessions missing titles/summaries. Proposes changes via AskUserQuestion, applies only what the user approves. Never deletes — merges knowledge via statement reassignment + topic renaming, retires tasks via `status = 'dropped'` + audit update, flags empty sessions for the user to handle.
 
 ### Progress Tracking with Tasks
 
 Use **TaskCreate** and **TaskUpdate** to give the user visibility into multi-step operations. This is especially valuable for skills that involve several sequential actions.
 
 **When to create tasks:**
-- Multi-step skill operations (e.g., `/maintain` audit phases, batch `/export`, multi-session `/summarize`)
+- Multi-step skill operations (e.g., `/tidy` audit phases, batch `/export`, multi-session `/summarize`)
 - Any user request that will take 3+ distinct steps
 - When the user explicitly asks to track progress
 
@@ -200,7 +200,7 @@ Use **AskUserQuestion** tool for structured input gathering:
 | Decision      | Multiple valid approaches exist                |
 | Approval      | Stage work complete, need sign-off             |
 | Summary       | Session summary is stale, offer update         |
-| Maintenance   | Knowledge base is large, offer /maintain       |
+| Maintenance   | Knowledge base is large, offer /tidy |
 | Knowledge     | About to save or update knowledge               |
 
 Menu format:
