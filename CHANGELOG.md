@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/athrael-soju/larvling/compare/v0.1.24...v0.1.25) (2026-04-23)
+
+
+### Features
+
+* update task schema to include 'updated' timestamp and JSON metadata for provenance ([304d37c](https://github.com/athrael-soju/larvling/commit/304d37c2f8225a350ea347408c82e9fb4164ca7f))
+
 ## [0.1.24](https://github.com/athrael-soju/larvling/compare/v0.1.23...v0.1.24) (2026-04-22)
 
 
