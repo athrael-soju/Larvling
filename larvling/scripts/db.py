@@ -118,7 +118,7 @@ def has_table(conn, name):
 # Schema creation and versioning
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 
 def get_schema_version(conn):
@@ -189,7 +189,7 @@ def create_schema(conn):
             domain TEXT NOT NULL CHECK(domain IN ('personal', 'professional', 'preferences', 'interests', 'knowledge', 'technical', 'workflow')),
             tags TEXT NOT NULL,
             created TEXT NOT NULL DEFAULT (datetime('now')),
-            updated TEXT
+            updated TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """
     )
@@ -200,7 +200,7 @@ def create_schema(conn):
             topic_id INTEGER NOT NULL REFERENCES topics(id),
             claim TEXT NOT NULL,
             created TEXT NOT NULL DEFAULT (datetime('now')),
-            updated TEXT
+            updated TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """
     )
@@ -214,7 +214,8 @@ def create_schema(conn):
             priority TEXT NOT NULL DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high')),
             horizon TEXT NOT NULL DEFAULT 'later' CHECK(horizon IN ('now', 'soon', 'later')),
             metadata TEXT,
-            created TEXT NOT NULL DEFAULT (datetime('now'))
+            created TEXT NOT NULL DEFAULT (datetime('now')),
+            updated TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """
     )

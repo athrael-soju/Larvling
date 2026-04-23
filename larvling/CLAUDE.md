@@ -65,8 +65,16 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 - `messages (id INT PK AUTO, session_id TEXT FK, timestamp TEXT, role TEXT [user|assistant|system], content TEXT, metadata TEXT)`
 - `topics (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, tags TEXT NOT NULL, created TEXT, updated TEXT)`
 - `statements (id INTEGER PK AUTO, topic_id INTEGER FK→topics(id), claim TEXT NOT NULL, created TEXT, updated TEXT)`
-- `tasks (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, status TEXT DEFAULT 'open', priority TEXT DEFAULT 'medium', horizon TEXT DEFAULT 'later', metadata TEXT, created TEXT)`
+- `tasks (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, status TEXT DEFAULT 'open', priority TEXT DEFAULT 'medium', horizon TEXT DEFAULT 'later', metadata TEXT, created TEXT, updated TEXT)`
 - `updates (id INTEGER PK AUTO, task_id INTEGER FK→tasks(id), content TEXT NOT NULL, timestamp TEXT)`
+
+**JSON metadata columns** (query with `json_extract(metadata, '$.field')`):
+
+- `tasks.metadata` — optional. Populated on `add_task` with `{"source_session_id": "<sid>"}` when a real session id is known; NULL otherwise. Trace a task back to the session that produced it with `json_extract(metadata, '$.source_session_id')`.
+- `messages.metadata` — populated by hooks on every turn:
+  - user messages: `{"cwd", "permission_mode", "usage": {input_tokens_estimate}}`
+  - assistant messages: `{"tool_calls": {<tool>: <count>}, "usage": {input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens, ...}}`
+  - system messages: analysis telemetry
 
 **Examples:**
 

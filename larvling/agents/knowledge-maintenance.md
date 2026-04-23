@@ -16,8 +16,10 @@ SQLite database at `.claude/larvling.db`.
 - `statements (id INTEGER PK AUTO, topic_id INTEGER FK→topics(id), claim TEXT NOT NULL, created TEXT, updated TEXT)`
 
 **Tasks schema:**
-- `tasks (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, status TEXT CHECK IN ('open','done','dropped'), priority TEXT CHECK IN ('low','medium','high'), horizon TEXT CHECK IN ('now','soon','later'), metadata TEXT, created TEXT)`
+- `tasks (id INTEGER PK AUTO, title TEXT NOT NULL, domain TEXT NOT NULL, status TEXT CHECK IN ('open','done','dropped'), priority TEXT CHECK IN ('low','medium','high'), horizon TEXT CHECK IN ('now','soon','later'), metadata TEXT, created TEXT, updated TEXT)`
 - `updates (id INTEGER PK AUTO, task_id INTEGER FK→tasks(id), content TEXT NOT NULL, timestamp TEXT)`
+
+`tasks.metadata` is an optional JSON object (nullable). When present, carries `{"source_session_id": "<sid>"}` for provenance. Query via `json_extract(metadata, '$.source_session_id')`.
 
 **Sessions schema (read-mostly):**
 - `sessions (id TEXT PK, started_at TEXT, ended_at TEXT, duration_min REAL, title TEXT, agent_summary TEXT, exchange_count INT, summary_at TEXT, summary_msg_count INT, tags TEXT, summary_offered INT)`
@@ -81,16 +83,17 @@ Run the three phases in order. Within each phase, query first, then group findin
    - **Mismatched horizon/priority**: e.g. `priority = 'high'` + `horizon = 'later'`
    - **Invalid domain classification**: wrong domain for the task's subject
    - **Orphan updates**: `updates` rows whose `task_id` no longer exists (indicates a data-integrity issue — flag, do not silently drop)
+   - **Metadata integrity**: rows where `json_valid(metadata) = 0` (malformed JSON — flag) or `json_extract(metadata, '$.source_session_id')` points at a session that no longer exists (orphaned provenance — flag, do not auto-clear)
 3. **Apply** (after approval):
    - **Drop stale task**: mark dropped with a reason (append an update entry for audit trail):
      ```sql
-     UPDATE tasks SET status = 'dropped' WHERE id = <id>;
+     UPDATE tasks SET status = 'dropped', updated = datetime('now') WHERE id = <id>;
      INSERT INTO updates (task_id, content) VALUES (<id>, 'Dropped during /tidy: <reason>');
      ```
    - **Merge duplicate tasks**: keep the survivor, reassign updates, then drop the loser with a merge note:
      ```sql
      UPDATE updates SET task_id = <survivor_id> WHERE task_id = <retired_id>;
-     UPDATE tasks SET status = 'dropped', title = '[Merged into #<survivor_id>] ' || title WHERE id = <retired_id>;
+     UPDATE tasks SET status = 'dropped', title = '[Merged into #<survivor_id>] ' || title, updated = datetime('now') WHERE id = <retired_id>;
      INSERT INTO updates (task_id, content) VALUES (<survivor_id>, 'Merged in #<retired_id> during /tidy');
      ```
    - **Reclassify**: update `domain`, `priority`, or `horizon` (values must match the CHECK constraints above)

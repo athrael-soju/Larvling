@@ -7,6 +7,7 @@ SDK call, then writes results to SQLite.
 """
 
 import asyncio
+import json
 import os
 import sys
 
@@ -450,6 +451,7 @@ def process_tasks(conn, tasks_list, session_id=None):
                 params.append(title)
 
             if sets:
+                sets.append("updated = datetime('now')")
                 params.append(task_id)
                 conn.execute(
                     f"UPDATE tasks SET {', '.join(sets)} WHERE id = ?",
@@ -496,10 +498,17 @@ def process_tasks(conn, tasks_list, session_id=None):
         ).fetchone():
             continue
 
-        conn.execute(
-            "INSERT INTO tasks (title, domain, priority, horizon) VALUES (?, ?, ?, ?)",
-            (title, domain, priority, horizon),
-        )
+        if session_id:
+            metadata = json.dumps({"source_session_id": session_id})
+            conn.execute(
+                "INSERT INTO tasks (title, domain, priority, horizon, metadata) VALUES (?, ?, ?, ?, ?)",
+                (title, domain, priority, horizon, metadata),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO tasks (title, domain, priority, horizon) VALUES (?, ?, ?, ?)",
+                (title, domain, priority, horizon),
+            )
         tasks_inserted += 1
 
     return tasks_inserted, updates_inserted, tasks_updated
