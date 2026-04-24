@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.26](https://github.com/athrael-soju/larvling/compare/v0.1.25...v0.1.26) (2026-04-24)
+
+
+### Features
+
+* update database schema to use CURRENT_TIMESTAMP for default timestamps ([81c0981](https://github.com/athrael-soju/larvling/commit/81c0981b682a6fd7883ffe7d8f825e121108a81e))
+
 ## [0.1.25](https://github.com/athrael-soju/larvling/compare/v0.1.24...v0.1.25) (2026-04-23)
 
 
