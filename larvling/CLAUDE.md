@@ -39,6 +39,7 @@ A backup of the database has already been created.
 **SQLite migration rules (MUST follow):**
 
 1. **Simple additions** (new column, new table, new index) — use `ALTER TABLE ADD COLUMN` or `CREATE TABLE/INDEX IF NOT EXISTS` directly. No table rebuild needed.
+   - **`ADD COLUMN` defaults must be constants.** SQLite rejects non-constant defaults like `datetime('now')` or `(<expr>)` with `default value of column [x] is not constant`. Larvling's desired schema uses `DEFAULT CURRENT_TIMESTAMP` (a constant token allowed by `ADD COLUMN`, same output format as `datetime('now')`), so additive migrations can use the desired DDL verbatim. If you must add a column with a non-constant default, either use `CURRENT_TIMESTAMP` and rely on its equivalence, or do a full 12-step rebuild.
 2. **Adding CHECK constraints to existing columns** — existing data may not conform to the new constraint. Always `SELECT DISTINCT <column>` first and `UPDATE` non-conforming values before rebuilding the table with the constraint. Use the 12-step rebuild pattern below.
 3. **Column rename/type change/FK change** — SQLite requires the 12-step rebuild pattern:
    - `PRAGMA foreign_keys = OFF`
@@ -54,7 +55,7 @@ A backup of the database has already been created.
    - `PRAGMA foreign_keys = ON`
 4. **Never leave temp tables behind** — no `_old`, `_backup`, `_temp` tables should exist after migration.
 5. **Always verify FKs** — run `PRAGMA foreign_key_check` and confirm empty result.
-6. **Verify with `get_current_schema()`** — after migration, compare live schema against `get_desired_schema()`. They must match (ignoring whitespace).
+6. **Verify with `get_current_schema()`** — after migration, compare live schema against `get_desired_schema()`. They must match (ignoring whitespace). **Equivalence note:** `DEFAULT CURRENT_TIMESTAMP` and `DEFAULT (datetime('now'))` are functionally identical (same stored format). Legacy v13 DBs carry the `(datetime('now'))` DDL even though the desired schema now uses `CURRENT_TIMESTAMP` — this cosmetic mismatch is acceptable and does not require a rebuild. Only fail the comparison on real structural differences (missing/extra columns, different types, different constraints).
 
 ### `/query` - Direct SQL Access
 

@@ -174,7 +174,7 @@ def create_schema(conn):
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL REFERENCES sessions(id),
-            timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+            timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             role TEXT NOT NULL,
             content TEXT,
             metadata TEXT
@@ -188,8 +188,8 @@ def create_schema(conn):
             title TEXT NOT NULL,
             domain TEXT NOT NULL CHECK(domain IN ('personal', 'professional', 'preferences', 'interests', 'knowledge', 'technical', 'workflow')),
             tags TEXT NOT NULL,
-            created TEXT NOT NULL DEFAULT (datetime('now')),
-            updated TEXT NOT NULL DEFAULT (datetime('now'))
+            created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     """
     )
@@ -199,8 +199,8 @@ def create_schema(conn):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             topic_id INTEGER NOT NULL REFERENCES topics(id),
             claim TEXT NOT NULL,
-            created TEXT NOT NULL DEFAULT (datetime('now')),
-            updated TEXT NOT NULL DEFAULT (datetime('now'))
+            created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     """
     )
@@ -214,8 +214,8 @@ def create_schema(conn):
             priority TEXT NOT NULL DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high')),
             horizon TEXT NOT NULL DEFAULT 'later' CHECK(horizon IN ('now', 'soon', 'later')),
             metadata TEXT,
-            created TEXT NOT NULL DEFAULT (datetime('now')),
-            updated TEXT NOT NULL DEFAULT (datetime('now'))
+            created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     """
     )
@@ -225,7 +225,7 @@ def create_schema(conn):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             task_id INTEGER NOT NULL REFERENCES tasks(id),
             content TEXT NOT NULL,
-            timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+            timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     """
     )
