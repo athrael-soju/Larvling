@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.30](https://github.com/athrael-soju/larvling/compare/v0.1.29...v0.1.30) (2026-06-01)
+
+
+### Features
+
+* enhance SQL query guidance with best practices for result shaping and aggregation ([05f1cdf](https://github.com/athrael-soju/larvling/commit/05f1cdf1ff7ae05493654703051eb1777bece1d7))
+
 ## [0.1.29](https://github.com/athrael-soju/larvling/compare/v0.1.28...v0.1.29) (2026-06-01)
 
 
