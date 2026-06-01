@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.31](https://github.com/athrael-soju/larvling/compare/v0.1.30...v0.1.31) (2026-06-01)
+
+
+### Features
+
+* refine SQL query guidance to emphasize scoping and error handling for oversized results ([edc2a36](https://github.com/athrael-soju/larvling/commit/edc2a36dacd26179347c8bfc70d909f7af6392b1))
+
 ## [0.1.30](https://github.com/athrael-soju/larvling/compare/v0.1.29...v0.1.30) (2026-06-01)
 
 
