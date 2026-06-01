@@ -307,36 +307,40 @@ def get_session_context():
                 "CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END"
             ).fetchall()
             if open_tasks:
-                LIST_ALL_MAX = 30   # at/below this, show every task (healthy DBs)
-                BRIEF_TOP_N = 12    # above it, show this many under a rollup
+                LIST_ALL_MAX = 30   # at/below this total, show every task (healthy DBs)
+                NOW_LIST_MAX = 40   # ceiling for the 'now' list; only a pathological pile hits it
                 if total_open <= LIST_ALL_MAX:
                     lines.append(f"## Open Tasks ({total_open})")
                     for t in open_tasks:
                         lines.append(f"- [{t['priority']}/{t['horizon']}] {t['title']}")
                 else:
+                    # Too many to list in full. Emit the shape (a rollup -- never capped),
+                    # then list the actionable 'now' horizon COMPLETELY: bounded by urgency,
+                    # not an arbitrary count, so "what's on the agenda" is answerable from
+                    # context without a query. 'soon'/'later' stay rolled up; the agent
+                    # scopes into them on demand. Only a pathologically large 'now' pile
+                    # falls back to a pointer (the "unless excessive" carve-out).
                     order = ("now", "soon", "later")
-                    by_h = {h: 0 for h in order}
-                    high_by_h = {h: 0 for h in order}
+                    buckets = {h: [] for h in order}
                     for t in open_tasks:
-                        h = t["horizon"] if t["horizon"] in by_h else "later"
-                        by_h[h] += 1
-                        if t["priority"] == "high":
-                            high_by_h[h] += 1
+                        h = t["horizon"] if t["horizon"] in buckets else "later"
+                        buckets[h].append(t)
                     parts = []
                     for h in order:
-                        if not by_h[h]:
+                        n = len(buckets[h])
+                        if not n:
                             continue
-                        seg = f"{h}: {by_h[h]}"
-                        if high_by_h[h]:
-                            seg += f" ({high_by_h[h]} high)"
-                        parts.append(seg)
+                        n_high = sum(1 for t in buckets[h] if t["priority"] == "high")
+                        parts.append(f"{h}: {n}" + (f" ({n_high} high)" if n_high else ""))
                     lines.append(f"## Open Tasks ({total_open}) - {' | '.join(parts)}")
-                    for t in open_tasks[:BRIEF_TOP_N]:
-                        lines.append(f"- [{t['priority']}/{t['horizon']}] {t['title']}")
-                    lines.append(
-                        f"(+{total_open - BRIEF_TOP_N} more - scope with a filter, "
-                        "e.g. horizon='now' or priority='high'; don't dump the table)"
-                    )
+                    now_tasks = buckets["now"]
+                    if 0 < len(now_tasks) <= NOW_LIST_MAX:
+                        for t in now_tasks:
+                            lines.append(f"- [{t['priority']}/now] {t['title']}")
+                        lines.append("(now listed in full; query a scope for soon/later detail)")
+                    else:
+                        hint = "horizon='now'" if now_tasks else "horizon='soon'"
+                        lines.append(f"(query a scope for detail, e.g. {hint} or priority='high')")
                 lines.append("")
 
         # Fallback: if no summaries, show recent data
