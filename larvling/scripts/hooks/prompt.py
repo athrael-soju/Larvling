@@ -127,9 +127,14 @@ def inject_context(conn, session_id):
             f"\n## Knowledge Context\n"
             f"{topic_count} topic(s), {stmt_count} statement(s). "
             f'query: {py} "{query_script}" "<SQL>"\n'
-            f"When the question depends on stored knowledge, recall it and weave it in. "
-            f"Prefer `/recall <term>`; for raw SQL, filter by keyword "
-            f"(claim/title/tags LIKE) and add a LIMIT — never bulk-select or dump statements."
+            "When the answer depends on stored knowledge not already in context, "
+            "retrieve it and weave it in. Prefer `/recall <term>`; use raw SQL only "
+            "for aggregates/joins it can't do. SQL hits large tables (statements, "
+            "tasks, messages) — so select only the columns you need (`substr(claim,1,160)` "
+            "for long text), filter narrowly, add a small `LIMIT` (~5-10), and run one "
+            "query then read it before widening. Use `COUNT`/`GROUP BY` for overviews. "
+            "Table output is capped ~16KB; a 'showing N of M rows' footer means narrow "
+            "the query (or pass `--full`)."
         )
         print(text)
 
