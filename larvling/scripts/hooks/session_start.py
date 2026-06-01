@@ -291,7 +291,11 @@ def get_session_context():
             )
             lines.append("")
 
-        # Open tasks at session start
+        # Open tasks at session start. Keep this a *bounded briefing*, not a dump:
+        # listing every open task floods context and (ironically) nudges the agent to
+        # re-query to filter it, which on a big table trips the query.py refusal. At or
+        # below a threshold, list them all (unchanged for healthy DBs); above it, inject
+        # a rollup + the top slice and point at a scoped query for the rest.
         if has_table(conn, "tasks"):
             total_open = conn.execute(
                 "SELECT COUNT(*) FROM tasks WHERE status = 'open'"
@@ -299,13 +303,40 @@ def get_session_context():
             open_tasks = conn.execute(
                 "SELECT id, title, priority, horizon FROM tasks "
                 "WHERE status = 'open' "
-                "ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, "
-                "CASE horizon WHEN 'now' THEN 1 WHEN 'soon' THEN 2 ELSE 3 END"
+                "ORDER BY CASE horizon WHEN 'now' THEN 1 WHEN 'soon' THEN 2 ELSE 3 END, "
+                "CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END"
             ).fetchall()
             if open_tasks:
-                lines.append(f"## Open Tasks ({total_open})")
-                for t in open_tasks:
-                    lines.append(f"- [{t['priority']}/{t['horizon']}] {t['title']}")
+                LIST_ALL_MAX = 30   # at/below this, show every task (healthy DBs)
+                BRIEF_TOP_N = 12    # above it, show this many under a rollup
+                if total_open <= LIST_ALL_MAX:
+                    lines.append(f"## Open Tasks ({total_open})")
+                    for t in open_tasks:
+                        lines.append(f"- [{t['priority']}/{t['horizon']}] {t['title']}")
+                else:
+                    order = ("now", "soon", "later")
+                    by_h = {h: 0 for h in order}
+                    high_by_h = {h: 0 for h in order}
+                    for t in open_tasks:
+                        h = t["horizon"] if t["horizon"] in by_h else "later"
+                        by_h[h] += 1
+                        if t["priority"] == "high":
+                            high_by_h[h] += 1
+                    parts = []
+                    for h in order:
+                        if not by_h[h]:
+                            continue
+                        seg = f"{h}: {by_h[h]}"
+                        if high_by_h[h]:
+                            seg += f" ({high_by_h[h]} high)"
+                        parts.append(seg)
+                    lines.append(f"## Open Tasks ({total_open}) - {' | '.join(parts)}")
+                    for t in open_tasks[:BRIEF_TOP_N]:
+                        lines.append(f"- [{t['priority']}/{t['horizon']}] {t['title']}")
+                    lines.append(
+                        f"(+{total_open - BRIEF_TOP_N} more - scope with a filter, "
+                        "e.g. horizon='now' or priority='high'; don't dump the table)"
+                    )
                 lines.append("")
 
         # Fallback: if no summaries, show recent data
