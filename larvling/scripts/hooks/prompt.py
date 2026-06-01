@@ -127,7 +127,9 @@ def inject_context(conn, session_id):
             f"\n## Knowledge Context\n"
             f"{topic_count} topic(s), {stmt_count} statement(s). "
             f'query: {py} "{query_script}" "<SQL>"\n'
-            f"Search for relevant knowledge and weave it into your response naturally."
+            f"When the question depends on stored knowledge, recall it and weave it in. "
+            f"Prefer `/recall <term>`; for raw SQL, filter by keyword "
+            f"(claim/title/tags LIKE) and add a LIMIT — never bulk-select or dump statements."
         )
         print(text)
 
