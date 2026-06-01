@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.28](https://github.com/athrael-soju/larvling/compare/v0.1.27...v0.1.28) (2026-06-01)
+
+
+### Features
+
+* enhance query output formatting with cell truncation and whitespace handling ([933713a](https://github.com/athrael-soju/larvling/commit/933713ae71657e147fbbb4bf1b6110f82ec68324))
+
 ## [0.1.27](https://github.com/athrael-soju/larvling/compare/v0.1.26...v0.1.27) (2026-06-01)
 
 
