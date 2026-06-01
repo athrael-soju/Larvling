@@ -2,10 +2,15 @@
 Larvling Query - run arbitrary SQL against larvling.db.
 
 Usage:
-    python query.py "SQL"               # table output (cells <=200 chars, total <=~16KB)
+    python query.py "SQL"               # table output; REFUSES (errors) if the result exceeds ~16KB
     python query.py "SQL" --json        # JSON output (full, uncapped)
-    python query.py "SQL" --full        # table output, no cell or size cap
+    python query.py "SQL" --full        # table output, no cell or size cap (prints everything)
     python query.py "SQL" --read-only   # reject non-SELECT statements
+
+The default table mode does not truncate. If a query would return more than
+~16KB of table, query.py refuses and tells you to re-scope (WHERE/GROUP BY/
+LIMIT) or pass --full — a truncated table reads like a complete answer and
+invites summarizing a partial result, so we error instead of trimming.
 """
 
 import json
@@ -19,19 +24,17 @@ MAX_CELL_CHARS = 200
 MAX_TABLE_CHARS = 16000
 
 
-def format_table(rows, max_cell=MAX_CELL_CHARS, max_chars=MAX_TABLE_CHARS):
+def format_table(rows, max_cell: int | None = MAX_CELL_CHARS):
     """Format rows as an aligned text table.
 
-    Two independent caps keep output bounded so a careless query can't
-    flood the caller:
+    Each value is collapsed to one line and truncated at ``max_cell`` chars
+    (pass ``None`` to disable) so one oversized value can't pad every row out
+    to its width.
 
-    * ``max_cell`` — each value is collapsed to one line and truncated
-      (with an ellipsis) so one oversized value can't pad every row out
-      to its width.
-    * ``max_chars`` — total table size; once exceeded, remaining rows are
-      omitted with a footer telling the caller to narrow or use --full.
-
-    Pass ``None`` for either to disable that cap.
+    There is no row cap — every row is rendered. Callers that care about total
+    size measure ``len()`` of the result and decide whether to refuse (see
+    ``main()``). We deliberately never drop rows: a truncated table reads like
+    a complete answer and invites the caller to summarize a partial result.
     """
     if not rows:
         return "No rows returned."
@@ -53,31 +56,12 @@ def format_table(rows, max_cell=MAX_CELL_CHARS, max_chars=MAX_TABLE_CHARS):
             widths[k] = max(widths[k], len(s))
         str_rows.append(str_row)
 
-    # Header
     header = "  ".join(k.ljust(widths[k]) for k in keys)
     sep = "  ".join("-" * widths[k] for k in keys)
     lines = [header, sep]
-
-    # Emit rows until the total-size budget is hit. Always show at least
-    # one data row so a single very wide row still returns something.
-    total = len(header) + len(sep) + 2
-    shown = 0
     for sr in str_rows:
-        line = "  ".join(sr[k].ljust(widths[k]) for k in keys)
-        if max_chars is not None and shown >= 1 and total + len(line) + 1 > max_chars:
-            break
-        lines.append(line)
-        total += len(line) + 1
-        shown += 1
-
-    if shown < len(str_rows):
-        lines.append(
-            f"\n… showing {shown} of {len(str_rows)} rows "
-            f"({len(str_rows) - shown} omitted to stay under the output cap). "
-            f"Narrow with LIMIT/WHERE, or pass --full."
-        )
-    else:
-        lines.append(f"\n({len(str_rows)} rows)")
+        lines.append("  ".join(sr[k].ljust(widths[k]) for k in keys))
+    lines.append(f"\n({len(str_rows)} rows)")
     return "\n".join(lines)
 
 
@@ -109,12 +93,26 @@ def main():
             rows = cursor.fetchall()
             if as_json:
                 print(json.dumps([dict(r) for r in rows], indent=2, default=str))
+            elif full:
+                print(format_table(rows, max_cell=None))
             else:
-                print(format_table(
-                    rows,
-                    max_cell=None if full else MAX_CELL_CHARS,
-                    max_chars=None if full else MAX_TABLE_CHARS,
-                ))
+                table = format_table(rows)
+                # Refuse rather than truncate. A truncated table looks like a
+                # complete answer; an error can't be mistaken for one. The
+                # caller must re-scope (WHERE/GROUP BY/LIMIT) or opt into --full.
+                if len(table) > MAX_TABLE_CHARS:
+                    print(
+                        f"Query returned {len(rows)} rows (~{len(table) // 1000}KB formatted), "
+                        f"over the ~{MAX_TABLE_CHARS // 1000}KB output cap -- too much to read usefully.\n"
+                        f"No rows printed. Re-scope the query instead of working from a partial result:\n"
+                        f"  - Filter to what you need:    add WHERE (e.g. horizon='now', domain='...')\n"
+                        f"  - For an overview, aggregate: SELECT col, COUNT(*) ... GROUP BY col\n"
+                        f"  - Or bound it:                add LIMIT\n"
+                        f"  - Need literally every row:   re-run with --full",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+                print(table)
         else:
             conn.commit()
             print(f"{cursor.rowcount} row(s) affected.")

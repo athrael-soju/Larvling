@@ -77,11 +77,12 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
   - assistant messages: `{"tool_calls": {<tool>: <count>}, "usage": {input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens, ...}}`
   - system messages: analysis telemetry
 
-**Query shape is your responsibility, not the tool's.** `query.py` is a pass-through executor — it runs whatever SQL you write, with no fixed template or required shape. So choosing a sane shape is on you:
+**Let the question scope the query.** `query.py` is a pass-through executor — it runs whatever SQL you write, with no template or required shape, so choosing a sane one is on you. Before writing SQL, read the scope out of the question and put it in a `WHERE`:
 
-- **Overviews → aggregate.** Use `COUNT`/`GROUP BY`, never a full-table scan. A rollup returns a handful of rows and can't be truncated. A "what's open / what's on my plate" briefing is an aggregate, not a row dump — and the open-task list is often already in the SessionStart context, so check there before querying at all.
-- **Detail → narrow + bounded.** Select only the columns you need (`substr(claim,1,160)` for long text), filter with `WHERE`, add a small `LIMIT`.
-- **Full dump → opt in explicitly.** Only `SELECT *` without a `LIMIT` when you truly need every row, and pass `--full`. Without it, an oversized result is silently truncated to ~16KB and the omitted rows just vanish — never draw conclusions from a result whose footer says "showing N of M". Re-run as an aggregate or with `--full` first.
+- **A scoped question is a `WHERE`.** "Today / now" → `horizon='now'`. "This project" → `domain='…'`. "High priority" → `priority='high'`. The question usually hands you the filter for free — a bare `SELECT … WHERE status='open'` means you haven't decided what you're actually asking.
+- **An overview is an aggregate.** "How many / what's the shape" → `COUNT`/`GROUP BY`, which returns a handful of rows. For "what's on my plate / agenda" the open-task list is often **already in the SessionStart context** — read that and synthesize before querying at all.
+- **Detail is narrow + bounded.** Select only the columns you need (`substr(claim,1,160)` for long text), filter with `WHERE`, add a small `LIMIT`.
+- **"Everything" is the only case for a full scan** — and then pass `--full` on purpose. The default table mode does **not** truncate: a query whose output would exceed ~16KB is **refused with an error** telling you to re-scope. You can never accidentally summarize a partial result, because no partial result is returned. Re-scope (WHERE/GROUP BY/LIMIT) or opt into `--full`.
 
 **Examples:**
 
