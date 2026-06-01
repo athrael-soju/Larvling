@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/athrael-soju/larvling/compare/v0.1.28...v0.1.29) (2026-06-01)
+
+
+### Features
+
+* improve SQL query output handling with enhanced size limits and formatting ([050a3a2](https://github.com/athrael-soju/larvling/commit/050a3a2ec57903f27801ebf18bb1cd59bd65a786))
+
 ## [0.1.28](https://github.com/athrael-soju/larvling/compare/v0.1.27...v0.1.28) (2026-06-01)
 
 
