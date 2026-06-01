@@ -80,7 +80,10 @@ Read the exchange and list what is worth extracting. Do NOT assign actions yet.
 concepts) — NOT code-level implementation details
   - Ask: "Is this useful?" If not, do not include it.
   - Prefer fewer, higher-quality items over many low-value ones.
-- **Task candidates**: commitments, TODOs, or progress on existing tasks.
+- **Task candidates**: durable commitments and TODOs that outlive this exchange, \
+plus progress on — or completion of — existing tasks. If the exchange shows an open \
+task was finished, that is an `update_task → done` candidate; record it so completed \
+work leaves the open list instead of lingering until the next tidy.
 - **Session tags**: topics/themes from this exchange (1-4 words each, max ~8 tags).
 
 ### Phase 2 — Dedup check (mandatory)
@@ -89,7 +92,12 @@ For EACH knowledge candidate, run at least one query against topics and statemen
 to check for overlap. Use LIKE queries on title and claim columns.
 
 For EACH task candidate, run at least one query against tasks and their updates \
-to check for overlap.
+to check for overlap — and query ALL statuses, not just open ones \
+(e.g. `SELECT id, title, status FROM tasks WHERE title LIKE '%...%'`). A task with \
+`status='dropped'` was deliberately retired, and one with `status='done'` is already \
+complete: treat both as tombstones. If a candidate resembles a dropped or done task, \
+`skip` it — never recreate or reopen retired work unless the user explicitly asked for \
+it again in this exchange.
 
 For session tags, query the current session's tags:
 `SELECT tags FROM sessions WHERE id = '{session_id}'`
@@ -111,7 +119,10 @@ Based on your query results from Phase 2, assign an action for each candidate.
 Never delete data. To retire knowledge, update the statement or topic instead.
 
 **Task actions:**
-- **add_task**: new commitment/TODO not yet tracked — create a new task
+- **add_task**: a durable commitment that outlives this exchange and is not tracked \
+in ANY status — create a new task. Do NOT mint a task for a passing aside or an \
+intention that was already resolved within this same exchange, and never create one \
+that matches a `dropped` or `done` task (that resurrects retired work — `skip` instead)
 - **add_update**: genuinely new context, progress, or notes about an existing task (include "task_id"). If the same fact is already recorded in updates, skip instead.
 - **update_task**: change status/priority/horizon on an existing task (include "task_id"); also records the reason as an update entry
 - **skip**: task already tracked and no new information — do NOT include it in the output
@@ -491,9 +502,12 @@ def process_tasks(conn, tasks_list, session_id=None):
             _skip(session_id, action, "invalid horizon", horizon=horizon)
             continue
 
-        # Dedup: skip if open task with same title exists
+        # Dedup: skip if a task with this title exists in ANY status. An open match
+        # is a duplicate; a 'dropped' or 'done' match is a tombstone — re-adding it
+        # would resurrect retired work. Reopening must go through update_task, never
+        # an automatic insert. (Prompt enforces this fuzzily; this is the hard floor.)
         if conn.execute(
-            "SELECT 1 FROM tasks WHERE title = ? AND status = 'open'",
+            "SELECT 1 FROM tasks WHERE title = ? AND status IN ('open', 'dropped', 'done')",
             (title,),
         ).fetchone():
             continue
