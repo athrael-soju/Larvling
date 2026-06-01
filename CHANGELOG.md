@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.33](https://github.com/athrael-soju/larvling/compare/v0.1.32...v0.1.33) (2026-06-01)
+
+
+### Bug Fixes
+
+* list the now-horizon in full at session start ([9276daa](https://github.com/athrael-soju/larvling/commit/9276daa881704926cdd4b35add06558b015ab2f8))
+* size query results to the question, not a reflexive LIMIT ([75c27b9](https://github.com/athrael-soju/larvling/commit/75c27b9d2135a7c0273adb290dd7e4e3a2d946d5))
+
 ## [0.1.32](https://github.com/athrael-soju/larvling/compare/v0.1.31...v0.1.32) (2026-06-01)
 
 
