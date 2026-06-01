@@ -80,15 +80,15 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 **Let the question scope the query.** `query.py` is a pass-through executor — it runs whatever SQL you write, with no template or required shape, so choosing a sane one is on you. Before writing SQL, read the scope out of the question and put it in a `WHERE`:
 
 - **A scoped question is a `WHERE`.** "Today / now" → `horizon='now'`. "This project" → `domain='…'`. "High priority" → `priority='high'`. The question usually hands you the filter for free — a bare `SELECT … WHERE status='open'` means you haven't decided what you're actually asking.
-- **An overview is an aggregate.** "How many / what's the shape" → `COUNT`/`GROUP BY`, which returns a handful of rows. For "what's on my plate / agenda" the open-task list is often **already in the SessionStart context** — read that and synthesize before querying at all.
-- **Detail is narrow + bounded.** Select only the columns you need (`substr(claim,1,160)` for long text), filter with `WHERE`, add a small `LIMIT`.
+- **An overview is an aggregate.** "How many / what's the shape" → `COUNT`/`GROUP BY`, which returns a handful of rows. For "what's on my plate / agenda" your `now` tasks are **already in the SessionStart context** (listed in full, with a rollup of `soon`/`later`) — read those and synthesize; query only to drill past what it shows.
+- **Detail is sized to the question.** Select only the columns you need (`substr(claim,1,160)` for long text) and filter with `WHERE`; let the question's scope decide how many rows come back. Add a `LIMIT` only when the answer would otherwise be excessive — not by reflex. "Show me the 3 newest" wants `LIMIT 3`; "list my open `now` tasks" wants all of them.
 - **"Everything" is the only case for a full scan** — and then pass `--full` on purpose. The default table mode does **not** truncate: a query whose output would exceed ~16KB is **refused with an error** telling you to re-scope. You can never accidentally summarize a partial result, because no partial result is returned. Re-scope (WHERE/GROUP BY/LIMIT) or opt into `--full`.
 
 **Examples:**
 
 ```
 /query "SELECT horizon, priority, COUNT(*) AS n FROM tasks WHERE status='open' GROUP BY horizon, priority"   -- briefing: bounded rollup, can't truncate
-/query "SELECT id, title, horizon FROM tasks WHERE status='open' AND horizon='now' ORDER BY priority LIMIT 10"   -- drill into one slice
+/query "SELECT id, title, horizon FROM tasks WHERE status='open' AND horizon='now' ORDER BY priority"   -- drill into the 'now' slice: the scope bounds it, no LIMIT
 /query "SELECT t.id, t.title, substr(s.claim,1,160) AS claim FROM topics t JOIN statements s ON s.topic_id=t.id WHERE s.claim LIKE '%deploy%' LIMIT 10"   -- keyword search, narrowed cells
 /query "SELECT id, title, agent_summary FROM sessions WHERE agent_summary IS NOT NULL ORDER BY started_at DESC LIMIT 5"
 /query "SELECT id, role, substr(content,1,160) AS content FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
@@ -109,7 +109,7 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
 
 Larvling stores persistent knowledge in the `topics` + `statements` tables, and action items in the `tasks` + `updates` tables. Multiple mechanisms handle data extraction:
 
-**UserPromptSubmit → Knowledge Context (read):** The `## Knowledge Context` directive prints on every exchange with the `query.py` path and topic/statement counts. When the question depends on stored knowledge, recall it and weave it in — but keep reads bounded: prefer the `/recall <term>` skill, or a keyword-filtered query (`claim`/`title`/`tags LIKE`) with a small `LIMIT`. Don't run an unfiltered `SELECT ... FROM statements`, pull whole topics/domains, or dump the table to a file; narrow the keyword instead of widening the pull. When there's a `Last learned:` line, the previous exchange produced new knowledge — mention it naturally if relevant to the conversation.
+**UserPromptSubmit → Knowledge Context (read):** The `## Knowledge Context` directive prints on every exchange with the `query.py` path and topic/statement counts. When the question depends on stored knowledge, recall it and weave it in — but keep reads bounded: prefer the `/recall <term>` skill, or a keyword-filtered query (`claim`/`title`/`tags LIKE`) sized to the question — add a `LIMIT` only if the keyword is broad enough to match a lot. Don't run an unfiltered `SELECT ... FROM statements`, pull whole topics/domains, or dump the table to a file; narrow the keyword instead of widening the pull. When there's a `Last learned:` line, the previous exchange produced new knowledge — mention it naturally if relevant to the conversation.
 
 **Stop → Unified analysis (write):** `analyze.py` runs as a command hook after every response, calling `sdk.py` (`call_model()`) for Agent SDK integration. The extraction agent has Bash tool access to query all 6 tables for dedup — given the full schema, it decides what queries to run. A single SDK call extracts multiple data types from the last exchange:
 - **Knowledge** → `topics` + `statements` tables (hierarchical: topic groups related statements). Actions: `add_topic`, `add_statement`, `update_statement`, `update_topic`.

@@ -17,7 +17,7 @@ disable-model-invocation: true
 - `tasks.metadata` — optional; `{"source_session_id": "<sid>"}` from `add_task` when a session id is known, else NULL
 - `messages.metadata` — user: `{"cwd", "permission_mode", "usage": {...}}`; assistant: `{"tool_calls": {<tool>: <count>}, "usage": {...}}`; system: analysis telemetry
 
-`query.py` runs your SQL as-is — no template, no required shape. Let the question scope the query: "today/now" → `horizon='now'`, "overview/how many" → `COUNT`/`GROUP BY`, detail → narrow columns (`substr(claim,1,160)` for long text) + a small `LIMIT`. Table mode does **not** truncate — a result over ~16KB is refused with an error asking you to re-scope; pass `--full` only when you genuinely want every row.
+`query.py` runs your SQL as-is — no template, no required shape. Let the question scope the query: "today/now" → `horizon='now'`, "overview/how many" → `COUNT`/`GROUP BY`, detail → narrow columns (`substr(claim,1,160)` for long text), sized to what's asked — add a `LIMIT` only when the result would otherwise be excessive, not by reflex. Table mode does **not** truncate — a result over ~16KB is refused with an error asking you to re-scope; pass `--full` only when you genuinely want every row.
 
 Execute the SQL directly. Append `--json` for JSON output.
 
