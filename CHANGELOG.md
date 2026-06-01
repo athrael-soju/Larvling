@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.32](https://github.com/athrael-soju/larvling/compare/v0.1.31...v0.1.32) (2026-06-01)
+
+
+### Bug Fixes
+
+* bound SessionStart open-task injection to a briefing ([f4d0757](https://github.com/athrael-soju/larvling/commit/f4d07574fa9742b33e39141784ad309fbbc6a585))
+* make dropped/done tasks tombstones to stop resurrection ([ff021ac](https://github.com/athrael-soju/larvling/commit/ff021ac54aad142083fbeef573e8fe4ad3f7d02b))
+
 ## [0.1.31](https://github.com/athrael-soju/larvling/compare/v0.1.30...v0.1.31) (2026-06-01)
 
 
