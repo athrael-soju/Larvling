@@ -2,8 +2,9 @@
 Larvling Query - run arbitrary SQL against larvling.db.
 
 Usage:
-    python query.py "SQL"               # run SQL, table output
-    python query.py "SQL" --json        # run SQL, JSON output
+    python query.py "SQL"               # run SQL, table output (cells truncated to 200 chars)
+    python query.py "SQL" --json        # run SQL, JSON output (full, untruncated)
+    python query.py "SQL" --full        # table output without cell truncation
     python query.py "SQL" --read-only   # reject non-SELECT statements
 """
 
@@ -14,8 +15,17 @@ import sys
 from db import open_db, require_db, reconfigure_stdout
 
 
-def format_table(rows):
-    """Format rows as an aligned text table."""
+MAX_CELL_CHARS = 200
+
+
+def format_table(rows, max_cell=MAX_CELL_CHARS):
+    """Format rows as an aligned text table.
+
+    Long values are collapsed to a single line and truncated to
+    ``max_cell`` characters (with an ellipsis), so one oversized value
+    (e.g. a 2k-char statement claim) can't pad every row out to its
+    width and balloon the output. Pass ``max_cell=None`` to disable.
+    """
     if not rows:
         return "No rows returned."
 
@@ -28,6 +38,10 @@ def format_table(rows):
         for k in keys:
             val = row[k]
             s = "" if val is None else str(val)
+            # Collapse whitespace/newlines so multi-line values stay aligned.
+            s = " ".join(s.split())
+            if max_cell is not None and len(s) > max_cell:
+                s = s[: max_cell - 1] + "…"
             str_row[k] = s
             widths[k] = max(widths[k], len(s))
         str_rows.append(str_row)
@@ -54,6 +68,7 @@ def main():
     sql = sys.argv[1]
     as_json = "--json" in sys.argv
     read_only = "--read-only" in sys.argv
+    full = "--full" in sys.argv
 
     require_db()
 
@@ -72,7 +87,7 @@ def main():
             if as_json:
                 print(json.dumps([dict(r) for r in rows], indent=2, default=str))
             else:
-                print(format_table(rows))
+                print(format_table(rows, max_cell=None if full else MAX_CELL_CHARS))
         else:
             conn.commit()
             print(f"{cursor.rowcount} row(s) affected.")
