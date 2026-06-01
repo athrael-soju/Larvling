@@ -77,14 +77,20 @@ Use `/query` to run any SQL against larvling.db. Claude writes the SQL based on 
   - assistant messages: `{"tool_calls": {<tool>: <count>}, "usage": {input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens, ...}}`
   - system messages: analysis telemetry
 
+**Query shape is your responsibility, not the tool's.** `query.py` is a pass-through executor — it runs whatever SQL you write, with no fixed template or required shape. So choosing a sane shape is on you:
+
+- **Overviews → aggregate.** Use `COUNT`/`GROUP BY`, never a full-table scan. A rollup returns a handful of rows and can't be truncated. A "what's open / what's on my plate" briefing is an aggregate, not a row dump — and the open-task list is often already in the SessionStart context, so check there before querying at all.
+- **Detail → narrow + bounded.** Select only the columns you need (`substr(claim,1,160)` for long text), filter with `WHERE`, add a small `LIMIT`.
+- **Full dump → opt in explicitly.** Only `SELECT *` without a `LIMIT` when you truly need every row, and pass `--full`. Without it, an oversized result is silently truncated to ~16KB and the omitted rows just vanish — never draw conclusions from a result whose footer says "showing N of M". Re-run as an aggregate or with `--full` first.
+
 **Examples:**
 
 ```
-/query "SELECT t.id, t.title, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id"
-/query "SELECT t.id, t.title, s.claim FROM topics t JOIN statements s ON s.topic_id = t.id WHERE s.claim LIKE '%deploy%' OR t.tags LIKE '%ci%'"
+/query "SELECT horizon, priority, COUNT(*) AS n FROM tasks WHERE status='open' GROUP BY horizon, priority"   -- briefing: bounded rollup, can't truncate
+/query "SELECT id, title, horizon FROM tasks WHERE status='open' AND horizon='now' ORDER BY priority LIMIT 10"   -- drill into one slice
+/query "SELECT t.id, t.title, substr(s.claim,1,160) AS claim FROM topics t JOIN statements s ON s.topic_id=t.id WHERE s.claim LIKE '%deploy%' LIMIT 10"   -- keyword search, narrowed cells
 /query "SELECT id, title, agent_summary FROM sessions WHERE agent_summary IS NOT NULL ORDER BY started_at DESC LIMIT 5"
-/query "SELECT * FROM tasks WHERE status = 'open' ORDER BY priority"
-/query "SELECT * FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
+/query "SELECT id, role, substr(content,1,160) AS content FROM messages WHERE content LIKE '%auth%' LIMIT 10" --json
 ```
 
 **Quick Column Reference:**

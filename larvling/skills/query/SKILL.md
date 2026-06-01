@@ -17,6 +17,8 @@ disable-model-invocation: true
 - `tasks.metadata` — optional; `{"source_session_id": "<sid>"}` from `add_task` when a session id is known, else NULL
 - `messages.metadata` — user: `{"cwd", "permission_mode", "usage": {...}}`; assistant: `{"tool_calls": {<tool>: <count>}, "usage": {...}}`; system: analysis telemetry
 
+`query.py` runs your SQL as-is — no template, no required shape. Choose the shape deliberately: for overviews prefer `COUNT`/`GROUP BY`; for detail, select only the columns you need (`substr(claim,1,160)` for long text) with a small `LIMIT`. An oversized result is truncated to ~16KB — pass `--full` only when you genuinely want every row, and never reason over a result whose footer reads "showing N of M".
+
 Execute the SQL directly. Append `--json` for JSON output.
 
 ```

@@ -13,6 +13,8 @@ description: Show a quick overview of Larvling's state
 
 Gather and present a brief overview: session count, message count, topic count, statement count, task count (open/done), DB file size, and plugin version (from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`).
 
+Use `COUNT`/`GROUP BY` aggregates for every metric — e.g. `SELECT status, COUNT(*) FROM tasks GROUP BY status`. Never `SELECT *` a table and tally the rows yourself; that scans the whole table and risks truncation.
+
 Run SQL via:
 ```
 $PY "${CLAUDE_PLUGIN_ROOT}/scripts/query.py" "<SQL>"
