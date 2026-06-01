@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.27](https://github.com/athrael-soju/larvling/compare/v0.1.26...v0.1.27) (2026-06-01)
+
+
+### Features
+
+* enhance knowledge context handling in prompts with improved recall guidance ([610f2b6](https://github.com/athrael-soju/larvling/commit/610f2b6d4cec19af2a0478e765bbd9c10c04f9d1))
+
 ## [0.1.26](https://github.com/athrael-soju/larvling/compare/v0.1.25...v0.1.26) (2026-04-24)
 
 
