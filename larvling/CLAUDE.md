@@ -16,6 +16,10 @@ When the SessionStart context contains "Larvling - First Run", this is the very 
 
 When the SessionStart context contains "Larvling update available", mention it once to the user at the start of the conversation. Keep it brief - one sentence is enough. Don't repeat it later in the session.
 
+## Recording Health Warnings
+
+When the injected context contains a **Larvling recording check** or **Larvling Recording Issue** warning, recording has silently failed — either the plugin's hooks stopped running (often a broken plugin cache) or a database write threw. **Surface this to the user immediately and plainly**, before other work: tell them recording stopped and that recent sessions/exchanges may not have been saved, and suggest they reinstall the plugin (`/plugin`) or run `/status` to check. This is the one warning you must not bury — the whole point is that the user finds out now, not days later. Mention it once per session.
+
 ## During a Session
 
 Review the context Larvling injects at session start — it's your memory of what came before. Recording is automatic — just focus on the work.

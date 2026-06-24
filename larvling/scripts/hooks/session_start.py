@@ -18,6 +18,7 @@ from db import (
     reconfigure_stdout,
     get_schema_version,
 )
+from health import recording_gap, pending_failure, clear_failure
 
 CACHE_PATH = os.path.join(
     os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd(),
@@ -408,6 +409,42 @@ def check_update():
     return None
 
 
+def build_health_banner(payload):
+    """Build a recording-health warning, or None when recording looks healthy.
+
+    Covers two silent-failure modes: a run of recent sessions Claude Code
+    recorded that Larvling didn't (a broken plugin cache / hooks not running),
+    and a one-shot marker left by a hook whose DB write threw.
+    """
+    lines = []
+
+    try:
+        with open_db() as conn:
+            gap = recording_gap(conn, payload)
+    except Exception:
+        gap = 0
+    if gap:
+        lines.append(
+            f"> ⚠️ **Larvling recording check:** the last {gap} session(s) in this "
+            f"project were not recorded — Larvling's hooks may have stopped running "
+            f"(a broken plugin cache is the usual cause). Tell the user now so they "
+            f"can reinstall or check the plugin."
+        )
+
+    marker = pending_failure()
+    if marker:
+        clear_failure()
+        stage = marker.get("stage", "a recent exchange")
+        err = marker.get("error", "")
+        detail = f" ({err})" if err else ""
+        lines.append(
+            f"> ⚠️ **Larvling failed to record {stage}**{detail}. Let the user know "
+            f"that exchange may not have been saved."
+        )
+
+    return "\n".join(lines) if lines else None
+
+
 def main():
     if os.environ.get("LARVLING_INTERNAL"):
         return
@@ -432,6 +469,12 @@ def main():
     # Skip full context injection during compaction
     if matcher == "compact":
         return
+
+    # Surface recording-health warnings first so they aren't buried in context.
+    health_banner = build_health_banner(payload)
+    if health_banner:
+        print(health_banner)
+        print()
 
     print(get_session_context())
 

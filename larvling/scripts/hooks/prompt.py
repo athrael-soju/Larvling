@@ -15,6 +15,7 @@ from db import (
     log,
     PROJECT_ROOT,
 )
+from health import record_failure, pending_failure, clear_failure
 from hooks_util import read_hook_payload
 
 
@@ -213,42 +214,85 @@ def handle(data):
     # UserPromptSubmit hook but are not actual user input.
     role = "system" if prompt.startswith("<task-notification>") else "user"
 
-    with open_db() as conn:
-        ensure_session(conn, session_id)
-        record_message(conn, session_id, role, prompt, meta)
-
-        if role == "user":
-            count = conn.execute(
-                "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
-                (session_id,),
-            ).fetchone()[0]
-            if count == 1:
-                record_summary(conn, session_id, title=prompt)
-
-        conn.commit()
-
-        if role != "user":
-            log("system-passthrough", session_id)
-        else:
-            # Detect skill/command invocations:
-            # - Raw slash command: "/status", "/recall"
-            # - XML tags: <command-message>plugin:skill</command-message>
-            cmd_match = re.search(
-                r"<command-(?:message|name)>\s*/?(.+?)\s*</command-(?:message|name)>",
-                prompt,
-            )
-            if not cmd_match and re.fullmatch(r"/[\w:/-]+", prompt.strip()):
-                cmd_match = re.fullmatch(r"/([\w:/-]+)", prompt.strip())
-            if cmd_match:
-                log("skill", session_id, name=f"/{cmd_match.group(1)}")
-            else:
-                log("prompt", session_id, n=count)
-
-        if role == "user":
+    try:
+        with open_db() as conn:
+            # Critical path: persist the message. A failure here is otherwise
+            # invisible (Claude Code swallows the non-zero exit), so mark it.
             try:
-                inject_context(conn, session_id)
+                ensure_session(conn, session_id)
+                record_message(conn, session_id, role, prompt, meta)
+
+                count = 0
+                if role == "user":
+                    count = conn.execute(
+                        "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'user'",
+                        (session_id,),
+                    ).fetchone()[0]
+                    if count == 1:
+                        record_summary(conn, session_id, title=prompt)
+
+                conn.commit()
+            except Exception as e:
+                record_failure("your last message", e)
+                return
+
+            # Bookkeeping past the commit (skills, context, surfacing) is
+            # non-critical — its errors must not read as a recording failure.
+            try:
+                _record_body(conn, session_id, role, prompt, count)
             except Exception:
-                pass  # Context injection is non-critical
+                pass
+    except Exception as e:
+        # open_db itself failed — the DB is unreachable; recording did not happen.
+        record_failure("your last message", e)
+
+
+def _record_body(conn, session_id, role, prompt, count):
+    """Post-write bookkeeping: skill detection, context injection, and surfacing
+    any pending recording failure from an earlier turn."""
+    if role != "user":
+        log("system-passthrough", session_id)
+        return
+
+    # Detect skill/command invocations:
+    # - Raw slash command: "/status", "/recall"
+    # - XML tags: <command-message>plugin:skill</command-message>
+    cmd_match = re.search(
+        r"<command-(?:message|name)>\s*/?(.+?)\s*</command-(?:message|name)>",
+        prompt,
+    )
+    if not cmd_match and re.fullmatch(r"/[\w:/-]+", prompt.strip()):
+        cmd_match = re.fullmatch(r"/([\w:/-]+)", prompt.strip())
+    if cmd_match:
+        log("skill", session_id, name=f"/{cmd_match.group(1)}")
+    else:
+        log("prompt", session_id, n=count)
+
+    # Surface a recording failure from an earlier turn (near-real-time: the Stop
+    # hook that failed left a marker; this is the user's very next message).
+    _surface_pending_failure()
+
+    try:
+        inject_context(conn, session_id)
+    except Exception:
+        pass  # Context injection is non-critical
+
+
+def _surface_pending_failure():
+    """If an earlier write failed, warn the user once, then clear the marker."""
+    marker = pending_failure()
+    if not marker:
+        return
+    clear_failure()
+    stage = marker.get("stage", "a recent exchange")
+    err = marker.get("error", "")
+    detail = f" ({err})" if err else ""
+    print(
+        f"\n## ⚠️ Larvling Recording Issue\n"
+        f"Larvling failed to record {stage}{detail}. That exchange may not have "
+        f"been saved. Tell the user now so they can check the plugin (a broken "
+        f"plugin cache or DB error is the usual cause)."
+    )
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ from db import (
     record_message,
     log,
 )
+from health import record_failure
 from hooks_util import read_hook_payload
 from transcript import parse_last_turn, wait_for_transcript_stable
 
@@ -24,24 +25,30 @@ def handle(data):
 
     response, tools = parse_last_turn(transcript_path)
 
-    with open_db() as conn:
-        ensure_session(conn, session_id)
+    try:
+        with open_db() as conn:
+            ensure_session(conn, session_id)
 
-        # Log the response (if any and not a duplicate)
-        is_dup = False
-        if response:
-            row = conn.execute(
-                "SELECT content FROM messages "
-                "WHERE session_id = ? AND role = 'assistant' "
-                "ORDER BY id DESC LIMIT 1",
-                (session_id,),
-            ).fetchone()
-            is_dup = bool(row and row[0] == response)
-            if not is_dup:
-                meta = {"tool_calls": tools} if tools else None
-                record_message(conn, session_id, "assistant", response, meta)
+            # Log the response (if any and not a duplicate)
+            is_dup = False
+            if response:
+                row = conn.execute(
+                    "SELECT content FROM messages "
+                    "WHERE session_id = ? AND role = 'assistant' "
+                    "ORDER BY id DESC LIMIT 1",
+                    (session_id,),
+                ).fetchone()
+                is_dup = bool(row and row[0] == response)
+                if not is_dup:
+                    meta = {"tool_calls": tools} if tools else None
+                    record_message(conn, session_id, "assistant", response, meta)
 
-        conn.commit()
+            conn.commit()
+    except Exception as e:
+        # A failed write here is otherwise invisible (Claude Code swallows the
+        # non-zero exit). Leave a marker so the next prompt warns the user.
+        record_failure("the previous response", e)
+        return
 
     # Log response details as JSONL
     resp_data = {"chars": len(response) if response else 0, "is_dup": is_dup}
