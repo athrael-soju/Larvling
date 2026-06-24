@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.34](https://github.com/athrael-soju/larvling/compare/v0.1.33...v0.1.34) (2026-06-24)
+
+
+### Features
+
+* implement recording health checks and user notifications for silent failures ([da3482e](https://github.com/athrael-soju/larvling/commit/da3482e32e20f94430fad39ab19e93e424cbf43c))
+
 ## [0.1.33](https://github.com/athrael-soju/larvling/compare/v0.1.32...v0.1.33) (2026-06-01)
 
 
